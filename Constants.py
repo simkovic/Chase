@@ -1,6 +1,6 @@
 
 import numpy as np
-# some constants
+# some constants .
 WINDOWS=1
 LINUX=0
 MIN=0
