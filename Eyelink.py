@@ -399,7 +399,7 @@ class TrackerEyeLink():
  
     def sendCommand(self, msg):
         '''Send command to the tracker'''
-        print(msg)
+        self.sendMessage('COMMAND'+msg)
         self.tracker.sendCommand(msg)
  
     def resetEventQue(self):
@@ -476,9 +476,10 @@ class TrackerEyeLink():
         #determine which eye(s) are available
         if self.eye_used == RIGHT_EYE:
             self.tracker.sendMessage("PRETRIAL EYE_USED 1 RIGHT")
-        elif self.eye_used == LEFT_EYE or self.eye_used == BINOCULAR:
+        elif self.eye_used == LEFT_EYE 
             self.tracker.sendMessage("PRETRIAL EYE_USED 0 LEFT")
-            self.eye_used = LEFT_EYE
+        elif self.eye_used == BINOCULAR:
+            self.tracker.sendMessage("PRETRIAL EYE_USED 2 BINOCULAR")
         else:
             print "Error in getting the eye information!"
             return "ABORT_EXPT"
@@ -507,7 +508,8 @@ class TrackerEyeLink():
 #                print cmd
 #                self.sendCommand(cmd)
 #                core.wait(0.25+random.random()/2)
-            x,y=self.screenSize/2
+            print self.screenSize
+            x,y=self.screenSize/2.0
             core.wait(0.1)
             i=0
             while True:
@@ -515,11 +517,11 @@ class TrackerEyeLink():
                 sampleType = self.tracker.getNextData()
                 while sampleType != pylink.FIXUPDATE:
                     sampleType = self.tracker.getNextData()
-                    if sampleType!=200 and sampleType!=0:
-                        print 'type ', sampleType
+                    #if sampleType!=200 and sampleType!=0:
+                    #    print 'type ', sampleType
                 sample = self.tracker.getFloatData()
                 eyePos=sample.getAverageGaze()
-                print eyePos
+                self.sendMessage('eyePos %.3f %.3f'%(eyePos[0],eyePos[1]))
                
                 cond = ( (x-eyePos[0])**2+(y-eyePos[1])**2)**0.5>misc.deg2pix(3,win.monitor) and i <10
                 if not cond: break
@@ -530,7 +532,6 @@ class TrackerEyeLink():
                 self.preTrial(trial, calibTrial, win,autoDrift)
             else:
                 cmd='drift_correction %f %f %f %f' % (x-eyePos[0], y-eyePos[1],x,y)
-                print cmd
                 self.sendCommand(cmd)
                 core.wait(0.25+random.random()/2)
                 

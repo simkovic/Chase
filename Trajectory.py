@@ -1,6 +1,5 @@
 from Constants import *
 from Settings import Q
-from psychopy.misc import pix2deg
 from psychopy.event import xydist
 import numpy as np
 import random, os, pickle
@@ -375,7 +374,7 @@ def generateExperiment(vpn,nrtrials,conditions=None,dispSizes=None,maze=None,rej
 def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         dispSize=26,maze=None,probeTrials=False):
     #os.chdir('..')
-    os.chdir('input/')
+    os.chdir(Q.inputPath)
     mazes=[]
     if probeTrials: bs=range(0,blocks+1)
     else: bs=range(1,blocks+1)
@@ -549,7 +548,7 @@ if __name__ == '__main__':
     #random.seed(3)
     maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    generateMixedExperiment(range(51,52),40,blocks=4,condition=14,dispSize=26,probeTrials=True)
+    generateMixedExperiment(range(52,60),40,blocks=4,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')

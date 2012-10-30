@@ -7,7 +7,7 @@ from scipy import signal
 from scipy.interpolate import interp1d
 from datetime import datetime
 from scipy.interpolate import interp1d
-import time
+import time,os
 
 def interpRange(xold,yold,xnew):
     ynew=xnew.copy()
@@ -16,7 +16,7 @@ def interpRange(xold,yold,xnew):
         ynew[i] =f(xnew[i])
     return ynew  
 
-# TODO: bivariate gaussian filter, readTobii() for reading drift correction data
+# TODO: readTobii() for reading drift correction data
 plt.ion()
 class ETTrialData():
     LEFTEYE=1
@@ -26,9 +26,10 @@ class ETTrialData():
     SACATH=1500#4000 # acceleration threshold deg/sec^2
     FIXVTH=18#10
     FIXATH=1500#1000
-    def __init__(self,gaze,hz,eye,vp,block,trial,recTime="0:0:0",
+    def __init__(self,gaze,dcorr,hz,eye,vp,block,trial,recTime="0:0:0",
                  INTERPBLINKS=False,fcutoff=70):#70):
         self.gaze=gaze
+        self.dcorr=dcorr
         self.hz=hz
         self.eye=eye
         self.vp=vp
@@ -215,16 +216,30 @@ def pix2deg(pix,dist):
         return np.arctan((pix/37.795275591)/float(dist))*180/np.pi
 
 def readEdf(vp,block):
+    def reformat(trial,cent,tstart,distance):
+        trial=np.array(trial)
+        if type(trial) is type( () ): print 'error in readEdf'
+        trial[:,0]-=tstart
+        trial[:,1]=pix2deg(trial[:,1]-cent[0],distance)
+        trial[:,2]=-pix2deg(trial[:,2]-cent[1],distance)
+        if trial.shape[1]==7:
+            trial[:,4]=pix2deg(trial[:,4]-cent[0],distance)
+            trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
+        return trial
     cent=(0,0)
-    f=open('output/VP%03dB%d.ASC'%(vp,block),'r')
+    path = getcwd()
+    path = path.rstrip('code')
+    f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
     BLINK=False
     ende=False
     try:
         line=f.readline()
         data=[]
         trial=[]
+        dcorr=[]
         i=0
         TAKE=False
+        dcorrOn=False
         t=0
         while True:   
             words=f.readline().split()
@@ -238,6 +253,10 @@ def readEdf(vp,block):
                         break
             if len(words)>2 and words[2]=='PRETRIAL':
                 eye=words[5]
+                dcorrOn=True
+                tsdcorr=float(words[1])
+            if len(words)>2 and words[2]=='POSTTRIAL':
+                dcorrOn=False
             if len(words)==4 and words[2]=='MONITORDISTANCE':
                 distance=float(words[3])
                 #print 'dist',distance
@@ -250,43 +269,41 @@ def readEdf(vp,block):
             if len(words)>5 and words[2]=='DISPLAY_COORDS':
                 cent=(float(words[5])/2.0,float(words[6])/2.0)
             if len(words)>2 and words[2]=='START':
-                TAKE=True;tstart=float(words[1])
+                TAKE=True;tstart=float(words[1]); dcorrOn=False
                 continue
             if len(words)>2 and (words[2]=='DETECTION' or words[2]=='OMISSION'):
                 TAKE=False
-                trial=np.array(trial)
-                #print t, trial.shape
-                trial[:,0]-=tstart
-                trial[:,1]=pix2deg(trial[:,1]-cent[0],distance)
-                trial[:,2]=-pix2deg(trial[:,2]-cent[1],distance)
-                if trial.shape[1]==7:
-                    trial[:,4]=pix2deg(trial[:,4]-cent[0],distance)
-                    trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
-                et=ETTrialData(trial,hz,eye,vp,block,t)
+                trial = reformat(trial,cent,tstart,distance)
+                dcorr = reformat(dcorr,cent,tsdcorr,distance)
+                et=ETTrialData(trial,dcorr,hz,eye,vp,block,t)
                 data.append(et)
                 t+=1
                 trial=[]
+                dcorr=[]
                 continue
             if words[0]=='SBLINK':
                 BLINK=True
             if words[0]=='EBLINK':
                 BLINK=False
             
-            if not TAKE: continue
+            if not TAKE and not dcorrOn: continue
             if BLINK:
                 trial.append([np.nan]*size)
                 continue
                 
             try:
                 if len(words)>5:
-                    size=7
-                    trial.append((float(words[0]),float(words[1]),
+                    
+                    meas=(float(words[0]),float(words[1]),
                         float(words[2]),float(words[3]),
-                        float(words[4]),float(words[5]),float(words[6])))
+                        float(words[4]),float(words[5]),float(words[6]))
+                    size=7
                 else:
+                    meas=(float(words[0]),float(words[1]),
+                        float(words[2]),float(words[3]))
                     size=4
-                    trial.append((float(words[0]),float(words[1]),
-                        float(words[2]),float(words[3])))
+                if not dcorrOn: trial.append(meas)
+                else: dcorr.append(meas)
             except:
                 pass
         f.close()
@@ -507,23 +524,20 @@ if __name__ == '__main__':
         plt.show()
         plt.colorbar()
 
-
-    #data=readEdf(30,3)
-    vpn=range(30,31)#range(28,39)
-    for vp in vpn:
-        for b in range(6):
-            if vp==28 and b==0: continue
-            if vp==30 and b==3: continue
-            if vp==33 and b==0: continue
-            print vp,b
-            try:data=readEdf(vp,b)
-            except: 
-                print 'error'
-                continue
-            for t in range(len(data)):
-                d=data[t]
-                if d.gaze[-1,0]>30000:
-                    print vp,b,t,d.gaze.shape, d.gaze[-1,0]/1000.0
+    data=readEdf(40,0)
+    print data[1].dcorr.shape
+    np.save('dcorr.npy',data[1].dcorr)
+    plt.show()
+    for i in range(len(data)):
+        plt.subplot(2,10,2*i+1)
+        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,1],'g')
+        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,4],'r')
+        plt.title('X axis')
+        plt.subplot(2,10,2*i+2)
+        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,2],'g')
+        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,5],'r')
+        plt.title('Y axis')
+    
 
 
 

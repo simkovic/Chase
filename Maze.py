@@ -56,7 +56,7 @@ class Maze(np.ndarray):
         """
             Edge type may be 'flat' 0 or 'circle' 1
         """
-        mon=visual.monitors.Monitor('dell')
+        #mon=visual.monitors.Monitor(Q.monname)
         self.dispSize=np.array(dispSize)
         self.cw=self.dispSize/(np.float32(self.shape)[[0,1]])
         self.lw=self.cw[0]*lw2cwRatio
@@ -241,7 +241,7 @@ class ZbrickMaze(Maze):
                 self[i,j,Maze.H]= (i%2==1 and j%2==1 or
                     i%4==0 and j%4==0 or i%4==2 and j%4==2)
         super(ZbrickMaze, self).__init__(*args,**kwargs)
-m=EmptyMaze((1,1),(12,8))                    
+#m=EmptyMaze((1,1),(12,8))                    
 if False:#__name__ == '__main__':            
     wind=visual.Window(fullscr=False,size=(900,900),units='deg',
             color=[-1,-1,-1],winType='pyglet',monitor='dell')
