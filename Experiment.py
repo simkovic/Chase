@@ -246,7 +246,7 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiController(self.getWind(),sid=self.id,block=self.block)
+        self.etController = TobiiControllerFromOutput(self.getWind(),sid=self.id,block=self.block)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
@@ -460,10 +460,10 @@ class TobiiExperiment(BehavioralExperiment):
 
 if __name__ == '__main__':
     from Settings import Q
-    E=BehavioralExperiment()
+    #E=BehavioralExperiment()
     #E=TobiiExperiment()
     #E=Gao09Experiment()
-    #E=BabyExperiment()
+    E=BabyExperiment()
     E.run()
 
 

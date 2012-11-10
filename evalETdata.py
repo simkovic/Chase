@@ -26,10 +26,11 @@ class ETTrialData():
     SACATH=1500#4000 # acceleration threshold deg/sec^2
     FIXVTH=18#10
     FIXATH=1500#1000
-    def __init__(self,gaze,dcorr,hz,eye,vp,block,trial,recTime="0:0:0",
+    def __init__(self,gaze,dcorr,calib,hz,eye,vp,block,trial,recTime="0:0:0",
                  INTERPBLINKS=False,fcutoff=70):#70):
         self.gaze=gaze
         self.dcorr=dcorr
+        self.calib=calib
         self.hz=hz
         self.eye=eye
         self.vp=vp
@@ -230,16 +231,18 @@ def readEdf(vp,block):
     path = getcwd()
     path = path.rstrip('code')
     f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
-    BLINK=False
+    BLINK=0
     ende=False
     try:
         line=f.readline()
         data=[]
         trial=[]
         dcorr=[]
+        calib=[]
         i=0
         TAKE=False
         dcorrOn=False
+        calOn=False
         t=0
         while True:   
             words=f.readline().split()
@@ -255,8 +258,16 @@ def readEdf(vp,block):
                 eye=words[5]
                 dcorrOn=True
                 tsdcorr=float(words[1])
+            if len(words)>2 and words[2]=='!CAL':
+                if len(words)==3: calOn=True
+                elif words[3]=='VALIDATION' and not (words[5]=='ABORTED'):
+                    #print words
+                    calib.append(float(words[9]))
+                    calib.append(float(words[11]))
+                    if words[6] is 'RIGHT': calOn=False
             if len(words)>2 and words[2]=='POSTTRIAL':
-                dcorrOn=False
+                dcorrOn=False; #BLINK=0
+                dcorr=[]
             if len(words)==4 and words[2]=='MONITORDISTANCE':
                 distance=float(words[3])
                 #print 'dist',distance
@@ -275,32 +286,42 @@ def readEdf(vp,block):
                 TAKE=False
                 trial = reformat(trial,cent,tstart,distance)
                 dcorr = reformat(dcorr,cent,tsdcorr,distance)
-                et=ETTrialData(trial,dcorr,hz,eye,vp,block,t)
+                et=ETTrialData(trial,dcorr,calib,hz,eye,vp,block,t)
                 data.append(et)
                 t+=1
                 trial=[]
                 dcorr=[]
+                calib=[]
                 continue
             if words[0]=='SBLINK':
-                BLINK=True
+                BLINK+=1
             if words[0]=='EBLINK':
-                BLINK=False
+                BLINK-=1
             
             if not TAKE and not dcorrOn: continue
             if BLINK:
-                trial.append([np.nan]*size)
+                if not dcorrOn: trial.append([np.nan]*size)
+                else: dcorr.append([np.nan]*size)
                 continue
                 
             try:
                 if len(words)>5:
+                    # we check whether the data gaze position is on the screen
+                    xleft=float(words[1]); yleft=float(words[2])
+                    if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
+                        xleft=np.nan; yleft=np.nan;
+                    xright=float(words[4]); yright=float(words[5])
+                    if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
+                        xright=np.nan; yright=np.nan;
                     
-                    meas=(float(words[0]),float(words[1]),
-                        float(words[2]),float(words[3]),
-                        float(words[4]),float(words[5]),float(words[6]))
+                    meas=(float(words[0]),xleft,yleft,float(words[3]),
+                        xright,yright,float(words[6]))
                     size=7
                 else:
-                    meas=(float(words[0]),float(words[1]),
-                        float(words[2]),float(words[3]))
+                    xleft=float(words[1]); yleft=float(words[2])
+                    if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
+                        xleft=np.nan; yleft=np.nan;
+                    meas=(float(words[0]),xleft,yleft,float(words[3]))
                     size=4
                 if not dcorrOn: trial.append(meas)
                 else: dcorr.append(meas)
@@ -379,7 +400,10 @@ def readTobii(vp,block):
         Each trial starts with line '[time]\tTrial\t[nr]'
         and ends with line '[time]\tOmission'
     '''
-    f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
+    path = getcwd()
+    path = path.rstrip('/code')
+    f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
+    #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     try:
         data=[];trial=[]; theta=[];t=0
         on=False
@@ -390,6 +414,7 @@ def readTobii(vp,block):
             if not on: # collect header information
                 if len(words)==2 and  words[0]=='Monitor Distance': 
                     distance=float(words[1])
+                    #print distance
                 if len(words)==2 and words[0]=='Recording time:':
                     recTime=words[1]
                 if len(words)==2 and words[0]=='Recording refresh rate: ':
@@ -404,7 +429,7 @@ def readTobii(vp,block):
                 xleft=float(words[1]); yleft=float(words[2])
                 if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
                     xleft=np.nan; yleft=np.nan;
-                xright=float(words[1]); yright=float(words[2])
+                xright=float(words[4]); yright=float(words[5])
                 if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
                     xright=np.nan; yright=np.nan;
                 tdata=(float(words[0]),xleft,yleft,float(words[9]),
@@ -420,7 +445,7 @@ def readTobii(vp,block):
                 trial[:,2]=-pix2deg(trial[:,2]-cent[1],distance)
                 trial[:,4]=pix2deg(trial[:,4]-cent[0],distance)
                 trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
-                et=ETTrialData(trial,hz,'BOTH',vp,block,t,recTime=recTime)
+                et=ETTrialData(trial,[],[],hz,'BOTH',vp,block,t,recTime=recTime)
                 et.theta=np.array(theta);theta=[]
                 data.append(et)
                 t+=1
@@ -429,32 +454,6 @@ def readTobii(vp,block):
     except: f.close(); raise
     f.close()
     return data
-
-##d=np.loadtxt('VP001B1.csv')
-##d[d==-1]=np.nan
-##d[:,[1,4]]=pix2deg(d[:,[1,4]]-640,60)
-##d[:,[2,5]]=pix2deg(d[:,[2,5]]-512,60)
-##et=ETTrialData(d,60,3,1,1,1)
-##fix=et.getFixations()
-##plt.plot(d[:,1],d[:,2],'.b',markersize=1)
-##plt.plot(et.fixations[1:,2],et.fixations[1:,3],'.r')
-
-##plt.close('all')
-##data=readTobii(85,0)
-##d=data[0]
-##plt.plot(d.gaze[:,1])
-##vel=d.getVelocity()
-##nvel=[]
-##for i in range(vel.size):
-##    if not np.isnan(vel[i]):
-##        nvel.append(vel[i])
-##vel=np.array(nvel)
-##d=data[3]
-##plt.plot(d.getVelocity())
-##plt.figure()
-##plt.plot(d.getAcceleration())
-##f=d.getSaccades()
-###print f.sum()
 
 def checkDrift():
     # lets check whether there is a drift in the tobii data
@@ -475,11 +474,94 @@ def checkDrift():
     plt.plot(((d[:,:,4].mean(1)-640)**2+(d[:,:,5].mean(1)-512)**2)**0.5)
     plt.legend(['left','right'])
 
+def findDriftEyelink(vp,block):
+    plt.close('all')
+    data=readEdf(vp,block)
+    #print data[1].dcorr.shape
+    for dd in range(8):
+        S=dd*5
+        E=(dd+1)*5
+        N=E-S
+        plt.figure(figsize=(16,12))
+        for i in range(N):
+            dat=data[S+i].dcorr
+            both=dat.shape[1]>4
+            plt.subplot(N,3,3*i+1)
+            plt.plot(dat[:,0],dat[:,1],'g')
+            if both: plt.plot(dat[:,0],dat[:,4],'r')
+            plt.title('X axis')
+            plt.xlim([0, 1200])
+            plt.ylim([-3, 3])
+            plt.ylabel('trial %d'% (S+i))
+            plt.plot([0,1200],[0,0],'k')
+            plt.subplot(N,3,3*i+2)
+            plt.plot(dat[:,0],dat[:,2],'g')
+            if both: plt.plot(dat[:,0],dat[:,5],'r')
+            plt.title('Y axis')
+            plt.xlim([0, 1200])
+            plt.ylim([-3, 3])
+            plt.plot([0,1200],[0,0],'k')
+
+            
+            if both:
+                difx=np.abs(np.diff(dat[:,[1,4]].mean(axis=1),3))
+                dify=np.abs(np.diff(dat[:,[2,5]].mean(axis=1),3))
+            else:
+                difx=np.abs(np.diff(dat[:,1],3))
+                dify=np.abs(np.diff(dat[:,2],3))
+            if ((vp==31 and block==4 and S+i==17) or
+                (vp==31 and block==4 and S+i==16) or
+                (vp==31 and block==4 and S+i<=12) or
+                (vp==33 and block==1 and (S+i==12 or S+i==16 or S+i==17 or S+i==22 or S+i==23))):
+                difx=np.abs(np.diff(dat[:,1],3))
+                dify=np.abs(np.diff(dat[:,2],3))
+            dif=np.sqrt(difx**2+dify**2)
+            plt.subplot(N,3,3*i+3)
+            plt.plot(dat[2:-1,0],dif)
+            plt.xlim([0, 1200])
+            start=(dat[2:-1,0]>190).nonzero()[0][0]
+            mx=np.nanmax(dif[start:])
+            if mx>0.2:
+                k=(dif==mx).nonzero()[0][0]
+                if vp==30 and block==3 and S+i==14: k=103
+                if vp==31 and block==2 and S+i==26: k=104
+                if vp==31 and block==4 and S+i==20: k=94
+                dx=dat[k+1,1]-dat[k+2,1]
+                dy=dat[k+1,2]-dat[k+2,2]
+                plt.plot(dat[k+2,0],mx,'ko')
+                #print dat[k+2,0],np.max(dif[80:]),np.argmax(dif[80:]),dat[-1,0]
+            else: dx=0;dy=0
+            if ((vp==30 and block==3 and S+i==14) or
+                (vp==30 and block==3 and S+i==36) or
+                (vp==32 and block==1 and S+i==3) or
+                (vp==33 and block==1 and S+i==26) or
+                (vp==33 and block==1 and S+i==7)): dx=0; dy=0
+            plt.title('dx=%.3f, dy=%.3f'%(dx,dy))
+            #if S+i==7: bla
+
 if __name__ == '__main__':
-    if False: # evaluate looking times
+    #findDriftEyelink(53,1)
+    #data=readEdf(26,1)
+##    info=[]
+##    calibs=[]
+##    vp=0
+##    for vp in range(20,50):
+##        for block in range(5):
+##            try:
+##                data=readEdf(vp,block)
+##                for i in range(len(data)):
+##                    if len(data[i].calib)>0:
+##                        calibs.append(data[i].calib)
+##                        info.append(i)
+##                        print vp, block, i, data[i].calib
+##            except:
+##                print vp, block, 'error'
+##                pass
+    
+    if True: # evaluate looking times
         plt.close('all')
         labels=[]
-        vpn=range(106,107)#[102,106,113]#range(101,106)
+        vpn=range(101,112)#[102,106,113]#range(101,106)
         N=len(vpn)
         for ii in range(N): labels.append('vp %d'%vpn[ii])
         
@@ -487,10 +569,12 @@ if __name__ == '__main__':
         DC=np.zeros((N,2))
         vp=104
         kk=0
+        os.chdir('..')
+        
         for vp in vpn:
             plt.figure()
             data=readTobii(vp,0)
-            ordd=np.load('input/vp%d/ordervp%db0.npy'%(vp,vp))
+            ordd=np.load(os.getcwd()+'/input/vp%d/ordervp%db0.npy'%(vp,vp))
             print vp,ordd
             for i in range(len(data)):
                 D[kk,i]=(np.isnan(data[i].gaze[:,1])==False).sum()/60.0
@@ -518,25 +602,16 @@ if __name__ == '__main__':
         plt.legend(labels)
         plt.figure()
         plt.imshow(D,interpolation='nearest',vmin=0,
-            vmax=30,extent=[0.5,12.5,113.5,100.5])
+            vmax=30,extent=[0.5,12.5,111.5,100.5])
         ax=plt.gca()
-        ax.set_yticks(np.arange(101,114))
+        ax.set_yticks(np.arange(101,112))
         plt.show()
         plt.colorbar()
 
-    data=readEdf(40,0)
-    print data[1].dcorr.shape
-    np.save('dcorr.npy',data[1].dcorr)
-    plt.show()
-    for i in range(len(data)):
-        plt.subplot(2,10,2*i+1)
-        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,1],'g')
-        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,4],'r')
-        plt.title('X axis')
-        plt.subplot(2,10,2*i+2)
-        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,2],'g')
-        plt.plot(data[i].dcorr[:,0],data[i].dcorr[:,5],'r')
-        plt.title('Y axis')
+
+            
+            
+               
     
 
 

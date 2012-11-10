@@ -128,15 +128,15 @@ class GazePoint(TrajectoryData):
             self.gazeDataRefresh=gazeData.hz
             clrs=np.ones((self.cond,3))
             self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
-                nElements=self.cond,sizes=Q.agentSize,rgbs=clrs,depths=0,
+                nElements=self.cond,sizes=Q.agentSize,rgbs=clrs,
                 elementMask='circle',elementTex=None)
         except:
             self.wind.close()
             raise
     
-from contingentGaze import Experiment
+    
 
-class ETData(Experiment,GazePoint):
+class ETData(TrajectoryData,GazePoint):
     def __init__(self,trajectories,gazeData,**kwargs):
         wind = kwargs.get('wind',None)
         if wind is None:
@@ -144,9 +144,7 @@ class ETData(Experiment,GazePoint):
         if trajectories!=None:
             TrajectoryData.__init__(self,trajectories,
                 wind=wind,gazeData=gazeData,**kwargs)
-        else: 
-            GazePoint.__init__(self, gazeData,wind=wind)
-            Experiment.__init__(self, win=wind,showGui=False,shift=-6 )
+        else: GazePoint.__init__(self, gazeData,wind=wind)
 
         try:
             indic=['Velocity','Acceleration','Saccade','Fixation','Pursuit']
@@ -195,7 +193,7 @@ class ETData(Experiment,GazePoint):
             self.wind.close()
             raise
         
-    def showFrame(self):#,positions):
+    def showFrame(self,positions):
         for g in range(len(self.graphs)):
             fs=max(0,self.f-self.ws)
             fe=min(self.f+self.ws,self.gazeData.gaze.shape[0]-1)
@@ -223,16 +221,8 @@ class ETData(Experiment,GazePoint):
                 np.mod(rct.second+ self.t[self.f]/1000.0,60)) )
         self.frame.draw()
         self.tmsg.draw()
-        pss=self.gaze[:,self.f].T
-        pss[0]-=6
-        self.gazeP.setPos(pss)
-        #print self.gazeP.pos
-        self.gazeP.pos=pss
-        #print self.gazeP.pos
-        #self.elem.setXYs([pss])
-        #self.elem.draw()
-        #positions[:,0]-=6.0 # shift
-        Experiment.showFrame(self)#,positions)
+        positions[:,0]-=6.0 # shift
+        TrajectoryData.showFrame(self,positions)
 
 if __name__ == '__main__':
     #t=np.load('test.npy')
@@ -240,17 +230,18 @@ if __name__ == '__main__':
     from Constants import *
     from Maze import *
     from evalETdata import *
-    vp=0
-    block=9
-    trial=1
+    vp=106
+    block=0
+    trial=0
+    os.chdir('..')
     data=readTobii(vp,block)
     #maze=TestMaze(10,dispSize=24)
-    #order=np.load('input%svp%03d%sordervp%03db%d.npy'%(Q.delim,vp,Q.delim,vp,block))
-    scale=1
-    #traj=scale*np.load('input%svp%03d%svp%03db%dtrial%03d.npy'%(Q.delim,vp,Q.delim,vp,block,order[trial]))
+    order=np.load('input%svp%03d%sordervp%03db%d.npy'%(Q.delim,vp,Q.delim,vp,block))
+    scale=0.8
+    traj=scale*np.load('input%svp%03d%svp%03db%dtrial%03d.npy'%(Q.delim,vp,Q.delim,vp,block,order[trial]))
     data[trial].gaze*=scale
-    tr=ETData(None,gazeData=data[trial])
-    tr.replay(data[trial].theta,tlag=0)
+    tr=ETData(traj,gazeData=data[trial])
+    tr.replay(tlag=0)
     
 
     #r=traj2image(t[113,:,:].squeeze())

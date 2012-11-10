@@ -476,7 +476,7 @@ class TrackerEyeLink():
         #determine which eye(s) are available
         if self.eye_used == RIGHT_EYE:
             self.tracker.sendMessage("PRETRIAL EYE_USED 1 RIGHT")
-        elif self.eye_used == LEFT_EYE 
+        elif self.eye_used == LEFT_EYE: 
             self.tracker.sendMessage("PRETRIAL EYE_USED 0 LEFT")
         elif self.eye_used == BINOCULAR:
             self.tracker.sendMessage("PRETRIAL EYE_USED 2 BINOCULAR")
@@ -510,7 +510,7 @@ class TrackerEyeLink():
 #                core.wait(0.25+random.random()/2)
             print self.screenSize
             x,y=self.screenSize/2.0
-            core.wait(0.1)
+            core.wait(0.3)
             i=0
             while True:
                 core.wait(0.1)
