@@ -354,7 +354,7 @@ class TrackerEyeLink():
             self.tracker.sendCommand("scene_camera_gazemap = NO")
  
         # set EDF file contents
-        #self.tracker.sendCommand("file_event_filter = LEFT,RIGHT,FIXATION,SACCADE,BLINK,MESSAGE,BUTTON")
+        #self.tracker.sendCommand("file_event_filter = LEFT,RIGHT,FIXATION,SACCADE,BLINK,MESSAGE,BUTTON,FIXUPDATE")
         self.tracker.sendCommand("file_event_filter = LEFT,RIGHT,BLINK,MESSAGE,BUTTON")
         if tracker_software_ver>=4:
             self.tracker.sendCommand("file_sample_data  = LEFT,RIGHT,GAZE,AREA,GAZERES,STATUS,HTARGET")
@@ -362,7 +362,8 @@ class TrackerEyeLink():
             self.tracker.sendCommand("file_sample_data  = LEFT,RIGHT,GAZE,AREA,GAZERES,STATUS")
         # set link data (used for gaze cursor)
         self.tracker.sendCommand("link_event_filter = LEFT,RIGHT,FIXATION,SACCADE,BLINK,BUTTON,FIXUPDATE")
-        self.tracker.sendCommand("fixation_update_interval = 100")
+        self.tracker.sendCommand("fixation_update_interval = 50")
+        self.tracker.sendCommand("fixation_update_accumulate = 50")
         if tracker_software_ver>=4:
             self.tracker.sendCommand("link_sample_data  = LEFT,RIGHT,GAZE,GAZERES,AREA,STATUS,HTARGET")
         else:
@@ -399,7 +400,7 @@ class TrackerEyeLink():
  
     def sendCommand(self, msg):
         '''Send command to the tracker'''
-        self.sendMessage('COMMAND'+msg)
+        self.sendMessage('COMMAND '+msg)
         self.tracker.sendCommand(msg)
  
     def resetEventQue(self):
@@ -476,7 +477,7 @@ class TrackerEyeLink():
         #determine which eye(s) are available
         if self.eye_used == RIGHT_EYE:
             self.tracker.sendMessage("PRETRIAL EYE_USED 1 RIGHT")
-        elif self.eye_used == LEFT_EYE: 
+        elif self.eye_used == LEFT_EYE :
             self.tracker.sendMessage("PRETRIAL EYE_USED 0 LEFT")
         elif self.eye_used == BINOCULAR:
             self.tracker.sendMessage("PRETRIAL EYE_USED 2 BINOCULAR")
@@ -489,39 +490,51 @@ class TrackerEyeLink():
             self.tracker.target.draw()
             win.flip()
             
-#            core.wait(1)
-#            eyePos = self.getSample()
-#            i=1
-#            while ( (eyePos[0])**2+(eyePos[1])**2)**0.5>misc.deg2pix(3,win.monitor) and i <20:
-#                
-#                core.wait(0.25)
-#                eyePos = self.getSample()
-#                print 'eyePos  ',eyePos, misc.deg2pix(4,win.monitor), misc.deg2pix(5,win.monitor),i
-#                #print 'bed ', ( (eyePos[0])**2+(eyePos[1])**2)**0.5>misc.deg2pix(4,win.monitor)
-#                i+=1
-#            if i==20:
-#                self.postTrial()
-#                self.tracker.doTrackerSetup()
-#                self.preTrial(trial, calibTrial, win,autoDrift)
-#            else:
-#                cmd='drift_correction %f %f %f %f' % (-eyePos[0],eyePos[1],self.screenSize[0]/2,self.screenSize[1]/2)
-#                print cmd
-#                self.sendCommand(cmd)
-#                core.wait(0.25+random.random()/2)
-            print self.screenSize
+            
             x,y=self.screenSize/2.0
-            core.wait(0.3)
+            i=0
+            leftFinished=False
+            rightFinished=False
+            core.wait(0.5)
+            self.tracker.resetData()
+            while i<10 and not (leftFinished and rightFinished):   
+                sampleType = self.tracker.getNextData()
+                if sampleType == pylink.FIXUPDATE:
+                    sample = self.tracker.getFloatData()
+                    gazePos=sample.getAverageGaze()
+                    #self.sendMessage('eyePos %.3f %.3f type %d, eye %d'%(gazePos[0],gazePos[1],sample.getType(),sample.getEye()))
+                    if (( (x-gazePos[0])**2+(y-gazePos[1])**2)**0.5<misc.deg2pix(3,win.monitor) and
+                        gazePos[0]>0 and gazePos[0]<2*x and gazePos[1]>0 and gazePos[1]<2*y):
+                        cmd='drift_correction %f %f %f %f' % (x-gazePos[0], y-gazePos[1],x,y)
+                        if sample.getEye()==1: rightFinished=True; cmd+=' R'
+                        else: leftFinished=True; cmd+=' L'
+                        self.sendCommand(cmd)
+                    else:
+                        core.wait(0.1)
+                        self.tracker.resetData()
+                        i+=1
+            if i==10:
+                self.postTrial()
+                self.tracker.doTrackerSetup()
+                self.preTrial(trial, calibTrial, win,autoDrift)
+            else: core.wait(0.25+random.random()/2)
+            '''
+            #print self.screenSize
+            x,y=self.screenSize/2.0
+            core.wait(0.4)
             i=0
             while True:
                 core.wait(0.1)
+                self.tracker.resetData()
                 sampleType = self.tracker.getNextData()
                 while sampleType != pylink.FIXUPDATE:
                     sampleType = self.tracker.getNextData()
+                    if sampleType==0: core.wait(0.002)
                     #if sampleType!=200 and sampleType!=0:
                     #    print 'type ', sampleType
                 sample = self.tracker.getFloatData()
                 eyePos=sample.getAverageGaze()
-                self.sendMessage('eyePos %.3f %.3f'%(eyePos[0],eyePos[1]))
+                self.sendMessage('eyePos %.3f %.3f type %d, eye %d'%(eyePos[0],eyePos[1],sample.getType(),sample.getEye()))
                
                 cond = ( (x-eyePos[0])**2+(y-eyePos[1])**2)**0.5>misc.deg2pix(3,win.monitor) and i <10
                 if not cond: break
@@ -534,7 +547,8 @@ class TrackerEyeLink():
                 cmd='drift_correction %f %f %f %f' % (x-eyePos[0], y-eyePos[1],x,y)
                 self.sendCommand(cmd)
                 core.wait(0.25+random.random()/2)
-                
+            '''
+            return
  
  
  

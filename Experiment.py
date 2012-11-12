@@ -246,7 +246,7 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutput(self.getWind(),sid=self.id,block=self.block)
+        self.etController = TobiiControllerFromOutputPaced(self.getWind(),sid=self.id,block=self.block)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
