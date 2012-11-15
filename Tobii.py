@@ -881,6 +881,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
     '''
     def __init__(self,win,sid,block):
         from evalETdata import readTobii
+        self.playMode=True
         self.data=readTobii(sid,block)
         self.hz=60.0
         self.winhz=75#win._monitorFrameRate
@@ -894,6 +895,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
     def sendMessage(self,event):
         print 'Trial %d Experiment Message %s' %(self.trial,event)
     def preTrial(self,driftCorrection=True):
+        self.circle.setFillColor('red')
         self.trial+=1
         self.i= -1
         self.T=int(120*self.winhz)
@@ -906,6 +908,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
             index=(self.data[self.trial].gaze[:,0]<tt).nonzero()[0]
             if len(index)==0: index=0
             else: index= max(index)
+            if tt-self.data[self.trial].gaze[index,0] >50: index=0
             gp=self.getGazePosition(index)
             self.gaze[t,:]=gp
             self.times[t] = self.data[self.trial].gaze[index,0]
@@ -976,10 +979,10 @@ class TobiiControllerFromOutputPaced(TobiiController):
                     'norm', 'pix', 'cm' and 'deg' are currently supported
         '''
         event.clearEvents()
-        noPress=True
+        noPress= not self.playMode
         t0=Settings.psychopyClock.getTime()  
         incf=1
-        while noPress: #and Settings.psychopyClock.getTime()-t0<0.01 : 
+        while noPress:# and Settings.psychopyClock.getTime()-t0<0.01 : 
             for key in event.getKeys():
                 if 'o' == key: noPress=False; incf=1
                 if 'i' == key: noPress=False; incf=-1
@@ -1004,15 +1007,22 @@ class TobiiControllerFromOutputPaced(TobiiController):
             self.circle.setPos(fc)
             self.circle.setRadius(fd+0.2)
             self.circle.draw()
-        if not np.isnan(gc[0]):
+        if self.i+1<len(self.msgs):
+            if self.msgs[self.i+1] == 'Reward On': self.circle.setFillColor('green')
+            elif self.msgs[self.i+1] == 'Reward Off': self.circle.setFillColor('red')
+        
+        if not np.isnan(gc[0]):# and not self.playMode:
             self.circle2.setPos(gc)
             self.circle2.draw()
-        
-        self.msg2.setText(self.msgs[self.i+1])
-        self.msg2.draw()
-        print self.times[self.i], gc, self.times[self.i+2]
-        self.msg1.setText('Time: %.3f, Iteration%d'%(tm,self.i))
-        self.msg1.draw()
+        if not self.playMode:
+            #print self.times[self.i], gc, self.times[self.i+2]
+            self.msg1.setText('Time: %.3f, Iteration%d'%(tm,self.i))
+            self.msg1.draw()
+        #if len(self.msgs[self.i+1])>0:
+            self.msg2.setText(self.msgs[self.i+1])
+            print 'MSG ',self.msgs[self.i+1]
+            self.msg2.draw()
+            
         return gc,fc, fd>Settings.FIXMINDUR,incf-1
         
  
