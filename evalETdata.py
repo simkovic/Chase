@@ -405,7 +405,7 @@ def readTobii(vp,block):
     f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     try:
-        data=[];trial=[]; theta=[];t=0
+        data=[];trial=[]; theta=[];t=0;msgs=[]
         on=False
         while True:
             words=f.readline()
@@ -432,8 +432,8 @@ def readTobii(vp,block):
                 xright=float(words[4]); yright=float(words[5])
                 if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
                     xright=np.nan; yright=np.nan;
-                tdata=(float(words[0]),xleft,yleft,float(words[9]),
-                    xright,yright,float(words[10]))
+                tdata=(float(words[0]),xleft,yleft,float(words[10]),
+                    xright,yright,float(words[11]))
                 trial.append(tdata)
             elif (words[1]=='Detection' or words[1]=='Omission'):
                 # we have all data for this trial, transform to deg and append
@@ -447,10 +447,12 @@ def readTobii(vp,block):
                 trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
                 et=ETTrialData(trial,[],[],hz,'BOTH',vp,block,t,recTime=recTime)
                 et.theta=np.array(theta);theta=[]
+                et.msg=msgs; msgs=[]
                 data.append(et)
                 t+=1
                 trial=[]
             elif len(words)==3 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
+            else: msgs.append([float(words[0])-tstart,words[1]])
     except: f.close(); raise
     f.close()
     return data
@@ -539,74 +541,75 @@ def findDriftEyelink(vp,block):
             plt.title('dx=%.3f, dy=%.3f'%(dx,dy))
             #if S+i==7: bla
 
-if __name__ == '__main__':
-    #findDriftEyelink(53,1)
-    #data=readEdf(26,1)
-##    info=[]
-##    calibs=[]
-##    vp=0
-##    for vp in range(20,50):
-##        for block in range(5):
-##            try:
-##                data=readEdf(vp,block)
-##                for i in range(len(data)):
-##                    if len(data[i].calib)>0:
-##                        calibs.append(data[i].calib)
-##                        info.append(i)
-##                        print vp, block, i, data[i].calib
-##            except:
-##                print vp, block, 'error'
-##                pass
+def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
+    plt.close('all')
+    labels=[]
+    #vpn=range(101,112)#[102,106,113]#range(101,106)
+    N=len(vpn)
+    for ii in range(N): labels.append('vp %d'%vpn[ii])
     
-    if True: # evaluate looking times
-        plt.close('all')
-        labels=[]
-        vpn=range(101,112)#[102,106,113]#range(101,106)
-        N=len(vpn)
-        for ii in range(N): labels.append('vp %d'%vpn[ii])
-        
-        D=np.zeros((N,12))*np.nan
-        DC=np.zeros((N,2))
-        vp=104
-        kk=0
-        os.chdir('..')
-        
-        for vp in vpn:
-            plt.figure()
-            data=readTobii(vp,0)
-            ordd=np.load(os.getcwd()+'/input/vp%d/ordervp%db0.npy'%(vp,vp))
-            print vp,ordd
-            for i in range(len(data)):
-                D[kk,i]=(np.isnan(data[i].gaze[:,1])==False).sum()/60.0
-                ende=data[i].gaze.shape[0]/60.0
-                plt.plot(np.linspace(0,ende,data[i].gaze.shape[0]),
-                         data[i].gaze[:,1]*0+i+0.5,'.b')
-            DC[kk,0]=D[kk,ordd<5].mean()
-            DC[kk,1]=D[kk,ordd>=5].mean()
-            plt.ylabel('Trial')
-            plt.xlabel('Time in seconds')
-            plt.xlim([0, 30])
-            plt.title('VP %d' % vp)
-            kk+=1
+    D=np.zeros((N,12))*np.nan
+    DC=np.zeros((N,2))
+    kk=0
+    os.chdir('..')
+    
+    for vp in vpn:
         plt.figure()
-        plt.plot(D.T)
-        plt.ylabel('Total Looking Time')
-        plt.ylim([0, 30])
-        plt.xlabel('Trial')
-        plt.legend(labels)
-        plt.figure()
-        plt.plot(np.repeat([[6],[8]],4,axis=1),DC.T,'x',markersize=10)
-        plt.xlim([5,12])
-        plt.xlabel('Number of rings')
-        plt.ylabel('Average looking time per trial in seconds')
-        plt.legend(labels)
-        plt.figure()
-        plt.imshow(D,interpolation='nearest',vmin=0,
-            vmax=30,extent=[0.5,12.5,111.5,100.5])
-        ax=plt.gca()
-        ax.set_yticks(np.arange(101,112))
-        plt.show()
-        plt.colorbar()
+        data=readTobii(vp,0)
+        ordd=np.load(os.getcwd()+'/input/vp%d/ordervp%db0.npy'%(vp,vp))
+        print vp,ordd
+        for i in range(len(data)):
+            cond=np.isnan(data[i].gaze[:,1])==False
+            D[kk,i]=cond.sum()/60.0
+            x=data[i].gaze[cond,0]/1000.0
+            plt.plot(x,
+                     data[i].gaze[cond,4]*0+i+1,'.b')
+            ls=np.nan
+            for msg in data[i].msg:
+                if msg[1]=='Reward On':
+                    ls=float(msg[0])/1000.0
+                elif msg[1]=='Reward Off':
+                    if np.isnan(ls): print 'error ls is nan'
+                    plt.plot([ls, float(msg[0])/1000.0],[i+1.2,i+1.2],lw=4)
+                    ls=np.nan
+                elif msg[1]=='10 th saccade ':
+                    plt.plot(float(msg[0])/1000.0,i+1,'xr')
+            if not np.isnan(ls):
+                plt.plot([ls,x[-1]],[i+1.2,i+1.2],lw=4)
+                #print msg[1]    
+        DC[kk,0]=D[kk,ordd<5].mean()
+        DC[kk,1]=D[kk,ordd>=5].mean()
+        plt.ylabel('Trial')
+        plt.xlabel('Time in seconds')
+        plt.xlim([0, maxTrDur])
+        plt.ylim([0.5,len(data)+0.5])
+        plt.title('VP %d' % vp)
+        kk+=1
+    plt.figure()
+    plt.plot(D.T)
+    plt.ylabel('Total Looking Time')
+    plt.ylim([0, maxTrDur])
+    plt.xlabel('Trial')
+    plt.legend(labels)
+    plt.figure()
+    plt.plot(np.repeat([[6],[8]],4,axis=1),DC.T,'x',markersize=10)
+    plt.xlim([5,12])
+    plt.xlabel('Number of rings')
+    plt.ylabel('Average looking time per trial in seconds')
+    plt.legend(labels)
+    plt.figure()
+    plt.imshow(D,interpolation='nearest',vmin=0,
+        vmax=maxTrDur,extent=[0.5,12.5,vpn[-1]+0.5,vpn[0]-0.5])
+    ax=plt.gca()
+    ax.set_yticks(np.arange(vpn[0],vpn[-1]+1))
+    plt.show()
+    plt.colorbar()
+
+if __name__ == '__main__':
+    #data = readTobii(121,0)
+    plotLTbabyPilot(range(118,123))
+    
+
 
 
             

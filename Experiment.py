@@ -151,12 +151,12 @@ class Experiment():
         self.t0=core.getTime()
         #t0=core.getTime()
         #times=[]
-        for f in range(nrframes):
-            self.pos=trajectories[f,:,[X,Y]].transpose()*self.scale
+        self.f=0
+        while self.f<nrframes:
+            self.pos=trajectories[self.f,:,[X,Y]].transpose()*self.scale
             self.elem.setXYs(self.pos)
             self.elem.draw()
             self.wind.flip()
-            self.f=f
             # check for termination signal
             for key in event.getKeys():
                 if key in ['escape']:
@@ -164,6 +164,7 @@ class Experiment():
                     core.quit()
                     sys.exit()
             if self.trialIsFinished(): break
+            self.f+=1
             #times.append(core.getTime()-t0)
             #t0=core.getTime()
         #np.save('times',np.array(times))
@@ -280,7 +281,8 @@ class BabyExperiment(Experiment):
         self.etController.postTrial()
         
     def trialIsFinished(self):
-        gc,fc,f=self.etController.getCurrentFixation(units='deg')
+        gc,fc,f,incf=self.etController.getCurrentFixation(units='deg')
+        self.f+=incf
         if np.isnan(gc[0]): self.babyStatus=-1; self.blinkCount+=1
         elif self.babyStatus==-1: 
             self.babyStatus=0
@@ -301,7 +303,7 @@ class BabyExperiment(Experiment):
                 if self.pursuedAgents:  self.etController.sendMessage('1 st saccade \t'+str(agentsInView[0])+'\t'+str(agentsInView[1]))
             else: # consecutive fixation
                 self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
-                if self.pursuedAgents:  self.etController.sendMessage('%d th saccade \t'%(self.sacPerPursuit+1)+str(agentsInView[0])+'\t'+str(agentsInView[1]))
+                if self.pursuedAgents:  self.etController.sendMessage('%d th saccade \t' % (self.sacPerPursuit+1)+str(agentsInView[0])+'\t'+str(agentsInView[1]))
                 #print 'second fixation to',agentsInView
             if self.pursuedAgents: #is chaser-chasee being pursued?
                 self.sacPerPursuit+=1
