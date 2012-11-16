@@ -19,7 +19,7 @@ except ImportError:
 from psychopy.sound import SoundPygame as Sound
 from psychopy.core import Clock
 from psychopy import visual, event
-from psychopy.misc import deg2pix, deg2cm
+from evalETdata import myDeg2pix, myDeg2cm, myCm2deg
 import numpy as np
 import sys
 
@@ -51,6 +51,7 @@ class Settings():
     THETA=0.6; # parameter for online exponential smoothing AR(1) filter
     FIXVTH=18 # upper velocity threshold for fixations in deg per sec
     FIXMINDUR=0.1 # minimum fixation duration in seconds
+    FUSS=5 # sample size over which the average fixation target position is computed
     # functions for translation of the head movement box to screen coordinates 
     centerz=600 # distance in mm from screen
     scaling=0.002 # mm to norm display units [-1,1] ratio
@@ -107,9 +108,10 @@ class TobiiController:
         self.gazeData = []
         self.curTime=[]
         self.eventData = []
-        self.activate(self.eyetrackers.keys()[0]) # by default we take the first eyetracker found 
-        self.setDataFile('VP%03dB%d.csv'%(self.sid,self.block))
+        self.activate(self.eyetrackers.keys()[0]) # by default we take the first eyetracker found
         self.hz=self.eyetracker.GetFramerate()
+        self.setDataFile('VP%03dB%d.csv'%(self.sid,self.block))
+        
 
     def on_eyetracker_browser_event(self, event_type, event_name, eyetracker_info):
         # When a new eyetracker is found we add it to the treeview and to the 
@@ -618,16 +620,17 @@ class TobiiController:
             units - units of output coordinates
                     'norm', 'pix', 'cm' and 'deg' are currently supported
         '''
-        pix2cm=0.0265625
         if units is 'norm': xscale=2; yscale=2
         elif units is 'pix': 
             xscale=self.win.size[0]; yscale=self.win.size[1]
         elif units is 'cm':
-            xscale=self.win.size[0]*pix2cm; yscale=self.win.size[1]*pix2cm
+            xscale=self.win.size[0]/self.win.monitor.getWidth(); yscale=self.win.size[1]/self.win.monitor.getWidth()
         elif units is 'deg':
-            xscale=self.win.size[0]*pix2cm; yscale=self.win.size[1]*pix2cm
-            xscale=np.arctan(xscale/self.win.monitor.getDistance())/np.pi*180
-            yscale=np.arctan(yscale/self.win.monitor.getDistance())/np.pi*180
+            xscale=self.win.size[0]/self.win.monitor.getWidth(); yscale=self.win.size[1]/self.win.monitor.getWidth()
+            xscale=myCm2deg(xscale, self.win.monitor.getDistance())
+            yscale=myCm2deg(yscale, self.win.monitor.getDistance())
+            #xscale=np.arctan(xscale/self.win.monitor.getDistance())/np.pi*180
+            #yscale=np.arctan(yscale/self.win.monitor.getDistance())/np.pi*180
         else: raise ValueError( 'Wrong or unsupported units argument in getGazePosition')
         if len(self.gazeData)==0: return np.ones( eyes*2)*np.nan
         g=self.gazeData[index]
@@ -664,16 +667,16 @@ class TobiiController:
         else: self.computeFixation()
         
     def computeFixation(self,cgp=None):
-        if cgp is None:
+        if cgp is None: # if no argument is provided set to current gaze pos
             cgp=self.getCurrentGazePosition(eyes=1,units='deg')
-        if np.isnan(cgp[0]):
+        if np.isnan(cgp[0]): # no data
             self.fixloc=np.array([np.nan,np.nan]); self.fixdur=0
             self.fixsum=np.array([np.nan,np.nan]);return
         if not np.isnan(self.fixloc[-1]):
             fixlocold=np.copy(self.fixloc)
             # do exponential smoothing on the data
             self.fixloc= Settings.THETA*self.fixloc+(1-Settings.THETA)*cgp
-            if self.fixdur < 5: self.fixsum+=cgp # take fixation target as its center
+            if self.fixdur < Settings.FUSS: self.fixsum+=cgp # take fixation target as its center
             velocity=self.fixloc-fixlocold;
             isSac= np.linalg.norm(velocity)*self.hz> Settings.FIXVTH
             if not isSac: self.fixdur+=1; return
@@ -683,18 +686,18 @@ class TobiiController:
     
     def getCurrentFixation(self, units='deg'):
         ''' returns the triple gc,fc,fix
-            where gc is currect gaze position, fc is current fixation position (or nans if not available)
+            where gc is current gaze position, fc is current fixation position (or nans if not available)
             and fix indicates whether a fixation is currently taking place
             units - units of output coordinates
                     'norm', 'pix', 'cm' and 'deg' are currently supported
         '''
         gc=self.getCurrentGazePosition(units=units)
         fd=self.fixdur/self.hz
-        fc=self.fixsum/5.0#/float(max(self.fixdur,1))
+        fc=self.fixsum/float(Settings.FUSS)#/float(max(self.fixdur,1))
         if units is 'cm': fc=deg2cm(fc, self.win.monitor)
         elif units is 'pix': fc=deg2pix(fc, self.win.monitor)
         elif units is 'norm': fc = deg2pix(fc, self.win.monitor) / self.win.size*2
-        return gc,fc, fd>Settings.FIXMINDUR
+        return gc,fc, fd>Settings.FIXMINDUR,0
         
 
     def setDataFile(self,filename):
@@ -705,7 +708,8 @@ class TobiiController:
         self.datafile.write('Subject: \t%d\nBlock: \t%d\n'%(self.sid,self.block))
         self.datafile.write('Recording resolution\t%d x %d\n' % tuple(self.win.size))
         self.datafile.write('Monitor Distance\t%f\n'% self.win.monitor.getDistance())
-        self.datafile.write('Recording refresh rate: \t%d\n'%self.eyetracker.GetFramerate())
+        self.datafile.write('Monitor Width\t%f\n'% self.win.monitor.getWidth())
+        self.datafile.write('Recording refresh rate: \t%d\n'%self.hz)
         self.datafile.write('\t'.join(['TimeStamp', 'GazePointXLeft', 'GazePointYLeft',
             'ValidityLeft', 'GazePointXRight', 'GazePointYRight', 'ValidityRight',
             'Lag','GazePointX', 'GazePointY', 'PupilLeft', 'PupilRight', 'Event' ])+'\n')
@@ -781,40 +785,46 @@ class TobiiControllerFromOutput(TobiiController):
     '''
     def __init__(self,win,sid,block,lag=0.0):
         from evalETdata import readTobii
-        self.data=readTobii(sid,block)
+        self.sid=sid
+        self.block=block
+        self.data=readTobii(sid,block,False)
         self.hz=60.0
         self.win=win
         self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
         self.lag=lag
         self.trial=-1
+        self.setDataFile('VP%03dB%d.csv'%(self.sid,self.block))
     def doMain(self): pass
     def sendMessage(self,event):
         print 'Trial %d Experiment Message %s' %(self.trial,event)
+        t=Settings.psychopyClock.getTime()-self.t0
+        self.eventData.append((t,event))
     def preTrial(self,driftCorrection=True):
         self.trial+=1
         self.i= -1
-        
         self.T=self.data[self.trial].gaze.shape[0]
         # pre-compute fixations
         self.fixloc=np.array((np.nan,np.nan))
         self.fixsum=np.array((np.nan,np.nan))
         self.fixdur=0
         self.fixations=np.ones((self.T,3))
-        self.gazeData=[]
         for i in range(self.T):
             cgp = self.getGazePosition(i)
             self.computeFixation(cgp)
             self.fixations[i,2]=self.fixdur/self.hz
             self.fixations[i,[0,1]]=self.fixsum/5.0#float(max(self.fixdur,1))
-        self.t0=Settings.psychopyClock.getTime()    
+        self.t0=Settings.psychopyClock.getTime()
+        # init lists for output
+        self.eventData=[]
         
     def postTrial(self):
         #print 'TCFO.postTrial >> Difference', self.data[self.trial].gaze.shape[0]-self.i
         print 'TCFO.postTrial >> Trial Duration',(Settings.psychopyClock.getTime()-self.t0)- self.lag*self.i
-    
+        self.flushData()
     def closeConnection(self):
         if self.trial != len(self.data)-1:
             print 'TCFO.closeConnection >> nr of trials does not correspond'
+        self.closeDataFile()
 
     def getGazePosition(self,index,eyes=1,units='deg'):
         ''' returns the gaze postion of the data specified by index
@@ -865,13 +875,43 @@ class TobiiControllerFromOutput(TobiiController):
         gc=self.getGazePosition(index,units=units)
         fd=self.fixations[index,2]
         fc=self.fixations[index,[0,1]]
-        if fd>Settings.FIXMINDUR:
+        if False and fd>Settings.FIXMINDUR:
             #print 'check ',fc, fd
             self.circle.setPos(fc)
             self.circle.setRadius(fd+0.2)
             self.circle.draw()
         if self.lag>0:time.sleep(self.lag)
-        return gc,fc, fd>Settings.FIXMINDUR
+        return gc,fc, fd>Settings.FIXMINDUR,0
+    
+    def flushData(self):
+        ''' writes data to output file, output format is similar to tobii studio output'''
+        if self.datafile == None: print 'data file is not set.'; return
+        self.datafile.write('Recording time:\t'+datetime.datetime.now().strftime('%H:%M:%S')+'\n')
+        
+        D=self.data[self.trial].gaze
+        eind=0
+        wx,wy=self.win.size
+        dist=self.win.monitor.getDistance()
+        wdt=self.win.monitor.getWidth()
+        print 'wsize ',self.win.size[0]/2, self.win.size[1]/2,wdt
+        for i in range(D.shape[0]):
+            if eind<len(self.eventData):# write events at the correct time position 
+                e = self.eventData[eind]
+                et=e[0]*1000.0
+                if et>0 and et<D[i,0]: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
+            if np.isnan(D[i,1]): xl=-1; yl=-1; vl=4
+            else: xl=myDeg2pix(D[i,1],dist,wx/2.0,wdt); yl= myDeg2pix(-D[i,2],dist,wy/2.0,wdt); vl=0;
+            if np.isnan(D[i,4]): xr=-1; yr=-1; vr=4;pr=-1
+            else: xr=myDeg2pix(D[i,4],dist,wx/2.0,wdt); yr= myDeg2pix(-D[i,5],dist,wy/2.0,wdt); vr=0;pr=D[i,6]
+            self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f\t%d\t%d\t%d\t%.4f\n'%
+                                (D[i,0],xl,yl,vl,xr,yr,vr,0,0,0,0,pr))
+        while eind <len(self.eventData): # write any remaining events
+            e = self.eventData[eind]
+            self.datafile.write('%.1f\t%s\n' % (e[0]*1000.0,e[1]))
+            eind+=1 
+        self.datafile.flush()
+    
+
         
         
 class TobiiControllerFromOutputPaced(TobiiController):
@@ -879,10 +919,10 @@ class TobiiControllerFromOutputPaced(TobiiController):
         the output from previous experiement
         Useful for debuging gaze contingent experiments
     '''
-    def __init__(self,win,sid,block):
+    def __init__(self,win,sid,block, playMode=True):
         from evalETdata import readTobii
-        self.playMode=True
-        self.data=readTobii(sid,block)
+        self.playMode=playMode
+        self.data=readTobii(sid,block,True)
         self.hz=60.0
         self.winhz=75#win._monitorFrameRate
         self.win=win
@@ -901,19 +941,21 @@ class TobiiControllerFromOutputPaced(TobiiController):
         self.T=int(120*self.winhz)
         self.gaze=np.ones((self.T,2))*np.nan
         self.times=np.ones(self.T)*np.nan
+        self.check=np.ones(self.T)*np.nan
         msgi=0
         self.msgs=[]
-        for t in range(self.T):
+        for t in range(1,self.T):
             tt=t/float(self.winhz)*1000
             index=(self.data[self.trial].gaze[:,0]<tt).nonzero()[0]
             if len(index)==0: index=0
             else: index= max(index)
             if tt-self.data[self.trial].gaze[index,0] >50: index=0
             gp=self.getGazePosition(index)
-            self.gaze[t,:]=gp
-            self.times[t] = self.data[self.trial].gaze[index,0]
+            self.gaze[t-1,:]=gp
+            self.times[t-1] = self.data[self.trial].gaze[index,0]
+            self.check[t-1]=self.data[self.trial].gaze[index,-1]
             
-            if len(self.data[self.trial].msg) > msgi and self.times[t]>self.data[self.trial].msg[msgi][0]:
+            if len(self.data[self.trial].msg) > msgi and self.times[t-1]>self.data[self.trial].msg[msgi][0]:
                 self.msgs.append(self.data[self.trial].msg[msgi][1])
                 msgi+=1
             else: self.msgs.append('')
@@ -1007,7 +1049,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
             self.circle.setPos(fc)
             self.circle.setRadius(fd+0.2)
             self.circle.draw()
-        if self.i+1<len(self.msgs):
+        if self.i+1<len(self.msgs) and self.playMode:
             if self.msgs[self.i+1] == 'Reward On': self.circle.setFillColor('green')
             elif self.msgs[self.i+1] == 'Reward Off': self.circle.setFillColor('red')
         
@@ -1016,11 +1058,11 @@ class TobiiControllerFromOutputPaced(TobiiController):
             self.circle2.draw()
         if not self.playMode:
             #print self.times[self.i], gc, self.times[self.i+2]
-            self.msg1.setText('Time: %.3f, Iteration%d'%(tm,self.i))
+            self.msg1.setText('Time: %.3f %.3f, Iteration %d'%(tm,self.check[self.i],self.i))
             self.msg1.draw()
         #if len(self.msgs[self.i+1])>0:
             self.msg2.setText(self.msgs[self.i+1])
-            print 'MSG ',self.msgs[self.i+1]
+            if len(self.msgs[self.i+1])>0: print 'MSG ',self.msgs[self.i+1]
             self.msg2.draw()
             
         return gc,fc, fd>Settings.FIXMINDUR,incf-1
@@ -1029,8 +1071,10 @@ class TobiiControllerFromOutputPaced(TobiiController):
         
 
 if __name__ == "__main__":
-    tc=TobiiControllerFromOutput(None,106,0)
+    win = visual.Window(monitor='dell')
+    tc=TobiiControllerFromOutput(win,119,0)
     tc.preTrial()
+    win.close()
     time.sleep(0.1)
     print tc.getCurrentFixation()
 elif False:

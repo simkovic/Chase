@@ -34,7 +34,7 @@ class Settings():
         self.agentRadius=self.agentSize/2.0
         self.nrframes=self.trialDur*self.refreshRate+1
   
-    def initDisplay(self,sz=1000,fullscr=False):
+    def initDisplay(self,sz=1000,fullscr=True):
         if type(sz)==int: sz=(sz,sz)
         wind=visual.Window(monitor=self.monname,fullscr=fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,

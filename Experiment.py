@@ -247,7 +247,7 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutputPaced(self.getWind(),sid=self.id,block=self.block)
+        self.etController = TobiiControllerFromOutput(self.getWind(),sid=self.id,block=self.block)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
@@ -282,13 +282,14 @@ class BabyExperiment(Experiment):
         
     def trialIsFinished(self):
         gc,fc,f,incf=self.etController.getCurrentFixation(units='deg')
-        self.f+=incf
+        self.f+=incf 
+        #if self.f>750: return True
         if np.isnan(gc[0]): self.babyStatus=-1; self.blinkCount+=1
         elif self.babyStatus==-1: 
             self.babyStatus=0
             self.blinkCount=0
         
-        temp=self.trajectories[max(self.f-8,0),:,:]
+        temp=self.trajectories[max(self.f-8,0),:,:]#-8
         #print np.array([fc.tolist()]*self.cond).shape,temp[:,:2].shape
         dxy=np.array([fc.tolist()]*self.cond)-temp[:,:2]#self.elem.xys
         distance= np.sqrt(np.power(dxy[:,0],2)+np.power(dxy[:,1],2))
@@ -300,7 +301,7 @@ class BabyExperiment(Experiment):
             self.babyStatus=1
             if self.pursuedAgents is None or not self.pursuedAgents: # first fixation
                 self.pursuedAgents=agentsInView[0] or agentsInView[1] 
-                if self.pursuedAgents:  self.etController.sendMessage('1 st saccade \t'+str(agentsInView[0])+'\t'+str(agentsInView[1]))
+                if self.pursuedAgents:  self.etController.sendMessage('1 st saccade \t'+str(agentsInView[0])+'\t'+str(agentsInView[1])+'\t'+str(temp[0,0])+'\t'+str(temp[0,1]))
             else: # consecutive fixation
                 self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
                 if self.pursuedAgents:  self.etController.sendMessage('%d th saccade \t' % (self.sacPerPursuit+1)+str(agentsInView[0])+'\t'+str(agentsInView[1]))
@@ -441,7 +442,7 @@ class EyelinkExperiment(BehavioralExperiment):
 class TobiiExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
         BehavioralExperiment.__init__(self)
-        self.eyeTracker = TobiiControllerFromOutputPaced(self.getWind(),sj=self.id,block=self.block,doSetup=doSetup)
+        self.eyeTracker = TobiiController(self.getWind(),sj=self.id,block=self.block,doSetup=doSetup)
         self.eyeTracker.sendMessage('Monitor Distance\t%f'% self.wind.monitor.getDistance())
     def run(self):
         BehavioralExperiment.run(self)

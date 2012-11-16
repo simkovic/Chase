@@ -213,8 +213,24 @@ class ETTrialData():
             self.isPur=np.int32(isPur)
             return self.isPur
             
-def pix2deg(pix,dist):
-        return np.arctan((pix/37.795275591)/float(dist))*180/np.pi
+# conversion functions, avoid invoking monitors and can convert x,y axis separately
+def myPix2cm(pix,cent,width):
+    return (pix-cent)/float(cent)/2.0*width
+def myCm2pix(cm,cent,width):
+    return cm/float(width) *cent*2.0 +cent
+def myCm2deg(cm,dist):
+    return cm/(dist*0.017455) 
+def myDeg2cm(deg,dist):
+    return deg*dist*0.017455
+def myPix2deg(pix,dist,cent,width):
+    ''' avoids invoking monitors'''
+    cm= myPix2cm(pix,cent,width)
+    #return np.arctan((pix/37.795275591)/float(dist))*180/np.pi
+    return myCm2deg(cm,dist)
+def myDeg2pix(deg,dist,cent,width):
+    cm = myDeg2cm(deg,dist)
+    return myCm2pix(cm,cent,width)
+    
 
 def readEdf(vp,block):
     def reformat(trial,cent,tstart,distance):
@@ -394,11 +410,13 @@ def isNumber(s):
     except ValueError:
         return False
   
-def readTobii(vp,block):
+def readTobii(vp,block,lagged=False):
     ''' function for reading the tobii controller outputs list of ETDataTrial instances
 
         Each trial starts with line '[time]\tTrial\t[nr]'
         and ends with line '[time]\tOmission'
+
+        lagged - return time stamp when the data was made available (ca. 30 ms time lag)
     '''
     path = getcwd()
     path = path.rstrip('/code')
@@ -414,7 +432,8 @@ def readTobii(vp,block):
             if not on: # collect header information
                 if len(words)==2 and  words[0]=='Monitor Distance': 
                     distance=float(words[1])
-                    #print distance
+                if len(words)==2 and  words[0]=='Monitor Width': 
+                    monwidth=float(words[1])
                 if len(words)==2 and words[0]=='Recording time:':
                     recTime=words[1]
                 if len(words)==2 and words[0]=='Recording refresh rate: ':
@@ -422,6 +441,7 @@ def readTobii(vp,block):
                 if len(words)==2 and words[0]=='Recording resolution': 
                     cent=words[1].rsplit('x')
                     cent=(int(cent[0])/2.0,int(cent[1])/2.0)
+                    print cent
                 if len(words)==3 and words[1]=='Trial':
                     on=True; tstart=float(words[0])
             elif len(words)>=12: # record data
@@ -432,7 +452,10 @@ def readTobii(vp,block):
                 xright=float(words[4]); yright=float(words[5])
                 if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
                     xright=np.nan; yright=np.nan;
-                tdata=(float(words[0]),xleft,yleft,float(words[10]),
+
+                if lagged: tm =float(words[0])+float(words[7])
+                else: tm=float(words[0])
+                tdata=(tm,xleft,yleft,float(words[10]),
                     xright,yright,float(words[11]))
                 trial.append(tdata)
             elif (words[1]=='Detection' or words[1]=='Omission'):
@@ -441,10 +464,11 @@ def readTobii(vp,block):
                 trial=np.array(trial)
                 trial[:,0]-= tstart
                 trial[trial==-1]=np.nan # TODO consider validity instead of coordinates
-                trial[:,1]=pix2deg(trial[:,1]-cent[0],distance)
-                trial[:,2]=-pix2deg(trial[:,2]-cent[1],distance)
-                trial[:,4]=pix2deg(trial[:,4]-cent[0],distance)
-                trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
+                
+                trial[:,1]=myPix2deg(trial[:,1],distance,cent[0],monwidth)
+                trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],monwidth)
+                trial[:,4]=myPix2deg(trial[:,4],distance,cent[0],monwidth)
+                trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],monwidth)
                 et=ETTrialData(trial,[],[],hz,'BOTH',vp,block,t,recTime=recTime)
                 et.theta=np.array(theta);theta=[]
                 et.msg=msgs; msgs=[]
@@ -606,8 +630,8 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
     plt.colorbar()
 
 if __name__ == '__main__':
-    #data = readTobii(121,0)
-    plotLTbabyPilot(range(118,123))
+    #data = readTobii(119,0)
+    plotLTbabyPilot(range(119,120))
     
 
 
