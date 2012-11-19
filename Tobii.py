@@ -919,7 +919,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
         the output from previous experiement
         Useful for debuging gaze contingent experiments
     '''
-    def __init__(self,win,sid,block, playMode=True):
+    def __init__(self,win,sid,block, playMode=True,initTrial=0):
         from evalETdata import readTobii
         self.playMode=playMode
         self.data=readTobii(sid,block,True)
@@ -928,9 +928,9 @@ class TobiiControllerFromOutputPaced(TobiiController):
         self.win=win
         self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
         self.circle2=visual.Circle(self.win,radius=0.2,fillColor='blue',lineColor='blue',units='deg' )
-        self.msg1=visual.TextStim(self.win,pos=(7,15))
+        self.msg1=visual.TextStim(self.win,pos=(2,15),wrapWidth=20)
         self.msg2=visual.TextStim(self.win,pos=(-13,15),text='No message')
-        self.trial=-1
+        self.trial=initTrial-1
     def doMain(self): pass
     def sendMessage(self,event):
         print 'Trial %d Experiment Message %s' %(self.trial,event)
