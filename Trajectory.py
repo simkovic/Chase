@@ -412,7 +412,7 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
 def generateBabyExperiment(vpn,nrtrials=5,blocks=1,conditions=[6,8],
         dispSize=29,maze=None,probeTrials=False):
     #os.chdir('..')
-    os.chdir('input/')
+    os.chdir(Q.inputPath)
     mazes=[]
     print 'Generating Trajectories'
     for vp in vpn:
@@ -548,7 +548,7 @@ if __name__ == '__main__':
     #random.seed(3)
     maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    generateMixedExperiment(range(52,60),40,blocks=4,condition=14,dispSize=26,probeTrials=True)
+    #generateMixedExperiment(range(52,60),40,blocks=4,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
@@ -561,7 +561,7 @@ if __name__ == '__main__':
     #generateExperiment([92],2,[6],[22])
     #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
     
-    #generateBabyExperiment([122])
+    generateBabyExperiment([131])
     
     #t=generateShortTrial(maze)
     #print t.shape

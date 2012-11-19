@@ -137,7 +137,7 @@ class Experiment():
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
             nElements=self.cond, sizes=Q.agentSize*self.scale,
-            elementMask=RING,elementTex=None,colors=Q.agentCLR)
+            elementMask='circle',elementTex=None,colors=Q.agentCLR)
         # display fixation cross
         if fixCross:
             self.fixcross.draw()
@@ -236,7 +236,7 @@ class BabyExperiment(Experiment):
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
     sacToReward=3 # reward is presented after enough saccades are made
-    maxSacPerPursuit=100 # trial will be terminated if the pursuit is upheld
+    maxSacPerPursuit=20 # trial will be terminated if the pursuit is upheld
     blinkTolerance=5 # iterations
     rewardIterations=100 # nr of frames
     initBlockDur = 3*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
@@ -245,7 +245,8 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutputPaced(self.getWind(),sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
+        self.etController = TobiiControllerFromOutputPaced(self.getWind(),
+            sid=self.id,block=self.block,playMode=False,initTrial=self.initTrial)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
@@ -298,18 +299,21 @@ class BabyExperiment(Experiment):
         dxy=np.array([fc.tolist()]*self.cond)-temp[:,:2]#self.elem.xys
         distance= np.sqrt(np.power(dxy[:,0],2)+np.power(dxy[:,1],2))
         agentsInView=BabyExperiment.fixRadius>distance
+        if self.f-BabyExperiment.dataLag <0: agentsInView[0]=False; agentsInView[1]=False
         #print 'show ',f, self.babyStatus
         if not f and self.babyStatus == 1: # saccade initiated
             self.babyStatus=0
+            self.etController.sendMessage('Saccade '+str(self.f))
         elif f and self.babyStatus == 0: # fixation started
             self.babyStatus=1
+            self.etController.sendMessage('Fixation '+str(fc[0])+' '+str(fc[1])+' '+str(self.f))
             if (self.pursuedAgents is None or not self.pursuedAgents or 
                 self.f-self.tFix > BabyExperiment.maxFixInterval): # first fixation
                 self.pursuedAgents=agentsInView[0] or agentsInView[1] 
-                if self.pursuedAgents:  self.etController.sendMessage('1 st saccade \t'+str(agentsInView[0])+'\t'+str(agentsInView[1])+'\t'+str(self.f))
+                if self.pursuedAgents:  self.etController.sendMessage('1st Saccade '+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
             else: # consecutive fixation
                 self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
-                if self.pursuedAgents:  self.etController.sendMessage('%d th saccade \t' % (self.sacPerPursuit+1)+str(agentsInView[0])+'\t'+str(agentsInView[1])+'\t'+str(self.f))
+                if self.pursuedAgents:  self.etController.sendMessage('%dth Saccade ' % (self.sacPerPursuit+1)+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
                 #print 'second fixation to',agentsInView
             if self.pursuedAgents: #is chaser-chasee being pursued?
                 self.sacPerPursuit+=1
@@ -318,7 +322,7 @@ class BabyExperiment(Experiment):
             self.tFix=self.f
              
         if self.sacPerPursuit>= BabyExperiment.sacToReward and (self.f > BabyExperiment.initBlockDur): 
-            if self.rewardIter==BabyExperiment.sacToReward:
+            if self.rewardIter==0:
                 clrs=np.ones((self.cond,3))
                 clrs[0,:]=self.rewardColor1
                 clrs[1,:]=self.rewardColor1

@@ -20,6 +20,7 @@ from psychopy.sound import SoundPygame as Sound
 from psychopy.core import Clock
 from psychopy import visual, event
 from evalETdata import myDeg2pix, myDeg2cm, myCm2deg
+from Settings import Q
 import numpy as np
 import sys
 
@@ -32,9 +33,9 @@ class ETSTATUS():
 
 class Settings():
     """ I put here everything I considered worth varying"""
-    calStimPath = 'spiral.png' # path of the calibration picture
-    dcorrStimPath='clover.png' # path of the drift correction picture (= attention catcher)
-    soundStimPath='6.ogg' # path of the sound stimulus
+    calStimPath = Q.stimPath+'spiral.png' # path of the calibration picture
+    dcorrStimPath=Q.stimPath+'clover.png' # path of the drift correction picture (= attention catcher)
+    soundStimPath=Q.stimPath+'6.ogg' # path of the sound stimulus
     fsizebig=0.05 # size of the big font in norm units
     fsizesmall=0.02 # size of the small font in norm units
     drawcolor='white'# font and line color
@@ -78,7 +79,7 @@ class TobiiController:
         self.eyetrackers = {}
         self.win = win # this window is where the experiment is displayed to subject
         # and here we display information from the controller to the experimenter
-        self.win2=visual.Window(monitor='hyundai',color=Settings.wincolor,
+        self.win2=visual.Window(monitor='tobii',color=Settings.wincolor,
             fullscr=False,size=(640,512),units='deg')#,pos=(30,30))
         self.gazeData = [] # we collect gaze data supplied by eyetracker
         self.curTime=[] # we monitor and save the time of the arrival of the gaze data
@@ -712,7 +713,7 @@ class TobiiController:
         self.datafile.write('Recording refresh rate: \t%d\n'%self.hz)
         self.datafile.write('\t'.join(['TimeStamp', 'GazePointXLeft', 'GazePointYLeft',
             'ValidityLeft', 'GazePointXRight', 'GazePointYRight', 'ValidityRight',
-            'Lag','GazePointX', 'GazePointY', 'PupilLeft', 'PupilRight', 'Event' ])+'\n')
+            'Lag','PupilLeft', 'PupilRight' ])+'\n')
         
     def closeDataFile(self):
         print 'datafile closed'
@@ -736,26 +737,26 @@ class TobiiController:
             if eind<len(self.eventData):# write events at the correct time position 
                 e = self.eventData[eind]
                 et=(e[0]-timeStampStart)/1000.0
-                if et>t0 and et<t1: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
+                while et>t0 and et<t1: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
             self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f'%(
                                 t1,g.LeftGazePoint2D.x*self.win.size[0] if g.LeftValidity!=4 else -1.0,
                                 g.LeftGazePoint2D.y*self.win.size[1] if g.LeftValidity!=4 else -1.0,
                                 g.LeftValidity,
                                 g.RightGazePoint2D.x*self.win.size[0] if g.RightValidity!=4 else -1.0,
                                 g.RightGazePoint2D.y*self.win.size[1] if g.RightValidity!=4 else -1.0,
-                                g.RightValidity, (self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0))
+                                g.RightValidity, (self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0),
+                                g.LeftPupil if g.LeftValidity!=4 else -1.0,
+                                g.RightPupil if g.RightValidity!=4 else -1.0)
             # validity information follows
             if g.LeftValidity == 4 and g.RightValidity == 4: #not detected
-                ave = (-1.0,-1.0,-1,-1)
+                ave = (,-1,-1)
             elif g.LeftValidity == 4:
-                ave = (g.RightGazePoint2D.x,g.RightGazePoint2D.y,-1,g.RightPupil)
+                ave = (-1,g.RightPupil)
             elif g.RightValidity == 4:
-                ave = (g.LeftGazePoint2D.x,g.LeftGazePoint2D.y,g.LeftPupil,-1)
+                ave = (g.LeftPupil,-1)
             else:
-                ave = (g.LeftGazePoint2D.x+g.RightGazePoint2D.x,
-                       g.LeftGazePoint2D.y+g.RightGazePoint2D.y,g.LeftPupil,g.RightPupil)
-            self.datafile.write('\t%.4f\t%.4f\t%.4f\t%.4f\t'%ave)
-            self.datafile.write('\n')
+                ave = (g.LeftPupil,g.RightPupil)
+            self.datafile.write('\t%.4f\t%.4f\t\n'%ave)
         
         while eind <len(self.eventData): # write any remaining events
             e = self.eventData[eind]
@@ -922,14 +923,14 @@ class TobiiControllerFromOutputPaced(TobiiController):
     def __init__(self,win,sid,block, playMode=True,initTrial=0):
         from evalETdata import readTobii
         self.playMode=playMode
-        self.data=readTobii(sid,block,True)
+        self.data=readTobii(sid,block,False)
         self.hz=60.0
         self.winhz=75#win._monitorFrameRate
         self.win=win
         self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
         self.circle2=visual.Circle(self.win,radius=0.2,fillColor='blue',lineColor='blue',units='deg' )
-        self.msg1=visual.TextStim(self.win,pos=(2,15),wrapWidth=20)
-        self.msg2=visual.TextStim(self.win,pos=(-13,15),text='No message')
+        self.msg1=visual.TextStim(self.win,pos=(2,14),wrapWidth=20)
+        self.msg2=visual.TextStim(self.win,pos=(-5,14),text='No message')
         self.trial=initTrial-1
     def doMain(self): pass
     def sendMessage(self,event):
@@ -944,6 +945,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
         self.check=np.ones(self.T)*np.nan
         msgi=0
         self.msgs=[]
+        # we start at the second frame to make the messages and frames consecutive
         for t in range(1,self.T):
             tt=t/float(self.winhz)*1000
             index=(self.data[self.trial].gaze[:,0]<tt).nonzero()[0]

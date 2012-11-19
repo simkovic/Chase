@@ -444,7 +444,7 @@ def readTobii(vp,block,lagged=False):
                     print cent
                 if len(words)==3 and words[1]=='Trial':
                     on=True; tstart=float(words[0])
-            elif len(words)>=12: # record data
+            elif len(words)>=10: # record data
                 # we check whether the data gaze position is on the screen
                 xleft=float(words[1]); yleft=float(words[2])
                 if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
@@ -455,8 +455,8 @@ def readTobii(vp,block,lagged=False):
 
                 if lagged: tm =float(words[0])+float(words[7])
                 else: tm=float(words[0])
-                tdata=(tm,xleft,yleft,float(words[10]),
-                    xright,yright,float(words[11]))
+                tdata=(tm,xleft,yleft,float(words[8]),
+                    xright,yright,float(words[9]))
                 trial.append(tdata)
             elif (words[1]=='Detection' or words[1]=='Omission'):
                 # we have all data for this trial, transform to deg and append
@@ -476,6 +476,7 @@ def readTobii(vp,block,lagged=False):
                 t+=1
                 trial=[]
             elif len(words)==3 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
+            elif len(words)==5: msgs.append([float(words[0])-tstart,words[1]+' '+words[4]])
             else: msgs.append([float(words[0])-tstart,words[1]])
     except: f.close(); raise
     f.close()
@@ -632,7 +633,6 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
 if __name__ == '__main__':
     #data = readTobii(119,0)
     plotLTbabyPilot(range(119,120))
-    
 
 
 
