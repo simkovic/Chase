@@ -236,7 +236,7 @@ class BabyExperiment(Experiment):
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
     sacToReward=3 # reward is presented after enough saccades are made
-    maxSacPerPursuit=20 # trial will be terminated if the pursuit is upheld
+    maxSacPerPursuit=10 # trial will be terminated if the pursuit is upheld
     blinkTolerance=5 # iterations
     rewardIterations=100 # nr of frames
     initBlockDur = 3*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
@@ -245,8 +245,8 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutputPaced(self.getWind(),
-            sid=self.id,block=self.block,playMode=False,initTrial=self.initTrial)
+        self.etController = TobiiController(self.getWind(),
+            sid=self.id,block=self.block)#,playMode=False,initTrial=self.initTrial)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
@@ -303,10 +303,10 @@ class BabyExperiment(Experiment):
         #print 'show ',f, self.babyStatus
         if not f and self.babyStatus == 1: # saccade initiated
             self.babyStatus=0
-            self.etController.sendMessage('Saccade '+str(self.f))
+            #self.etController.sendMessage('Saccade '+str(self.f))
         elif f and self.babyStatus == 0: # fixation started
             self.babyStatus=1
-            self.etController.sendMessage('Fixation '+str(fc[0])+' '+str(fc[1])+' '+str(self.f))
+            #self.etController.sendMessage('Fixation '+str(fc[0])+' '+str(fc[1])+' '+str(self.f))
             if (self.pursuedAgents is None or not self.pursuedAgents or 
                 self.f-self.tFix > BabyExperiment.maxFixInterval): # first fixation
                 self.pursuedAgents=agentsInView[0] or agentsInView[1] 

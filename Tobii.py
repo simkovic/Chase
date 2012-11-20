@@ -737,27 +737,16 @@ class TobiiController:
             if eind<len(self.eventData):# write events at the correct time position 
                 e = self.eventData[eind]
                 et=(e[0]-timeStampStart)/1000.0
-                while et>t0 and et<t1: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
-            self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f'%(
-                                t1,g.LeftGazePoint2D.x*self.win.size[0] if g.LeftValidity!=4 else -1.0,
-                                g.LeftGazePoint2D.y*self.win.size[1] if g.LeftValidity!=4 else -1.0,
-                                g.LeftValidity,
-                                g.RightGazePoint2D.x*self.win.size[0] if g.RightValidity!=4 else -1.0,
-                                g.RightGazePoint2D.y*self.win.size[1] if g.RightValidity!=4 else -1.0,
-                                g.RightValidity, (self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0),
-                                g.LeftPupil if g.LeftValidity!=4 else -1.0,
-                                g.RightPupil if g.RightValidity!=4 else -1.0)
-            # validity information follows
-            if g.LeftValidity == 4 and g.RightValidity == 4: #not detected
-                ave = (,-1,-1)
-            elif g.LeftValidity == 4:
-                ave = (-1,g.RightPupil)
-            elif g.RightValidity == 4:
-                ave = (g.LeftPupil,-1)
-            else:
-                ave = (g.LeftPupil,g.RightPupil)
-            self.datafile.write('\t%.4f\t%.4f\t\n'%ave)
-        
+                if et>t0 and et<t1: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
+            self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f\t%.4f\t%.4f\n'%(t1,
+                g.LeftGazePoint2D.x*self.win.size[0] if g.LeftValidity!=4 else -1.0,
+                g.LeftGazePoint2D.y*self.win.size[1] if g.LeftValidity!=4 else -1.0,
+                g.LeftValidity,
+                g.RightGazePoint2D.x*self.win.size[0] if g.RightValidity!=4 else -1.0,
+                g.RightGazePoint2D.y*self.win.size[1] if g.RightValidity!=4 else -1.0,
+                g.RightValidity, self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp)/1000.0,
+                g.LeftPupil if g.LeftValidity!=4 else -1.0,
+                g.RightPupil if g.RightValidity!=4 else -1.0))
         while eind <len(self.eventData): # write any remaining events
             e = self.eventData[eind]
             et=(e[0]-timeStampStart)/1000.0

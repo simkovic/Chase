@@ -632,7 +632,17 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
 
 if __name__ == '__main__':
     #data = readTobii(119,0)
-    plotLTbabyPilot(range(119,120))
+    plotLTbabyPilot(range(123,125))
+    time.sleep(5)
+    bla
+    for vp in range(20,70):
+        for block in range(0,5):
+            try:
+                data=readEdf(vp,block)
+                if not (len(data) == 40 or (len(data)==10 and  block==0)):
+                    print 'error ', vp, block, len(data)
+            except:
+                'missing ', vp, block
 
 
 
