@@ -235,18 +235,18 @@ class BabyExperiment(Experiment):
     colored=False
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
-    sacToReward=3 # reward is presented after enough saccades are made
+    sacToReward=4 # reward is presented after enough saccades are made
     maxSacPerPursuit=10 # trial will be terminated if the pursuit is upheld
-    blinkTolerance=5 # iterations
+    blinkTolerance=10 # iterations
     rewardIterations=100 # nr of frames
     initBlockDur = 3*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
-    maxFixInterval=1.5*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
+    maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiController(self.getWind(),
-            sid=self.id,block=self.block)#,playMode=False,initTrial=self.initTrial)
+        self.etController = TobiiControllerFromOutputPaced(self.getWind(),
+            sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
         self.nrRewards=0
         self.etController.doMain()
         self.clrOscil=0.05
@@ -310,7 +310,9 @@ class BabyExperiment(Experiment):
             if (self.pursuedAgents is None or not self.pursuedAgents or 
                 self.f-self.tFix > BabyExperiment.maxFixInterval): # first fixation
                 self.pursuedAgents=agentsInView[0] or agentsInView[1] 
-                if self.pursuedAgents:  self.etController.sendMessage('1st Saccade '+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
+                if self.pursuedAgents:  
+                    self.etController.sendMessage('1st Saccade '+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
+                    self.sacPerPursuit=0
             else: # consecutive fixation
                 self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
                 if self.pursuedAgents:  self.etController.sendMessage('%dth Saccade ' % (self.sacPerPursuit+1)+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
@@ -350,6 +352,7 @@ class BabyExperiment(Experiment):
         
     def omission(self):
         self.etController.sendMessage('Omission')
+        self.showAttentionCatcher=False
     def reward(self):
         ''' Present reward '''
         clrs=np.ones((self.cond,3))

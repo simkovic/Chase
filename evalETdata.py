@@ -237,16 +237,16 @@ def readEdf(vp,block):
         trial=np.array(trial)
         if type(trial) is type( () ): print 'error in readEdf'
         trial[:,0]-=tstart
-        trial[:,1]=pix2deg(trial[:,1]-cent[0],distance)
-        trial[:,2]=-pix2deg(trial[:,2]-cent[1],distance)
+        trial[:,1]=myPix2deg(trial[:,1],distance,cent[0],40)
+        trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],32)
         if trial.shape[1]==7:
-            trial[:,4]=pix2deg(trial[:,4]-cent[0],distance)
-            trial[:,5]=-pix2deg(trial[:,5]-cent[1],distance)
+            trial[:,4]=myPix2deg(trial[:,4],distance,cent[0],40)
+            trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],32)
         return trial
     cent=(0,0)
     path = getcwd()
     path = path.rstrip('code')
-    f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
+    f=open(path+'eyelinkOutput\\VP%03dB%d.ASC'%(vp,block),'r')
     BLINK=0
     ende=False
     try:
@@ -260,6 +260,7 @@ def readEdf(vp,block):
         dcorrOn=False
         calOn=False
         t=0
+        size=7
         while True:   
             words=f.readline().split()
             i+=1            
@@ -441,6 +442,7 @@ def readTobii(vp,block,lagged=False):
                 if len(words)==2 and words[0]=='Recording resolution': 
                     cent=words[1].rsplit('x')
                     cent=(int(cent[0])/2.0,int(cent[1])/2.0)
+                    ratio=cent[1]/float(cent[0])
                     print cent
                 if len(words)==3 and words[1]=='Trial':
                     on=True; tstart=float(words[0])
@@ -466,9 +468,9 @@ def readTobii(vp,block,lagged=False):
                 trial[trial==-1]=np.nan # TODO consider validity instead of coordinates
                 
                 trial[:,1]=myPix2deg(trial[:,1],distance,cent[0],monwidth)
-                trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],monwidth)
+                trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],monwidth*ratio)
                 trial[:,4]=myPix2deg(trial[:,4],distance,cent[0],monwidth)
-                trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],monwidth)
+                trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],monwidth*ratio)
                 et=ETTrialData(trial,[],[],hz,'BOTH',vp,block,t,recTime=recTime)
                 et.theta=np.array(theta);theta=[]
                 et.msg=msgs; msgs=[]
@@ -632,17 +634,19 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
 
 if __name__ == '__main__':
     #data = readTobii(119,0)
-    plotLTbabyPilot(range(123,125))
-    time.sleep(5)
-    bla
+    #plotLTbabyPilot(range(123,125))
+    #time.sleep(5)
+    
     for vp in range(20,70):
         for block in range(0,5):
             try:
                 data=readEdf(vp,block)
                 if not (len(data) == 40 or (len(data)==10 and  block==0)):
                     print 'error ', vp, block, len(data)
+                else:
+                    print '    ok', vp, block, len(data)
             except:
-                'missing ', vp, block
+                print 'missing ', vp, block
 
 
 

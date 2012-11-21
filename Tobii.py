@@ -625,9 +625,11 @@ class TobiiController:
         elif units is 'pix': 
             xscale=self.win.size[0]; yscale=self.win.size[1]
         elif units is 'cm':
-            xscale=self.win.size[0]/self.win.monitor.getWidth(); yscale=self.win.size[1]/self.win.monitor.getWidth()
+            xscale=self.win.size[0]/self.win.monitor.getWidth(); 
+            yscale=self.win.size[1]/(self.win.size[1]/self.win.size[0]*self.win.monitor.getWidth())
         elif units is 'deg':
-            xscale=self.win.size[0]/self.win.monitor.getWidth(); yscale=self.win.size[1]/self.win.monitor.getWidth()
+            xscale=self.win.size[0]/self.win.monitor.getWidth(); 
+            yscale=self.win.size[1]/(self.win.size[1]/self.win.size[0]*self.win.monitor.getWidth())
             xscale=myCm2deg(xscale, self.win.monitor.getDistance())
             yscale=myCm2deg(yscale, self.win.monitor.getDistance())
             #xscale=np.arctan(xscale/self.win.monitor.getDistance())/np.pi*180
@@ -744,7 +746,7 @@ class TobiiController:
                 g.LeftValidity,
                 g.RightGazePoint2D.x*self.win.size[0] if g.RightValidity!=4 else -1.0,
                 g.RightGazePoint2D.y*self.win.size[1] if g.RightValidity!=4 else -1.0,
-                g.RightValidity, self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp)/1000.0,
+                g.RightValidity, (self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0,
                 g.LeftPupil if g.LeftValidity!=4 else -1.0,
                 g.RightPupil if g.RightValidity!=4 else -1.0))
         while eind <len(self.eventData): # write any remaining events
@@ -883,16 +885,17 @@ class TobiiControllerFromOutput(TobiiController):
         wx,wy=self.win.size
         dist=self.win.monitor.getDistance()
         wdt=self.win.monitor.getWidth()
-        print 'wsize ',self.win.size[0]/2, self.win.size[1]/2,wdt
+        #print 'wsize ',self.win.size[0]/2, self.win.size[1]/2,wdt
+        ratio=self.win.size[1]/self.win.size[0]
         for i in range(D.shape[0]):
             if eind<len(self.eventData):# write events at the correct time position 
                 e = self.eventData[eind]
                 et=e[0]*1000.0
                 if et>0 and et<D[i,0]: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
             if np.isnan(D[i,1]): xl=-1; yl=-1; vl=4
-            else: xl=myDeg2pix(D[i,1],dist,wx/2.0,wdt); yl= myDeg2pix(-D[i,2],dist,wy/2.0,wdt); vl=0;
+            else: xl=myDeg2pix(D[i,1],dist,wx/2.0,wdt); yl= myDeg2pix(-D[i,2],dist,wy/2.0,wdt*ratio); vl=0;
             if np.isnan(D[i,4]): xr=-1; yr=-1; vr=4;pr=-1
-            else: xr=myDeg2pix(D[i,4],dist,wx/2.0,wdt); yr= myDeg2pix(-D[i,5],dist,wy/2.0,wdt); vr=0;pr=D[i,6]
+            else: xr=myDeg2pix(D[i,4],dist,wx/2.0,wdt); yr= myDeg2pix(-D[i,5],dist,wy/2.0,wdt*ratio); vr=0;pr=D[i,6]
             self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f\t%d\t%d\t%d\t%.4f\n'%
                                 (D[i,0],xl,yl,vl,xr,yr,vr,0,0,0,0,pr))
         while eind <len(self.eventData): # write any remaining events
@@ -919,7 +922,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
         self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
         self.circle2=visual.Circle(self.win,radius=0.2,fillColor='blue',lineColor='blue',units='deg' )
         self.msg1=visual.TextStim(self.win,pos=(2,14),wrapWidth=20)
-        self.msg2=visual.TextStim(self.win,pos=(-5,14),text='No message')
+        self.msg2=visual.TextStim(self.win,pos=(-5,12),text='No message')
         self.trial=initTrial-1
     def doMain(self): pass
     def sendMessage(self,event):
@@ -1038,7 +1041,7 @@ class TobiiControllerFromOutputPaced(TobiiController):
         if fd>Settings.FIXMINDUR:
             #print 'check ',fc, fd
             self.circle.setPos(fc)
-            self.circle.setRadius(fd+0.2)
+            if fd<3: self.circle.setRadius(fd+0.2)
             self.circle.draw()
         if self.i+1<len(self.msgs) and self.playMode:
             if self.msgs[self.i+1] == 'Reward On': self.circle.setFillColor('green')
