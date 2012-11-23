@@ -17,14 +17,14 @@ class TrajectoryData():
 
     
     def __init__(self,trajectories,maze=None,wind=None,trajRefresh=75.0,
-                 gazeData=None,highlightChase=False):
+                 gazeData=None,highlightChase=False,trialDur=30000.0):
         
         self.trajectories=trajectories
         self.trajRefresh=trajRefresh
         self.gazeData=gazeData
         self.wind=wind
         self.pos=[]
-        self.trialDur=min(30000.0,self.gazeData.gaze.shape[0]/float(self.gazeData.hz)*1000)
+        self.trialDur=min(trialDur,self.gazeData.gaze.shape[0]/float(self.gazeData.hz)*1000)
         step=1000/float(self.gazeData.hz)
         tcur=np.arange(0,self.trialDur-3*step,step)
         step=1000/float(trajRefresh)
@@ -135,7 +135,20 @@ class GazePoint(TrajectoryData):
             raise
     
     
-
+class BabyETData(TrajectoryData, GazePoint):
+    def __init__(self,trajectories,gazeData,**kwargs):
+        wind = kwargs.get('wind',None)
+        if wind is None:
+            wind = Q.initDisplay((1280,1000))
+        if trajectories!=None:
+            TrajectoryData.__init__(self,trajectories,
+                wind=wind,gazeData=gazeData,**kwargs)
+        else: GazePoint.__init__(self, gazeData,wind=wind)
+    def showFrame(self,positions):
+        
+        TrajectoryData.showFrame(self,positions)
+        
+        
 class ETData(TrajectoryData,GazePoint):
     def __init__(self,trajectories,gazeData,**kwargs):
         wind = kwargs.get('wind',None)

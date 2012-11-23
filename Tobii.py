@@ -625,15 +625,13 @@ class TobiiController:
         elif units is 'pix': 
             xscale=self.win.size[0]; yscale=self.win.size[1]
         elif units is 'cm':
-            xscale=self.win.size[0]/self.win.monitor.getWidth(); 
-            yscale=self.win.size[1]/(self.win.size[1]/self.win.size[0]*self.win.monitor.getWidth())
+            xscale=self.win.monitor.getWidth(); 
+            yscale=self.win.size[1]/float(self.win.size[0])*self.win.monitor.getWidth()
         elif units is 'deg':
-            xscale=self.win.size[0]/self.win.monitor.getWidth(); 
-            yscale=self.win.size[1]/(self.win.size[1]/self.win.size[0]*self.win.monitor.getWidth())
+            xscale=self.win.monitor.getWidth(); 
+            yscale=self.win.size[1]/float(self.win.size[0])*self.win.monitor.getWidth()
             xscale=myCm2deg(xscale, self.win.monitor.getDistance())
             yscale=myCm2deg(yscale, self.win.monitor.getDistance())
-            #xscale=np.arctan(xscale/self.win.monitor.getDistance())/np.pi*180
-            #yscale=np.arctan(yscale/self.win.monitor.getDistance())/np.pi*180
         else: raise ValueError( 'Wrong or unsupported units argument in getGazePosition')
         if len(self.gazeData)==0: return np.ones( eyes*2)*np.nan
         g=self.gazeData[index]
@@ -641,12 +639,12 @@ class TobiiController:
                 -g.LeftGazePoint2D.y*yscale+yscale/2.0,
                 g.RightGazePoint2D.x*xscale-xscale/2.0, 
                 -g.RightGazePoint2D.y*yscale+yscale/2.0]
-        if g.LeftValidity==4: out[0]=np.nan; out[1]=np.nan;
-        if g.RightValidity==4: out[2]=np.nan; out[3]=np.nan;
+        if g.LeftValidity>3: out[0]=np.nan; out[1]=np.nan;
+        if g.RightValidity>3: out[2]=np.nan; out[3]=np.nan;
         if eyes==2: return np.array(out)
         avg=[(out[0]+out[2])/2.0, (out[1]+out[3])/2.0]
-        if g.LeftValidity==4: avg[0]=out[2];avg[1]=out[3];
-        if g.RightValidity==4: avg[0]=out[0];avg[1]=out[1];
+        if g.LeftValidity>3: avg[0]=out[2];avg[1]=out[3];
+        if g.RightValidity>3: avg[0]=out[0];avg[1]=out[1];
         return np.array(avg)
         
     def getCurrentGazePosition(self,eyes=1,units='norm'):
