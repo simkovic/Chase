@@ -444,23 +444,23 @@ def readTobii(vp,block,lagged=False):
                     cent=(int(cent[0])/2.0,int(cent[1])/2.0)
                     ratio=cent[1]/float(cent[0])
                     print cent
-                if len(words)==3 and words[1]=='Trial':
+                if len(words)==4 and words[2]=='Trial':
                     on=True; tstart=float(words[0])
-            elif len(words)>=10: # record data
+            elif len(words)>=11: # record data
                 # we check whether the data gaze position is on the screen
-                xleft=float(words[1]); yleft=float(words[2])
+                xleft=float(words[2]); yleft=float(words[3])
                 if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
                     xleft=np.nan; yleft=np.nan;
-                xright=float(words[4]); yright=float(words[5])
+                xright=float(words[5]); yright=float(words[6])
                 if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
                     xright=np.nan; yright=np.nan;
 
-                if lagged: tm =float(words[0])+float(words[7])
+                if lagged: tm =float(words[0])+float(words[8])
                 else: tm=float(words[0])
-                tdata=(tm,xleft,yleft,float(words[8]),
-                    xright,yright,float(words[9]))
+                tdata=(tm,xleft,yleft,float(words[9]),
+                    xright,yright,float(words[10]))
                 trial.append(tdata)
-            elif (words[1]=='Detection' or words[1]=='Omission'):
+            elif (words[2]=='Detection' or words[2]=='Omission'):
                 # we have all data for this trial, transform to deg and append
                 on=False
                 trial=np.array(trial)
@@ -477,9 +477,9 @@ def readTobii(vp,block,lagged=False):
                 data.append(et)
                 t+=1
                 trial=[]
-            elif len(words)==3 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
-            elif len(words)==5: msgs.append([float(words[0])-tstart,words[1]+' '+words[4]])
-            else: msgs.append([float(words[0])-tstart,words[1]])
+            #elif len(words)==4 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
+            elif len(words)==6: msgs.append([float(words[0])-tstart,words[2]+' '+words[5]])
+            else: msgs.append([float(words[0])-tstart,words[2]])
     except: f.close(); raise
     f.close()
     return data
@@ -604,8 +604,8 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
             if not np.isnan(ls):
                 plt.plot([ls,x[-1]],[i+1.2,i+1.2],lw=4)
                 #print msg[1]    
-        DC[kk,0]=D[kk,ordd<5].mean()
-        DC[kk,1]=D[kk,ordd>=5].mean()
+        #DC[kk,0]=D[kk,ordd<5].mean()
+        #DC[kk,1]=D[kk,ordd>=5].mean()
         plt.ylabel('Trial')
         plt.xlabel('Time in seconds')
         plt.xlim([0, maxTrDur])
@@ -646,7 +646,7 @@ def checkEyelinkDatasets():
 
 if __name__ == '__main__':
     #data = readTobii(119,0)
-    #plotLTbabyPilot(range(123,125))
+    plotLTbabyPilot(range(125,126))
     #time.sleep(5)
     
 
