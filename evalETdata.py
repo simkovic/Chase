@@ -631,12 +631,8 @@ def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
     ax.set_yticks(np.arange(vpn[0],vpn[-1]+1))
     plt.show()
     plt.colorbar()
-
-if __name__ == '__main__':
-    #data = readTobii(119,0)
-    #plotLTbabyPilot(range(123,125))
-    #time.sleep(5)
     
+def checkEyelinkDatasets():
     for vp in range(20,70):
         for block in range(0,5):
             try:
@@ -647,6 +643,13 @@ if __name__ == '__main__':
                     print '    ok', vp, block, len(data)
             except:
                 print 'missing ', vp, block
+
+if __name__ == '__main__':
+    #data = readTobii(119,0)
+    #plotLTbabyPilot(range(123,125))
+    #time.sleep(5)
+    
+
 
 
 

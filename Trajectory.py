@@ -409,11 +409,12 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         os.chdir('..')
     os.chdir('..')
     
-def generateBabyExperiment(vpn,nrtrials=5,blocks=1,conditions=[6,8],
+def generateBabyExperiment(vpn,nrtrials=7,blocks=1,conditions=[6,8],
         dispSize=29,maze=None,probeTrials=False):
     #os.chdir('..')
     os.chdir(Q.inputPath)
     mazes=[]
+    Q.nrframes+= Q.refreshRate *5
     print 'Generating Trajectories'
     for vp in vpn:
         vpname='vp%03d' % vp
@@ -427,6 +428,8 @@ def generateBabyExperiment(vpn,nrtrials=5,blocks=1,conditions=[6,8],
                         maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=0)
                     #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
                     #fn = 'trial%03d' % trial
+                    trajectories=trajectories[(Q.refreshRate*5):]
+                    #print trajectories.shape
                     fn='%sb%dtrial%03d'% (vpname,block,i)
                     i+=1
                     print fn
@@ -561,7 +564,7 @@ if __name__ == '__main__':
     #generateExperiment([92],2,[6],[22])
     #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
     
-    generateBabyExperiment([131])
+    generateBabyExperiment([125,126],nrtrials=15)
     
     #t=generateShortTrial(maze)
     #print t.shape

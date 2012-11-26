@@ -65,7 +65,7 @@ class Settings():
 
 class TobiiController:
     
-    def __init__(self, win,sid=0,block=0):
+    def __init__(self, win,getfhandle,sid=0,block=0):
         """ Initialize controller window, connect and activate eyetracker
             win - supply a window where the experiment is shown
             sid - subject id
@@ -74,6 +74,7 @@ class TobiiController:
         self.etstatus=ETSTATUS.OFF
         self.sid=sid
         self.block=block
+        self.getf=getfhandle
         self.target=None
         self.eyetracker = None
         self.eyetrackers = {}
@@ -663,7 +664,7 @@ class TobiiController:
             and computes smoothed gaze position and extracts fixations
         '''
         self.gazeData.append(gaze)
-        self.curTime.append(self.clock.get_time())
+        self.curTime.append([self.clock.get_time(),self.getf()])
         if Settings.FIXVTH==0: return
         else: self.computeFixation()
         
@@ -711,7 +712,7 @@ class TobiiController:
         self.datafile.write('Monitor Distance\t%f\n'% self.win.monitor.getDistance())
         self.datafile.write('Monitor Width\t%f\n'% self.win.monitor.getWidth())
         self.datafile.write('Recording refresh rate: \t%d\n'%self.hz)
-        self.datafile.write('\t'.join(['TimeStamp', 'GazePointXLeft', 'GazePointYLeft',
+        self.datafile.write('\t'.join(['TimeStamp','Frame', 'GazePointXLeft', 'GazePointYLeft',
             'ValidityLeft', 'GazePointXRight', 'GazePointYRight', 'ValidityRight',
             'Lag','PupilLeft', 'PupilRight' ])+'\n')
         
@@ -723,7 +724,7 @@ class TobiiController:
     def sendMessage(self,event):
         print event
         t = self.syncmanager.convert_from_local_to_remote(self.clock.get_time())
-        self.eventData.append((t,event))
+        self.eventData.append((t,self.getf(),event))
         
     def flushData(self):
         ''' writes data to output file, output format is similar to tobii studio output'''
@@ -737,20 +738,21 @@ class TobiiController:
             if eind<len(self.eventData):# write events at the correct time position 
                 e = self.eventData[eind]
                 et=(e[0]-timeStampStart)/1000.0
-                if et>t0 and et<t1: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
-            self.datafile.write('%.3f\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f\t%.4f\t%.4f\n'%(t1,
+                if et>t0 and et<t1: self.datafile.write('%.3f\t%d\t%s\n' % (et,e[1],e[2])); eind+=1
+            self.datafile.write('%.3f\t%d\t%.4f\t%.4f\t%d\t%.4f\t%.4f\t%d\t%.3f\t%.4f\t%.4f\n'%(t1,
+                self.curTime[i][1],
                 g.LeftGazePoint2D.x*self.win.size[0] if g.LeftValidity!=4 else -1.0,
                 g.LeftGazePoint2D.y*self.win.size[1] if g.LeftValidity!=4 else -1.0,
                 g.LeftValidity,
                 g.RightGazePoint2D.x*self.win.size[0] if g.RightValidity!=4 else -1.0,
                 g.RightGazePoint2D.y*self.win.size[1] if g.RightValidity!=4 else -1.0,
-                g.RightValidity, (self.curTime[i]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0,
+                g.RightValidity, (self.curTime[i][0]-self.syncmanager.convert_from_remote_to_local(g.Timestamp))/1000.0,
                 g.LeftPupil if g.LeftValidity!=4 else -1.0,
                 g.RightPupil if g.RightValidity!=4 else -1.0))
         while eind <len(self.eventData): # write any remaining events
             e = self.eventData[eind]
             et=(e[0]-timeStampStart)/1000.0
-            self.datafile.write('%.1f\t%s\n' % (et,e[1]))
+            self.datafile.write('%.3f\t%d\t%s\n' % (et,e[1],e[2]))
             eind+=1
             
         self.datafile.flush()
@@ -760,6 +762,10 @@ class TobiiController:
     def preTrial(self,driftCorrection=True):
         self.startTracking()
         if driftCorrection: self.doDriftCorrection()
+        else:
+            t0=Settings.psychopyClock.getTime()
+            while Settings.psychopyClock.getTime()-t0<0.2:
+                self.win.flip()
         
     def postTrial(self):
         self.stopTracking()
@@ -889,7 +895,7 @@ class TobiiControllerFromOutput(TobiiController):
             if eind<len(self.eventData):# write events at the correct time position 
                 e = self.eventData[eind]
                 et=e[0]*1000.0
-                if et>0 and et<D[i,0]: self.datafile.write('%.1f\t%s\n' % (et,e[1])); eind+=1
+                if et>0 and et<D[i,0]: self.datafile.write('%.3f\t%s\n' % (et,e[1])); eind+=1
             if np.isnan(D[i,1]): xl=-1; yl=-1; vl=4
             else: xl=myDeg2pix(D[i,1],dist,wx/2.0,wdt); yl= myDeg2pix(-D[i,2],dist,wy/2.0,wdt*ratio); vl=0;
             if np.isnan(D[i,4]): xr=-1; yr=-1; vr=4;pr=-1
@@ -898,7 +904,7 @@ class TobiiControllerFromOutput(TobiiController):
                                 (D[i,0],xl,yl,vl,xr,yr,vr,0,0,0,0,pr))
         while eind <len(self.eventData): # write any remaining events
             e = self.eventData[eind]
-            self.datafile.write('%.1f\t%s\n' % (e[0]*1000.0,e[1]))
+            self.datafile.write('%.3f\t%s\n' % (e[0]*1000.0,e[1]))
             eind+=1 
         self.datafile.flush()
     

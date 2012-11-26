@@ -66,6 +66,7 @@ class Experiment():
         self.text1.setHeight(fs)
         self.text2.setHeight(fs)
         self.text3.setHeight(fs)
+        self.f=0
         
     def getWind(self):
         try: return self.wind
@@ -131,7 +132,8 @@ class Experiment():
         return False
     def omission(self):
         pass
-
+    def getf(self):
+        return self.f
     def runTrial(self,trajectories,fixCross=True):
         nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
@@ -235,18 +237,18 @@ class BabyExperiment(Experiment):
     colored=False
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
-    sacToReward=[3,5] # reward is presented after enough saccades are made
-    maxSacPerPursuit=10 # trial will be terminated if the pursuit is upheld
-    blinkTolerance=10 # iterations
-    rewardIterations=3*Q.refreshRate # nr of frames the reward is shown since last saccade to ChCh
+    sacToReward=[3,4] # reward is presented after enough saccades are made
+    maxSacPerPursuit=12 # trial will be terminated if the pursuit is upheld
+    blinkTolerance=0.2*Q.refreshRate # iterations
+    rewardIterations=2.5*Q.refreshRate # 3 nr of frames the reward is shown since last saccade to ChCh
     maxNrRewards=1 # maximum rewards shown per trial
-    initBlockDur = 3*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
+    initBlockDur = 0*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiController(self.getWind(),
+        self.etController = TobiiController(self.getWind(),getfhandle=self.getf,
             sid=self.id,block=self.block)#,playMode=True,initTrial=self.initTrial)
         self.etController.doMain()
         self.clrOscil=0.05
@@ -266,7 +268,7 @@ class BabyExperiment(Experiment):
     def runTrial(self,*args):
         self.babyStatus=0 # -1 no signal, 0 saccade, 1 fixation,
         self.sacPerPursuit=0
-        self.pursuedAgents=None
+        self.pursuedAgents=False
         self.rewardIter=0
         self.nrRewards=0
         self.blinkCount=0
@@ -282,6 +284,7 @@ class BabyExperiment(Experiment):
         self.timeNotLooking=0
         self.etController.preTrial(driftCorrection=self.showAttentionCatcher)
         self.etController.sendMessage('Trial\t%d'%self.t)
+        self.etController.sendMessage('Phase\t%d'%self.phase)
         Experiment.runTrial(self,*args,fixCross=False)
         self.etController.postTrial()
         
@@ -310,33 +313,25 @@ class BabyExperiment(Experiment):
         elif f and self.babyStatus == 0: # fixation started
             self.babyStatus=1
             #self.etController.sendMessage('Fixation '+str(fc[0])+' '+str(fc[1])+' '+str(self.f))
-            if ((self.pursuedAgents is None or not self.pursuedAgents 
-                or self.f-self.tFix > BabyExperiment.maxFixInterval) and self.rewardIter==0): # first fixation
-                self.pursuedAgents=agentsInView[0] or agentsInView[1] 
-                if self.pursuedAgents:  
-                    self.etController.sendMessage('1st Saccade '+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
-                    self.sacPerPursuit=0
-            else: # consecutive fixation
-                self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
-                if self.pursuedAgents:  self.etController.sendMessage('%dth Saccade ' % (self.sacPerPursuit+1)+str(agentsInView[0])+' '+str(agentsInView[1])+' '+str(self.f))
-                #print 'second fixation to',agentsInView
-            if self.pursuedAgents: #is chaser-chasee being pursued?
-                self.sacPerPursuit+=1
+            firstFix=(self.rewardIter==0 and (not self.pursuedAgents 
+                or self.f-self.tFix > BabyExperiment.maxFixInterval))
+            if firstFix or self.rewardIter>0: self.pursuedAgents= (agentsInView[0] or agentsInView[1])
+            else: self.pursuedAgents= (agentsInView[0] or agentsInView[1]) and self.pursuedAgents
+            
+            if self.pursuedAgents:
+                if firstFix: self.sacPerPursuit=1
+                else: self.sacPerPursuit+=1
+                self.etController.sendMessage('%dth Saccade %.4f %.4f' % (self.sacPerPursuit,fc[0],fc[1]))
                 if self.rewardIter>1: self.rewardIter=1
-                #print 'stage ',self.sacPerPursuit,' pursued:' ,self.pursuedAgents.nonzero()[0]
-            elif self.rewardIter==0: self.sacPerPursuit=0
-            # in the case the reward is being shown we just ignore the 
+            #elif self.rewardIter==0: self.sacPerPursuit=0 
             self.tFix=self.f
         ind= (1 if self.phase>1 else 0)
-        if (self.sacPerPursuit>= BabyExperiment.sacToReward[ind] 
-            and (self.f > BabyExperiment.initBlockDur)): 
-            if self.rewardIter==0:
-                clrs=np.ones((self.cond,3))
-                clrs[0,:]=self.rewardColor1
-                clrs[1,:]=self.rewardColor1
-                if self.phase< 4: self.elem.setColors(clrs)
-                self.etController.sendMessage('Reward On')
-                self.rewardIter=1
+        if (self.f < BabyExperiment.initBlockDur and 
+            self.sacPerPursuit>= BabyExperiment.sacToReward[ind]):
+            self.sacPerPursuit= BabyExperiment.sacToReward[ind]-1
+        if (self.sacPerPursuit>= BabyExperiment.sacToReward[ind] and self.rewardIter==0): 
+            self.turnOnReward()
+                
         #print 'f ',self.f
         if  self.rewardIter>0 and self.rewardIter<BabyExperiment.rewardIterations:
             if self.phase< 4: self.reward()#self.pursuedAgents.nonzero()[0])
@@ -354,20 +349,22 @@ class BabyExperiment(Experiment):
             
         #print gc,f,self.babyStatus,self.timeNotLooking,out
         return out
+    def turnOnReward(self):
+        self.etController.sendMessage('Reward On')
+        self.rewardIter=1
+        clrs=np.ones((self.cond,3))
+        clrs[0,:]=self.rewardColor1
+        clrs[1,:]=self.rewardColor1
+        if self.phase< 4: self.elem.setColors(clrs)
     def turnOffReward(self):
         self.etController.sendMessage('Reward Off')
         self.rewardIter=0
         self.elem.setColors(np.ones((self.cond,3)))
         self.nrRewards+=1
-        
-    def omission(self):
-        self.etController.sendMessage('Omission')
     def reward(self):
         ''' Present reward '''
         clrs=np.ones((self.cond,3))
-        if self.elem.colors.shape[0]!=self.cond:
-            self.elem.setColors(clrs)
-
+        if self.elem.colors.shape[0]!=self.cond: self.elem.setColors(clrs)
         nc=self.elem.colors[0,:]-self.clrOscil*(self.rewardColor1-self.rewardColor2)
         #print '1 ',nc
         if (np.linalg.norm(self.rewardColor1-nc)>np.linalg.norm(self.rewardColor1-self.rewardColor2)
@@ -379,6 +376,9 @@ class BabyExperiment(Experiment):
         clrs[1,:]=nc
         self.elem.setColors(clrs)
         #print nc,pa, self.elem.colors[pa,:]
+        
+    def omission(self):
+        self.etController.sendMessage('Omission')
     
 class BehavioralExperiment(Experiment):
             
