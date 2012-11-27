@@ -244,12 +244,12 @@ class BabyExperiment(Experiment):
     maxNrRewards=1 # maximum rewards shown per trial
     initBlockDur = 0*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
-    maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
+    maxFixInterval=2*Q.refreshRate # nr o mes, maximum allowed duration between two consecutive fixations during pursuit
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiController(self.getWind(),getfhandle=self.getf,
-            sid=self.id,block=self.block)#,playMode=True,initTrial=self.initTrial)
+        self.etController = TobiiControllerFromOutputPaced(self.getWind(),#getfhandle=self.getf,
+            sid=self.id,block=self.block,playMode=False,initTrial=self.initTrial)
         self.etController.doMain()
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
@@ -273,7 +273,6 @@ class BabyExperiment(Experiment):
         self.nrRewards=0
         self.blinkCount=0
         self.tFix=0
-        print 'phase',self.phase
         if BabyExperiment.colored:
             #print self.t
             #print self.colors[self.t,:]
