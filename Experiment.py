@@ -237,19 +237,20 @@ class BabyExperiment(Experiment):
     colored=False
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
-    sacToReward=[3,4] # reward is presented after enough saccades are made
+    sacToReward=[3,5] # reward is presented after enough saccades are made
     maxSacPerPursuit=12 # trial will be terminated if the pursuit is upheld
     blinkTolerance=0.2*Q.refreshRate # iterations
     rewardIterations=2.5*Q.refreshRate # 3 nr of frames the reward is shown since last saccade to ChCh
     maxNrRewards=1 # maximum rewards shown per trial
-    initBlockDur = 0*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
+    initBlockDur = 1*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
-    maxFixInterval=2*Q.refreshRate # nr o mes, maximum allowed duration between two consecutive fixations during pursuit
+    maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     
     def __init__(self):
         Experiment.__init__(self)
         self.etController = TobiiControllerFromOutputPaced(self.getWind(),#getfhandle=self.getf,
-            sid=self.id,block=self.block,playMode=False,initTrial=self.initTrial)
+            sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
+        #self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
