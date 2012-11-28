@@ -409,8 +409,8 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         os.chdir('..')
     os.chdir('..')
     
-def generateBabyExperiment(vpn,nrtrials=7,blocks=1,conditions=[6,8],
-        dispSize=29,maze=None,probeTrials=False):
+def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],
+        dispSize=29,maze=None):
     #os.chdir('..')
     os.chdir(Q.inputPath)
     mazes=[]
@@ -420,10 +420,19 @@ def generateBabyExperiment(vpn,nrtrials=7,blocks=1,conditions=[6,8],
         vpname='vp%03d' % vp
         os.mkdir(vpname)
         os.chdir(vpname)
+        r=[]
+        phase=[0,1,1,2]
+        for i in range((len(conditions)*nrtrials-len(phase))/2):
+            if np.random.rand()>0.5: phase.extend([1,2])
+            else: phase.extend([2,1])
+        print 'phase', phase
         for block in range(blocks):
             i=0
             for condition in conditions:
                 for trial in range(nrtrials):
+                    if condition==conditions[0]: 
+                        if np.random.rand()>0.5: r.extend([trial, trial+nrtrials])
+                        else: r.extend([trial+nrtrials,trial])
                     trajectories=generateTrial(condition, 
                         maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=0)
                     #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
@@ -434,15 +443,12 @@ def generateBabyExperiment(vpn,nrtrials=7,blocks=1,conditions=[6,8],
                     i+=1
                     print fn
                     np.save(fn,trajectories)
-#            while True:# check that more than 1 consecutive control trials do not occur
-#                r=np.random.permutation(nrtrials)
-#                r2=np.roll(np.random.permutation(nrtrials)>=nrtrials-0.1*nrtrials,1)
-#                #r3=np.roll(np.random.permutation(50)>=45,2)
-#                if not np.any(np.bitwise_and(r,r2)):
-#                    break
-            r=np.random.permutation(nrtrials*len(conditions))
+            #r=np.random.permutation(nrtrials*len(conditions))
+            r=np.array(r)
+            print r
             np.save('order%sb%d'% (vpname,block),r)
-            f=open('Settings.pkl','w')
+            np.save('phase%sb%d'% (vpname,block),phase)
+            f=open('SettingsTraj.pkl','w')
             pickle.dump(Q,f)
             f.close()
         os.chdir('..')
@@ -564,7 +570,7 @@ if __name__ == '__main__':
     #generateExperiment([92],2,[6],[22])
     #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
     
-    generateBabyExperiment([125,126],nrtrials=15)
+    generateBabyExperiment([129])
     
     #t=generateShortTrial(maze)
     #print t.shape

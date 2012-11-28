@@ -41,7 +41,7 @@ class Experiment():
             subinf.close()               
         else: print 'Experiment cancelled'
         # save settings, which we will use
-        f=open('Settings.pkl','w')
+        f=open('SettingsExp.pkl','w')
         dump(Q,f)
         f.close()
         #init stuff
@@ -245,6 +245,7 @@ class BabyExperiment(Experiment):
     initBlockDur = 1*Q.refreshRate# nr of frames, duration when reward is blocked at the trial start
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
+    finished=2 # abort after consecutive nr of attention catchers
     
     def __init__(self):
         Experiment.__init__(self)
@@ -255,9 +256,10 @@ class BabyExperiment(Experiment):
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
         self.rewardColor2=np.array((1,1,1))
-        self.showAttentionCatcher=True
-        self.phase=1 # 1 - show easy reward, 2 or 3 - show difficult reward, 4 - no reward (test)
-        
+        self.showAttentionCatcher=1
+        self.phases=np.load(Q.inputPath+'phase%sb%d.npy'% (vpname,block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
+        print 'phases', self.phases
+        self.pi=0
         
     def run(self):
         if BabyExperiment.colored:
@@ -274,6 +276,11 @@ class BabyExperiment(Experiment):
         self.nrRewards=0
         self.blinkCount=0
         self.tFix=0
+        if self.showAttentionCatcher>=BabyExperiment.finished: 
+            self.etController.sendMessage('Finished')
+            self.etController.closeConnection()
+            self.wind.close()
+            core.quit()
         if BabyExperiment.colored:
             #print self.t
             #print self.colors[self.t,:]
@@ -282,9 +289,9 @@ class BabyExperiment(Experiment):
         #colors=((1,0,-1),(1,-1,0),(0,-1,1),(0,1,-1),(-1,0,1),(-1,1,0))
         #self.rewardColor=np.array(colors[np.random.randint(len(colors))])
         self.timeNotLooking=0
-        self.etController.preTrial(driftCorrection=self.showAttentionCatcher)
+        self.etController.preTrial(driftCorrection=self.showAttentionCatcher>0)
         self.etController.sendMessage('Trial\t%d'%self.t)
-        self.etController.sendMessage('Phase\t%d'%self.phase)
+        self.etController.sendMessage('Phase\t%d'%self.phases[self.pi])
         Experiment.runTrial(self,*args,fixCross=False)
         self.etController.postTrial()
         
@@ -325,7 +332,7 @@ class BabyExperiment(Experiment):
                 if self.rewardIter>1: self.rewardIter=1
             #elif self.rewardIter==0: self.sacPerPursuit=0 
             self.tFix=self.f
-        ind= (1 if self.phase>1 else 0)
+        ind= (1 if self.phases[self.pi]>0 else 0)
         if (self.f < BabyExperiment.initBlockDur and 
             self.sacPerPursuit>= BabyExperiment.sacToReward[ind]):
             self.sacPerPursuit= BabyExperiment.sacToReward[ind]-1
@@ -334,19 +341,18 @@ class BabyExperiment(Experiment):
                 
         #print 'f ',self.f
         if  self.rewardIter>0 and self.rewardIter<BabyExperiment.rewardIterations:
-            if self.phase< 4: self.reward()#self.pursuedAgents.nonzero()[0])
+            if self.phases[self.pi]< 2: self.reward()#self.pursuedAgents.nonzero()[0])
             self.rewardIter+=1
         elif self.rewardIter>=BabyExperiment.rewardIterations: self.turnOffReward()
         
         if self.babyStatus is -1: self.timeNotLooking+=1
         else: self.timeNotLooking=0
-        self.showAttentionCatcher= self.timeNotLooking>BabyExperiment.criterion
-        out=(self.showAttentionCatcher or self.sacPerPursuit>=BabyExperiment.maxSacPerPursuit
+        if self.timeNotLooking>BabyExperiment.criterion: self.showAttentionCatcher+=1
+        else: self.showAttentionCatcher=0
+        out=(self.showAttentionCatcher>0 or self.sacPerPursuit>=BabyExperiment.maxSacPerPursuit
             or self.nrRewards>=BabyExperiment.maxNrRewards)
-        if not self.showAttentionCatcher and out and self.phase<4: self.phase+=1
-        elif not self.showAttentionCatcher and out and self.phase==4: self.phase=2
-        if self.showAttentionCatcher and self.rewardIter>0: self.turnOffReward()
-            
+        if not (self.showAttentionCatcher>0) and out: self.pi+=1
+        if self.showAttentionCatcher>0 and self.rewardIter>0: self.turnOffReward()
         #print gc,f,self.babyStatus,self.timeNotLooking,out
         return out
     def turnOnReward(self):
