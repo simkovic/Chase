@@ -11,8 +11,7 @@ import numpy as np
 import random
 try: from Eyelink import TrackerEyeLink
 except ImportError: print 'Warning >> Eyelink import failed'
-from Tobii import TobiiController,TobiiControllerFromOutput,  TobiiControllerFromOutputPaced
-
+from Tobii import TobiiController,TobiiControllerFromOutputF
 class Experiment():
     def __init__(self):
         # ask infos
@@ -249,15 +248,15 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutputPaced(self.getWind(),#getfhandle=self.getf,
-            sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
+        self.etController = TobiiControllerFromOutputF(self.getWind(),sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
         #self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
         self.rewardColor2=np.array((1,1,1))
-        self.showAttentionCatcher=1
-        self.phases=np.load(Q.inputPath+'phase%sb%d.npy'% (vpname,block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
+        self.showAttentionCatcher=True
+        self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
+        self.account=0 # count consecutive attention catchers
         print 'phases', self.phases
         self.pi=0
         
@@ -276,11 +275,13 @@ class BabyExperiment(Experiment):
         self.nrRewards=0
         self.blinkCount=0
         self.tFix=0
-        if self.showAttentionCatcher>=BabyExperiment.finished: 
-            self.etController.sendMessage('Finished')
-            self.etController.closeConnection()
-            self.wind.close()
-            core.quit()
+        if self.showAttentionCatcher:
+            self.account+=1
+            if self.account>=BabyExperiment.finished and self.t>=10:
+                self.etController.sendMessage('Finished')
+                self.etController.closeConnection()
+                self.wind.close(); core.quit()
+        else: self.account=0
         if BabyExperiment.colored:
             #print self.t
             #print self.colors[self.t,:]
@@ -347,12 +348,11 @@ class BabyExperiment(Experiment):
         
         if self.babyStatus is -1: self.timeNotLooking+=1
         else: self.timeNotLooking=0
-        if self.timeNotLooking>BabyExperiment.criterion: self.showAttentionCatcher+=1
-        else: self.showAttentionCatcher=0
-        out=(self.showAttentionCatcher>0 or self.sacPerPursuit>=BabyExperiment.maxSacPerPursuit
+        self.showAttentionCatcher=self.timeNotLooking>BabyExperiment.criterion
+        out=(self.showAttentionCatcher or self.sacPerPursuit>=BabyExperiment.maxSacPerPursuit
             or self.nrRewards>=BabyExperiment.maxNrRewards)
-        if not (self.showAttentionCatcher>0) and out: self.pi+=1
-        if self.showAttentionCatcher>0 and self.rewardIter>0: self.turnOffReward()
+        if (not self.showAttentionCatcher) and out: self.pi+=1
+        if self.showAttentionCatcher and self.rewardIter>0: self.turnOffReward()
         #print gc,f,self.babyStatus,self.timeNotLooking,out
         return out
     def turnOnReward(self):
@@ -361,7 +361,7 @@ class BabyExperiment(Experiment):
         clrs=np.ones((self.cond,3))
         clrs[0,:]=self.rewardColor1
         clrs[1,:]=self.rewardColor1
-        if self.phase< 4: self.elem.setColors(clrs)
+        if self.phases[self.pi]< 2: self.elem.setColors(clrs)
     def turnOffReward(self):
         self.etController.sendMessage('Reward Off')
         self.rewardIter=0

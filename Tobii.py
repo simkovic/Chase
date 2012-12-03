@@ -1065,8 +1065,171 @@ class TobiiControllerFromOutputPaced(TobiiController):
             
         return gc,fc, fd>Settings.FIXMINDUR,incf-1
         
+
+class TobiiControllerFromOutputF(TobiiController):
+    ''' Simulates eyetracking data based on
+        the output from previous experiement
+        Useful for debuging gaze contingent experiments
+    '''
+    def __init__(self,win,sid,block, playMode=True,initTrial=0):
+        from evalETdata import readTobii
+        self.playMode=playMode
+        self.data=readTobii(sid,block,True)
+        self.hz=60.0
+        self.winhz=75#win._monitorFrameRate
+        self.win=win
+        self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
+        self.circle2=visual.Circle(self.win,radius=0.2,fillColor='blue',lineColor='blue',units='deg' )
+        self.msg1=visual.TextStim(self.win,pos=(2,14),wrapWidth=20)
+        self.msg2=visual.TextStim(self.win,pos=(-5,12),text='No message')
+        self.trial=initTrial-1
+    def doMain(self): pass
+    def sendMessage(self,event):
+        print 'Trial %d Experiment Message %s' %(self.trial,event)
+    def preTrial(self,driftCorrection=True):
+        self.circle.setFillColor('red')
+        self.trial+=1
+        self.i= -1
+        self.T=int(120*self.winhz)
+        self.gaze=np.ones((self.T,2))*np.nan
+        self.times=np.ones(self.T)*np.nan
+        self.check=np.ones(self.T)*np.nan
+        msgi=0
+        self.msgs=['']
+        # we start at the second frame to make the messages and frames consecutive
+        for f in range(self.T):
+            
+            index=(np.int32(self.data[self.trial].gaze[:,-1])<=f).nonzero()[0]
+            
+            if len(index)==0: index=0
+            else: index= max(index)
+            
+            if f-self.data[self.trial].gaze[index,-1]>4: index=0
+            #print index,self.data[self.trial].gaze[index,-1],f
+            #if f>20: bla
+            gp=self.getGazePosition(index)
+            
+            self.gaze[f,:]=gp
+            self.times[f] = self.data[self.trial].gaze[index,0]
+            #self.check[f]=self.data[self.trial].gaze[index,-1]
+            
+            if len(self.data[self.trial].msg) > msgi and f==self.data[self.trial].msg[msgi][1]:
+                self.msgs.append(self.data[self.trial].msg[msgi][2])
+                msgi+=1
+            else: self.msgs.append('')
+        self.msgs.append('')
+        self.times/=1000.0
+        # pre-compute fixations
+        self.fixloc=np.array((np.nan,np.nan))
+        self.fixsum=np.array((np.nan,np.nan))
+        self.fixdur=0
+        self.fixations=np.ones((self.T,3))
+        self.gazeData=[]
+        for i in range(self.T):
+            cgp = self.gaze[i,:]
+            if i>0 and self.times[i]!=self.times[i-1]:self.computeFixation(cgp)
+            self.fixations[i,2]=self.fixdur/self.hz
+            self.fixations[i,[0,1]]=self.fixsum/5.0#float(max(self.fixdur,1))
+            
+        self.t0=Settings.psychopyClock.getTime()    
+    def postTrial(self):
+        #print 'TCFO.postTrial >> Difference', self.data[self.trial].gaze.shape[0]-self.i
+        print 'TCFO.postTrial >> Trial Duration',(Settings.psychopyClock.getTime()-self.t0)
+    
+    def closeConnection(self):
+        if self.trial != len(self.data)-1:
+            print 'TCFO.closeConnection >> nr of trials does not correspond'
+
+    def getGazePosition(self,index,eyes=1,units='deg'):
+        ''' returns the gaze postion of the data specified by index
+            if coordinates are not available or invalid, returns nan values
+            index - self.gazeData index, e.g. -1 returns the last sample
+            eyes - 1: average coordinates of both eye are return as ndarray with 2 elements
+                    2: coordinates of both eyes are returned as ndarray with 4 elements
+            units - units of output coordinates
+                    'deg' are currently supported
+        '''
+        if units is 'deg':
+            xscale=1; yscale=1
+        else: raise ValueError( 'Wrong or unsupported units argument in getGazePosition')
+        if index==0: return np.ones( eyes*2)*np.nan
+        out= self.data[self.trial].gaze[index,[1,2,4,5]]
+        if eyes==2: return np.array(out)
+        avg=[(out[0]+out[2])/2.0, (out[1]+out[3])/2.0]
+        if np.isnan(out[0]): avg[0]=out[2];avg[1]=out[3];
+        if np.isnan(out[2]): avg[0]=out[0];avg[1]=out[1];
+        return np.array(avg)
+        
+    def getCurrentGazePosition(self,eyes=1,units='norm'):
+        ''' returns the current gaze postion
+            if coordinates are not available or invalid, returns nan values
+            eyes - 1: average coordinates of both eye are return as ndarray with 2 elements
+                    2: coordinates of both eyes are returned as ndarray with 4 elements
+            units - units of output coordinates
+                    'norm', 'pix', 'cm' and 'deg' are currently supported
+        '''
+        return self.gaze[self.i,:]
+            
+        
+    def getCurrentFixation(self, units='deg'):
+        ''' returns the triple gc,fc,fix
+            where gc is currect gaze position, fc is current fixation position (or nans if not available)
+            and fix indicates whether a fixation is currently taking place
+            units - units of output coordinates
+                    'norm', 'pix', 'cm' and 'deg' are currently supported
+        '''
+        event.clearEvents()
+        noPress= not self.playMode
+        t0=Settings.psychopyClock.getTime()  
+        incf=1
+        while noPress:# and Settings.psychopyClock.getTime()-t0<0.01 : 
+            for key in event.getKeys():
+                if 'o' == key: noPress=False; incf=1
+                if 'i' == key: noPress=False; incf=-1
+                if 'p' == key: noPress=False; incf=10
+                if 'u' == key: noPress=False; incf=-10
+                if 'x' == key: noPress=False; incf=100
+            time.sleep(0.01)
+        self.i+=incf;
+        if self.i<self.gaze.shape[0]:# and not (self.times[self.i]==self.times[self.i+2]):
+            gc=self.gaze[self.i,:]
+            fd=self.fixations[self.i,2]
+            fc=self.fixations[self.i,[0,1]]
+            tm=self.times[self.i]
+        else: 
+            gc=np.ones(2)*np.nan
+            fd=0
+            fc=np.ones(2)*np.nan
+            tm=-1.0
+        
+        if fd>Settings.FIXMINDUR:
+            #print 'check ',fc, fd
+            self.circle.setPos(fc)
+            if fd<3: self.circle.setRadius(fd+0.2)
+            self.circle.draw()
+        if self.i+1<len(self.msgs) and self.playMode:
+            if self.msgs[self.i+1] == 'Reward On': self.circle.setFillColor('green')
+            elif self.msgs[self.i+1] == 'Reward Off': self.circle.setFillColor('red')
+        
+        if not np.isnan(gc[0]):# and not self.playMode:
+            self.circle2.setPos(gc)
+            self.circle2.draw()
+        if not self.playMode:
+            #print self.times[self.i], gc, self.times[self.i+2]
+            self.msg1.setText('Time: %.3f %.3f, Iteration %d'%(tm,self.check[self.i],self.i))
+            self.msg1.draw()
+        #if len(self.msgs[self.i+1])>0:
+            self.msg2.setText(self.msgs[self.i+1])
+            if len(self.msgs[self.i+1])>0: print 'MSG ',self.msgs[self.i+1]
+            self.msg2.draw()
+        #print gc,fd
+        return gc,fc, fd>Settings.FIXMINDUR,incf-1
+        
  
         
+
+
+
 
 if __name__ == "__main__":
     win = visual.Window(monitor='dell')

@@ -455,10 +455,10 @@ def readTobii(vp,block,lagged=False):
                 if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
                     xright=np.nan; yright=np.nan;
 
-                if lagged: tm =float(words[0])+float(words[8])
-                else: tm=float(words[0])
+                if lagged: tm =float(words[0])+float(words[8]);ff=int(words[1])
+                else: tm=float(words[0]);ff=int(words[1])-2
                 tdata=(tm,xleft,yleft,float(words[9]),
-                    xright,yright,float(words[10]))
+                    xright,yright,float(words[10]),ff)
                 trial.append(tdata)
             elif (words[2]=='Detection' or words[2]=='Omission'):
                 # we have all data for this trial, transform to deg and append
@@ -479,7 +479,7 @@ def readTobii(vp,block,lagged=False):
                 trial=[]
             #elif len(words)==4 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
             elif len(words)==6: msgs.append([float(words[0])-tstart,words[2]+' '+words[5]])
-            else: msgs.append([float(words[0])-tstart,words[2]])
+            else: msgs.append([float(words[0])-tstart,int(words[1]),words[2]])
     except: f.close(); raise
     f.close()
     return data
@@ -645,8 +645,9 @@ def checkEyelinkDatasets():
                 print 'missing ', vp, block
 
 if __name__ == '__main__':
-    #data = readTobii(119,0)
-    plotLTbabyPilot(range(125,126))
+    data = readTobii(129,0)
+    print len(data)
+    #plotLTbabyPilot(range(125,126))
     #time.sleep(5)
     
 
