@@ -248,8 +248,8 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        self.etController = TobiiControllerFromOutputF(self.getWind(),sid=self.id,block=self.block,playMode=True,initTrial=self.initTrial)
-        #self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
+        #self.etController=TobiiControllerFromOutputF(self.getWind(),sid=self.id,playMode=False,block=self.block,initTrial=self.initTrial)
+        self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
@@ -275,6 +275,7 @@ class BabyExperiment(Experiment):
         self.nrRewards=0
         self.blinkCount=0
         self.tFix=0
+        self.isFixLast=False
         if self.showAttentionCatcher:
             self.account+=1
             if self.account>=BabyExperiment.finished and self.t>=10:
@@ -297,7 +298,8 @@ class BabyExperiment(Experiment):
         self.etController.postTrial()
         
     def trialIsFinished(self):
-        gc,fc,f,incf=self.etController.getCurrentFixation(units='deg')
+        
+        gc,fc,isFix,incf=self.etController.getCurrentFixation(units='deg')
         self.f+=incf 
         #if self.f>750: return True
         if np.isnan(gc[0]): self.babyStatus=-1; self.blinkCount+=1
@@ -315,10 +317,10 @@ class BabyExperiment(Experiment):
         agentsInView=BabyExperiment.fixRadius>distance
         if self.f-BabyExperiment.dataLag <0: agentsInView[0]=False; agentsInView[1]=False
         #print 'show ',f, self.babyStatus
-        if not f and self.babyStatus == 1: # saccade initiated
+        if not isFix and self.babyStatus == 1: # saccade initiated
             self.babyStatus=0
             #self.etController.sendMessage('Saccade '+str(self.f))
-        elif f and self.babyStatus == 0: # fixation started
+        elif not self.isFixLast and isFix: # fixation started
             self.babyStatus=1
             #self.etController.sendMessage('Fixation '+str(fc[0])+' '+str(fc[1])+' '+str(self.f))
             firstFix=(self.rewardIter==0 and (not self.pursuedAgents 
@@ -354,6 +356,7 @@ class BabyExperiment(Experiment):
         if (not self.showAttentionCatcher) and out: self.pi+=1
         if self.showAttentionCatcher and self.rewardIter>0: self.turnOffReward()
         #print gc,f,self.babyStatus,self.timeNotLooking,out
+        self.isFixLast=isFix
         return out
     def turnOnReward(self):
         self.etController.sendMessage('Reward On')

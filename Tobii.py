@@ -53,6 +53,7 @@ class Settings():
     FIXVTH=18 # upper velocity threshold for fixations in deg per sec
     FIXMINDUR=0.1 # minimum fixation duration in seconds
     FUSS=5 # sample size over which the average fixation target position is computed
+    BLINKTOL=5 # minimum nr of consecutive blink data required to interupt a fixation
     # functions for translation of the head movement box to screen coordinates 
     centerz=600 # distance in mm from screen
     scaling=0.002 # mm to norm display units [-1,1] ratio
@@ -332,6 +333,9 @@ class TobiiController:
             shrinkingSpeed - speed of shrinking of the stimulus
             rotationSpeed - rotation speed of the stimulus
         '''
+        self.calin = visual.Circle(self.win,radius=2,fillColor=Settings.drawcolor,units='pix')
+        self.calout=visual.ImageStim(self.win,image=Settings.calStimPath,size=(200,200),units='pix')
+        self.calGrid=np.array([[1,0,1],[0,1,0],[1,0,1]])
         self.calPointsAdded=0
         if soundStim!=None: self.soundStim = stimulus
         if self.etstatus<ETSTATUS.CREATED:
@@ -597,6 +601,8 @@ class TobiiController:
     ############################################################################
     
     def startTracking(self):
+        # fixation extraction vars
+        self.fixBlinkCount=0
         self.fixloc=np.array((np.nan,np.nan))
         self.fixsum=np.array((np.nan,np.nan))
         self.fixdur=0
@@ -671,9 +677,13 @@ class TobiiController:
     def computeFixation(self,cgp=None):
         if cgp is None: # if no argument is provided set to current gaze pos
             cgp=self.getCurrentGazePosition(eyes=1,units='deg')
-        if np.isnan(cgp[0]): # no data
-            self.fixloc=np.array([np.nan,np.nan]); self.fixdur=0
-            self.fixsum=np.array([np.nan,np.nan]);return
+        if np.isnan(cgp[0]): # no data, handle blinks
+            self.fixBlinkCount+=1
+            if self.fixBlinkCount>=Settings.BLINKTOL: # interupt any ongoing fixation
+                self.fixloc=np.array([np.nan,np.nan]); self.fixdur=0
+                self.fixsum=np.array([np.nan,np.nan]);
+            return
+        else: self.fixBlinkCount=0
         if not np.isnan(self.fixloc[-1]):
             fixlocold=np.copy(self.fixloc)
             # do exponential smoothing on the data
@@ -1076,7 +1086,7 @@ class TobiiControllerFromOutputF(TobiiController):
         self.playMode=playMode
         self.data=readTobii(sid,block,True)
         self.hz=60.0
-        self.winhz=75#win._monitorFrameRate
+        self.winhz=75
         self.win=win
         self.circle=visual.Circle(self.win,radius=0.2,fillColor='red',lineColor='red',units='deg' )
         self.circle2=visual.Circle(self.win,radius=0.2,fillColor='blue',lineColor='blue',units='deg' )
@@ -1123,6 +1133,7 @@ class TobiiControllerFromOutputF(TobiiController):
         self.fixloc=np.array((np.nan,np.nan))
         self.fixsum=np.array((np.nan,np.nan))
         self.fixdur=0
+        self.fixBlinkCount=0
         self.fixations=np.ones((self.T,3))
         self.gazeData=[]
         for i in range(self.T):
@@ -1182,7 +1193,7 @@ class TobiiControllerFromOutputF(TobiiController):
         noPress= not self.playMode
         t0=Settings.psychopyClock.getTime()  
         incf=1
-        while noPress:# and Settings.psychopyClock.getTime()-t0<0.01 : 
+        while noPress and Settings.psychopyClock.getTime()-t0<0.01 : 
             for key in event.getKeys():
                 if 'o' == key: noPress=False; incf=1
                 if 'i' == key: noPress=False; incf=-1
