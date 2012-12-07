@@ -479,7 +479,7 @@ def readTobii(vp,block,lagged=False):
                 trial=[]
             #elif len(words)==4 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
             elif len(words)==6: msgs.append([float(words[0])-tstart,words[2]+' '+words[5]])
-            else: msgs.append([float(words[0])-tstart,int(words[1]),words[2]])
+            elif words[2]!='Phase': msgs.append([float(words[0])-tstart,int(words[1]),words[2]])
     except: f.close(); raise
     f.close()
     return data
@@ -646,7 +646,7 @@ def checkEyelinkDatasets():
 
 if __name__ == '__main__':
     data = readTobii(129,0)
-    print len(data)
+    print data[1].msg
     #plotLTbabyPilot(range(125,126))
     #time.sleep(5)
     

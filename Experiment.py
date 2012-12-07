@@ -11,7 +11,7 @@ import numpy as np
 import random
 try: from Eyelink import TrackerEyeLink
 except ImportError: print 'Warning >> Eyelink import failed'
-from Tobii import TobiiController,TobiiControllerFromOutputF
+from Tobii import TobiiController,TobiiControllerFromOutput
 class Experiment():
     def __init__(self):
         # ask infos
@@ -134,7 +134,7 @@ class Experiment():
     def getf(self):
         return self.f
     def runTrial(self,trajectories,fixCross=True):
-        nrframes=trajectories.shape[0]
+        self.nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
             nElements=self.cond, sizes=Q.agentSize*self.scale,
@@ -153,7 +153,7 @@ class Experiment():
         #t0=core.getTime()
         #times=[]
         self.f=0
-        while self.f<nrframes:
+        while self.f<self.nrframes:
             self.pos=trajectories[self.f,:,[X,Y]].transpose()*self.scale
             self.elem.setXYs(self.pos)
             self.elem.draw()
@@ -248,13 +248,14 @@ class BabyExperiment(Experiment):
     
     def __init__(self):
         Experiment.__init__(self)
-        #self.etController=TobiiControllerFromOutputF(self.getWind(),sid=self.id,playMode=False,block=self.block,initTrial=self.initTrial)
+        #self.etController=TobiiControllerFromOutput(self.getWind(),sid=self.id,playMode=True,block=self.block,initTrial=self.initTrial)
         self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
         self.rewardColor2=np.array((1,1,1))
         self.showAttentionCatcher=True
+        self.nrframes=-1
         self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
         self.account=0 # count consecutive attention catchers
         print 'phases', self.phases
@@ -276,13 +277,18 @@ class BabyExperiment(Experiment):
         self.blinkCount=0
         self.tFix=0
         self.isFixLast=False
+        self.babySawReward=False
+        ende=False
         if self.showAttentionCatcher:
             self.account+=1
-            if self.account>=BabyExperiment.finished and self.t>=10:
-                self.etController.sendMessage('Finished')
-                self.etController.closeConnection()
-                self.wind.close(); core.quit()
+            if (self.account>=BabyExperiment.finished and self.t>=10):
+                ende=True
         else: self.account=0
+        if self.f==self.nrframes: ende=True
+        if ende:
+            self.etController.sendMessage('Finished')
+            self.etController.closeConnection()
+            self.wind.close(); core.quit()
         if BabyExperiment.colored:
             #print self.t
             #print self.colors[self.t,:]
@@ -341,6 +347,8 @@ class BabyExperiment(Experiment):
             self.sacPerPursuit= BabyExperiment.sacToReward[ind]-1
         if (self.sacPerPursuit>= BabyExperiment.sacToReward[ind] and self.rewardIter==0): 
             self.turnOnReward()
+        if self.sacPerPursuit> BabyExperiment.sacToReward[ind]: self.babySawReward=True
+                
                 
         #print 'f ',self.f
         if  self.rewardIter>0 and self.rewardIter<BabyExperiment.rewardIterations:
@@ -353,7 +361,7 @@ class BabyExperiment(Experiment):
         self.showAttentionCatcher=self.timeNotLooking>BabyExperiment.criterion
         out=(self.showAttentionCatcher or self.sacPerPursuit>=BabyExperiment.maxSacPerPursuit
             or self.nrRewards>=BabyExperiment.maxNrRewards)
-        if (not self.showAttentionCatcher) and out: self.pi+=1
+        if (not self.showAttentionCatcher) and out and self.babySawReward: self.pi+=1
         if self.showAttentionCatcher and self.rewardIter>0: self.turnOffReward()
         #print gc,f,self.babyStatus,self.timeNotLooking,out
         self.isFixLast=isFix
