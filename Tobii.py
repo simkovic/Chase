@@ -65,7 +65,7 @@ class Settings():
 
 class TobiiController:
     
-    def __init__(self, win,getfhandle,sid=0,block=0):
+    def __init__(self, win,getfhandle,sid=0,block=0,verbose=False):
         """ Initialize controller window, connect and activate eyetracker
             win - supply a window where the experiment is shown
             sid - subject id
@@ -75,6 +75,7 @@ class TobiiController:
         self.sid=sid
         self.block=block
         self.getf=getfhandle
+        self.verbose=verbose
         self.target=None
         self.eyetracker = None
         self.eyetrackers = {}
@@ -473,7 +474,7 @@ class TobiiController:
                             stimuli.append(visual.Line(self.win2,lineColor='green',
                                 start= (2*p.x-1,1-2*p.y), units='norm',
                                 end= (d['right'].map_point.x*2-1,1- d['right'].map_point.y*2)))
-                print 'len stimuli: ',len(stimuli)
+                #print 'len stimuli: ',len(stimuli)
                 self.calresult=visual.BufferImageStim(self.win2,stim=stimuli)
                 self.calresult.draw()
                 self.msg.setText('Accept calibration results?\n\tA - accept\n\tR - retry\n\tESC - back to main menu')
@@ -487,7 +488,6 @@ class TobiiController:
             for key in event.getKeys():
                 if key == 'a':
                     self.etstatus=ETSTATUS.CALACCEPTED
-                    print 'here a'
                     waitkey=False
                     self.datafile.write("Calibration Accepted\n")
                 elif key == 'r':
@@ -549,8 +549,7 @@ class TobiiController:
     
     def on_calib_done(self, status, msg):
         # When the calibration procedure is done we update the calibration plot
-        if not status:
-            print msg
+        if not status: print msg
         self.calibration = None
         return False
     ############################################################################
@@ -713,7 +712,7 @@ class TobiiController:
         
 
     def setDataFile(self,filename):
-        print 'set datafile ' + filename
+        print 'Set datafile ' + filename
         self.datafile = open(filename,'a')
         self.datafile.write('Recording date:\t'+datetime.datetime.now().strftime('%Y/%m/%d')+'\n')
         self.datafile.write('Recording time:\t'+datetime.datetime.now().strftime('%H:%M:%S')+'\n')
@@ -727,12 +726,12 @@ class TobiiController:
             'Lag','PupilLeft', 'PupilRight' ])+'\n')
         
     def closeDataFile(self):
-        print 'datafile closed'
+        print 'Datafile closed'
         if self.datafile != None and len(self.gazeData)>0: self.flushData(); self.datafile.close()
         self.datafile = None
         
     def sendMessage(self,event):
-        print event
+        if self.verbose: print event
         t = self.syncmanager.convert_from_local_to_remote(self.clock.get_time())
         self.eventData.append((t,self.getf(),event))
         

@@ -198,7 +198,7 @@ class Experiment():
             #print self.t
             self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(permut[trial])))
             fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,permut[trial])
-            print 'showing',fname
+            # print 'showing',fname
             self.trajectories= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
             self.runTrial(self.trajectories)
             
@@ -258,7 +258,6 @@ class BabyExperiment(Experiment):
         self.nrframes=-1
         self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
         self.account=0 # count consecutive attention catchers
-        print 'phases', self.phases
         self.pi=0
         
     def run(self):
@@ -284,7 +283,7 @@ class BabyExperiment(Experiment):
             if (self.account>=BabyExperiment.finished and self.t>=10):
                 ende=True
         else: self.account=0
-        if self.f==self.nrframes: ende=True
+        #if self.f==self.nrframes: ende=True
         if ende:
             self.etController.sendMessage('Finished')
             self.etController.closeConnection()
@@ -299,6 +298,7 @@ class BabyExperiment(Experiment):
         self.timeNotLooking=0
         self.etController.preTrial(driftCorrection=self.showAttentionCatcher>0)
         self.etController.sendMessage('Trial\t%d'%self.t)
+        print 'Trial\t%d'%self.t
         self.etController.sendMessage('Phase\t%d'%self.phases[self.pi])
         Experiment.runTrial(self,*args,fixCross=False)
         self.etController.postTrial()
