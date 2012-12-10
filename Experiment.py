@@ -254,7 +254,7 @@ class BabyExperiment(Experiment):
         self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
         self.rewardColor2=np.array((1,1,1))
-        self.showAttentionCatcher=True
+        self.showAttentionCatcher=False
         self.nrframes=-1
         self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
         self.account=0 # count consecutive attention catchers
