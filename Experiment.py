@@ -245,6 +245,7 @@ class BabyExperiment(Experiment):
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     finished=2 # abort after consecutive nr of attention catchers
+    expDur=6 # total experiment duration in minutes
     
     def __init__(self):
         Experiment.__init__(self)
@@ -264,6 +265,7 @@ class BabyExperiment(Experiment):
         if BabyExperiment.colored:
             c=[(-1,-1,0),(-1,0,-1),(0,-1,-1),(1,1,0),(1,0,1),(0,1,1)] #c=['blue','red','green','black','white']
             c=np.array(2*c); self.colors= c[np.random.permutation(len(c))]
+        self.tStart=core.getTime()
         Experiment.run(self)
         self.etController.closeConnection()
         
@@ -278,13 +280,15 @@ class BabyExperiment(Experiment):
         self.isFixLast=False
         self.babySawReward=False
         ende=False
-        if self.showAttentionCatcher:
-            self.account+=1
-            if (self.account>=BabyExperiment.finished and self.t>=10):
-                ende=True
-        else: self.account=0
+        #if self.showAttentionCatcher:
+        #    self.account+=1
+        #    if (self.account>=BabyExperiment.finished and self.t>=10):
+        #        ende=True
+        #else: self.account=0
         #if self.f==self.nrframes: ende=True
+        if core.getTime()> BabyExperiment.expDur*60+self.tStart: ende=True
         if ende:
+            print core.getTime()-self.tStart
             self.etController.sendMessage('Finished')
             self.etController.closeConnection()
             self.wind.close(); core.quit()
