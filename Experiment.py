@@ -302,7 +302,7 @@ class BabyExperiment(Experiment):
         self.timeNotLooking=0
         self.etController.preTrial(driftCorrection=self.showAttentionCatcher>0)
         self.etController.sendMessage('Trial\t%d'%self.t)
-        print 'Trial\t%d'%self.t
+        #print 'Trial\t%d'%self.t
         self.etController.sendMessage('Phase\t%d'%self.phases[self.pi])
         Experiment.runTrial(self,*args,fixCross=False)
         self.etController.postTrial()
