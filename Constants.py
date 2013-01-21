@@ -21,3 +21,13 @@ for i in range(N):
 ANAMES=('Chasee','Chaser','Distractor')
 # color stack
 COLORS=['r','g','b','y','k','c']
+
+# evaluation
+LEFTEYE=1
+RIGHTEYE=2
+BINOCULAR=3
+# events
+FIX=0
+PUR=1
+SAC=2
+BSAC=3
