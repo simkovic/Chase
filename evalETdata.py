@@ -84,7 +84,7 @@ LSACVTH=50
 LSACATH=8000
 LSACMINDUR=0.06
 
-SACVTH=22
+SACVTH=21
 SACATH=4000
 SACMINDUR=0.02
 
@@ -94,25 +94,25 @@ FIXMINDUR=0.1 #second
 
 OLPURVTH= SACVTH
 OLPURATH= SACATH
-OLPURMD=0.1
+OLPURMD=0.06
 
 CLPURVTHU=SACVTH
 CLPURVTHL=FIXVTH
 CLPURATHU=np.inf#FIXATH
 CLPURATHL=np.inf
-CLPURMD=0.16
+CLPURMD=0.14
 
 FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
 BLKMINDUR=0.05
 NBLMINDUR=0.01
-OLFOCUSRADIUS=5 # focus radius for agents
+OLFOCUSRADIUS=3.5 # focus radius for agents
 CLFOCUSRADIUS=4
-MAXPHI=30#10 #
+MAXPHI=35#10 #
 PLAG = 0 # lag between agent movement and pursuit movement
 #used for agent tracking identification
 EYEDEV=4
 BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
-INTERPMD=0.5 # max duration for which blink interpolation is performed
+INTERPMD=0.250 # max duration for which blink interpolation is performed
 def selectAgentCL(dist,dev):
     #a=(dist.max(0)<3).nonzero()[0]
     #b=norm(np.median(dev,axis=0),axis=1)<MAXPHI
@@ -122,7 +122,7 @@ def selectAgentCL(dist,dev):
     a=np.logical_and(dist.mean(0)<CLFOCUSRADIUS,b).nonzero()[0]
     return a
 def selectAgentOL(dist):
-    a=(dist.max(0)<OLFOCUSRADIUS).nonzero()[0]
+    a=(np.mean(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
     return a
 
 
@@ -173,8 +173,7 @@ def computeState(isFix,md):
     return isFix,fixations
 
 def interpolateBlinks(t,d,hz):
-    ''' interpolate short missing intervals and discard
-        short inter-blink intervals with data
+    ''' interpolate short missing intervals 
     '''
     isblink= np.isnan(d)
     if isblink.sum()==0: return d
@@ -188,7 +187,7 @@ def interpolateBlinks(t,d,hz):
     if len(blinkon)!=len(blinkoff):
         print 'Blink Interpolation Failed'
         raise TypeError
-    f=interp1d(t[~isblink],d[~isblink])
+    f=interp1d(t[~isblink],d[~isblink],bounds_error=False)
     for b in range(len(blinkon)):
         bs=blinkon[b]-1
         be=(blinkoff[b])
@@ -270,21 +269,21 @@ class ETBlockData():
 ##        #for d in self.etdata: d.extractAgentDistances()
             
 class ETTrialData():
-    def __init__(self,dat,calib,hz,eye,vp,block,trial,recTime="0:0:0",
+    def __init__(self,dat,calib,t0,info,recTime="0:0:0",
                  INTERPBLINKS=False,fcutoff=70,focus=BINOCULAR):
-        
-
-        #for k in range(len(dat)):self.gaze.append(dat[k])
         self.calib=calib
-        self.hz=hz
-        self.eye=eye
+        self.vp=int(info[0])
+        self.block=int(info[1])
+        self.trial=int(info[2])
+        self.hz=float(info[3])
+        self.eye=info[4]
+        self.t0=[t0[1]-t0[0],t0[2]-t0[0]]
         self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
-        self.vp=int(vp)
-        self.block=int(block)
-        self.trial=int(trial)
+        if self.t0[0]>0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
+        else: self.ts=-1
+        if self.t0[1]>0: self.te=min((dat[:,0]>(self.t0[1])).nonzero()[0])
+        else: self.te=-1
         self.recTime=datetime.strptime(recTime,"%H:%M:%S")
-        #self.dat=[]
-        #for i in range(len(dat)): self.dat.append(dat[i])
         self.extractFixations(dat)
         
         
@@ -293,11 +292,12 @@ class ETTrialData():
     def getDist(self,a=0):
         return self.dist[:,a]/20.0
     def getAgent(self,t):
+        g=self.gaze[self.ts:self.te]
         for p in self.opev:
-            if t>self.gaze[1][p[0],0] and t<self.gaze[1][p[1]-1,0]:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
                 return p[2:]
         for p in self.cpev:
-            if t>self.gaze[1][p[0],0] and t<self.gaze[1][p[1]-1,0]:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
                 return p[2:]
         return []
         
@@ -309,7 +309,7 @@ class ETTrialData():
         traj=np.load(s)
         self.oldtraj=traj
         #self.traj=traj
-        g=self.gaze[1]
+        g=self.getGaze()
         tt=np.arange(0,30001,10)
         
         self.dist=np.zeros((g.shape[0],traj.shape[1]))
@@ -335,126 +335,120 @@ class ETTrialData():
             separately based on the fixation location immediately
             preceding the trial onset
         """
-        d=self
-        s= '\tt= %d, '%(d.trial)
-        for p in range(3):
-            kk=(np.diff(d.gaze[p][:,0])>4).nonzero()[0]
-            if len(kk)>0: print s, 'LAG >4, p=%d '%p,kk
-            dif=np.isnan(d.gaze[p][:,1]).sum()-np.isnan(d.gaze[p][:,4]).sum()
-            if d.focus==LEFTEYE and dif>0:
-                print s,' p=%d, right eye has more data '%p, dif
-            if d.focus==RIGHTEYE and dif<0:
-                print s,' p=%d, left eye has more data '%p, dif
+        s= '\tt= %d, '%(self.trial)
+        kk=(np.diff(self.gaze[:,0])>4).nonzero()[0]
+        if len(kk)>0: print s, 'LAG >4, ',kk
+        dif=np.isnan(self.gaze[:,1]).sum()-np.isnan(self.gaze[:,4]).sum()
+        if self.focus==LEFTEYE and dif>0:
+            print s,' right eye has more data '%dif
+        if self.focus==RIGHTEYE and dif<0:
+            print s,' left eye has more data '% dif
 
-        if len(d.calib)>0:
-            if d.calib[-1][0][2]<1.5 and d.calib[-1][1][2]<1.5:
-                print s,'calibration good ',len(d.calib)
-            else: print s, 'calibration BAD',d.calib[-1]
+        if len(self.calib)>0:
+            if self.calib[-1][0][2]<1.5 and self.calib[-1][1][2]<1.5:
+                print s,'calibration good ',len(self.calib)
+            else: print s, 'calibration BAD',self.calib[-1]
         
-        d.failedDcorr= d.gaze[1].shape[0]==0
-        if d.failedDcorr: print  s, 'online dcorr failed'
+        if self.ts==-1: print  s, 'online dcorr failed'
         # find the latest fixation
-        h= d.isFix[0].size-50
-        while (not np.all(d.isFix[0][h:(h+50)]) and h>=0 ): h-=1
+        isFix=self.getFixations(phase=0)
+        h= isFix.size-50
+        while (not np.all(isFix[h:(h+50)]) and h>=0 ): h-=1
         #print i, d.isFix[0].size-h
         if h>=0:
             for j in [1,4,2,5]:
-                dif=d.gaze[0][h:(h+50),j].mean()
-                for k in range(3):
-                    d.gaze[k][:,j]-=dif
+                dif=self.gaze[h:(h+50),j].mean()
+                self.gaze[:,j]-=dif
             # recompute fixations
-            dat=[]
-            for b in d.gaze: dat.append(b[:,:7])
-            self.extractFixations(dat,True)
+            self.extractFixations(self.gaze[:,:7],True)
         else: print s,'DRIFT CORRECTION FAILED', np.sum(d.isFix[0][-50:])
         
     def extractTracking(self):
         """ extracts high-level events - search and tracking"""
-        # reclassify some blinks as saccades
-        g=self.getGaze()
-        bsac=[]
-        for i in range(len(self.bev)): 
-            s=self.bev[i][0]; e=self.bev[i][1]
-            if norm(g[e,1:]-g[s-1,1:])>BLINK2SAC:
-                bsac.append([e-int(BLKMINDUR*self.hz), e])
-            if e-s>1000: print 't= %d, LONG SEQ OF MISSING DATA'% self.trial
+##        # reclassify some blinks as saccades
+##        g=self.getGaze()
+##        bsac=[]
+##        for i in range(len(self.bev)): 
+##            s=self.bev[i][0]; e=self.bev[i][1]
+##            if norm(g[e,1:]-g[s-1,1:])>BLINK2SAC:
+##                bsac.append([e-int(BLKMINDUR*self.hz), e])
+##            if e-s>1000: print 't= %d, LONG SEQ OF MISSING DATA'% self.trial
+
         # merge events together
         self.events=[]
         ind=[0,0,0,0]
         #data[t].extractAgentDistances()
-        d=[self.opev,self.cpev,self.sev,bsac]
+        d=[self.opev,self.cpev,self.sev]#,bsac]
         for f in range(int(30*self.hz)):
             for k in range(len(d)):
                 if ind[k]< len(d[k]) and d[k][ind[k]][0]==f:
                     ev=copy(d[k][ind[k]]);
                     ev.append(k);ind[k]+=1;
                     self.events.append(ev)
-        # identify search and tracking
-        track=[]
-        #isTracking=False
-##        lastlastA=[]
-##        lastA=[]
-##        lastEtype=-1
-##        info=[]
-##        flag=False
-##        for ev in self.events:
-##            A= ev[2:-1]
-##            if ev[-1] in [FIX,PUR]:
-##                if len(info)==0: info=[ev[0],ev[1],False]
-##                else:
-##                    lastFlag=flag
-##                    flag=False
-##                    if len(set(lastA) & set(A)): #and not (ev[-1]==FIX and lastEtype==FIX):# and lastEtype==SAC: 
-##                        if not lastFlag:
-##                            track.append(copy(info))
-##                        flag=True
-##                            
-##                    if flag:
-##                        info[2]=(lastEtype in [SAC,BSAC]) or info[2];
-##                        info[1]=ev[1]
-##                    elif (ev[-1]==PUR and(ev[1]-ev[0]>250)):
-##                        print 'long CL pursuit at', ev[0]
-##                        track.append(info)
-##                        if not info[2]:
-##                            track.append([ev[0],ev[0]+int(CLPURMD*self.hz),False])
-##                        info=[ev[0],ev[1],True]
-##                    else: track.append(info); info=[ev[0],ev[1],False]
-##                #if lastEtype==PUR and ev[-1]==FIX:lastA.extend(A)
-##                lastlastA=lastA
-##                lastA=A  
-##            #elif ev[-1] in [SAC, BSAC] and lastEtype in [SAC,BSAC]:lastA=[]
-##
-##            lastEtype=ev[-1]
-##        if len(info)>0: track.append(info)
-##        self.track=track
-
+        # build high-level events
         hev=[]
         lastlastA=[]
         lastA=[]
         lastEtype=-1
         info=[]
+        trackon=False
         for ev in self.events:
             A= ev[2:-1]
             if ev[-1] in [FIX,PUR]:
-                if len(set(lastA) & set(A)):# and lastEtype==SAC:
-                    info[2]+=int(lastEtype in [SAC,BSAC]);
+                if len(set(lastA) & set(A)) and trackon:# and lastEtype==SAC:
+                    info[2]+=int(lastEtype ==SAC);
                     info[1]=ev[1]
                 else:
                     if len(info):hev.append(info);
-                    info=[ev[0],ev[1],0,[],[],self.trial]
-                lastA=A  
+                    info=[ev[0],ev[1],0,0,0,[],self.trial]
+                    trackon=False
+                #if not (ev[-1]==FIX and lastEtype==PUR):
+                lastA=copy(A)  
             #if ev[-1]==SAC: info[2].append(ev)
-            if ev[-1]==FIX: info[3].append(ev)
-            if ev[-1]==PUR: info[4].append(ev)
+            if ev[-1]==FIX: info[5].append(ev);info[3]+=1; 
+            if ev[-1]==PUR:
+                
+                info[5].append(ev)
+                info[4]+=1;
+                trackon=True# (ev[1]-ev[0])>100
+                #np.any(self.dist[ev[0]:ev[1],A].mean(0))
                 
             lastEtype=ev[-1]
         if len(info)>0: hev.append(info)
         self.hev=hev
+        # identify search and tracking
         track=[]
         for h in hev:
-            if len(h[4])>0 and h[2]>0: track.append([h[0],h[1],True])
-            else: track.append([h[0],h[1],False])
+            flag=False
+            if h[4]>0:
+                for f in h[5]:
+                    if f[-1]==PUR and f[1]-f[0]>250: flag=True
+            if h[2]>0 or flag: track.append([h[0],h[1],h,True])
+            else: track.append([h[0],h[1],h,False])
         self.track=track
+
+        
+    def plotTracking(self):
+        ''' plots events '''
+        #plt.figure()
+        ax=plt.gca()
+        for f in self.track:
+            if f[-1]:r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.4,color='k')
+            else: r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.8,color='r')
+            ax.add_patch(r)
+        plt.xlim([0,10000])
+        plt.ylim([-1,41])
+        plt.show()
+    def exportTracking(self):
+        out=[]
+        ei=0
+        for tr in self.track:
+            for k in tr[2][5]:
+                out.append([int(k[0]*2),int(k[1]*2),k[-1],ei,
+                            int(tr[-1])])   
+            ei+=1
+        np.savetxt('vp%02db%02dt%02d.trc'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
+        
             
 
                         
@@ -473,17 +467,7 @@ class ETTrialData():
         plt.ylim([-1,15])
         plt.show()
 
-    def plotTracking(self):
-        ''' plots events '''
-        #plt.figure()
-        ax=plt.gca()
-        for f in self.track:
-            if f[-1]:r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.4,color='k')
-            else: r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.8,color='r')
-            ax.add_patch(r)
-        plt.xlim([0,10000])
-        plt.ylim([-1,41])
-        plt.show()
+    
         
     def plotEvents(self):
         ''' plots events '''
@@ -511,81 +495,60 @@ class ETTrialData():
                     temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
                     out.append(temp)
             return out 
-        self.gaze=[];self.vel=[];self.acc=[]
-        self.isFix=[];self.isSac=[];self.isPur=[]
-        self.isLSac=[];self.isBlink=[]
-        self.fev=[];self.sev=[];self.pev=[]
-        self.lev=[];self.bev=[];totgaze=[];inds=[]
-        for k in range(len(dat)):
-            if len(totgaze)>0: inds.append([inds[k-1][1]])
-            else: inds.append([0])
-            # add two columns with gaze point
-            if dat[k].size>0:
-                if self.focus==BINOCULAR:
-                    gazep=np.array([dat[k][:,[1,4]].mean(1),dat[k][:,[2,5]].mean(1)]).T
-                    temp=dat[k][np.isnan(dat[k][:,1]),:]
-                    if temp.size>0: gazep[np.isnan(dat[k][:,1]),:]=temp[:,[4,5]]
-                    temp=dat[k][np.isnan(dat[k][:,4]),:]
-                    if temp.size>0: gazep[np.isnan(dat[k][:,4]),:]=temp[:,[1,2]]
-                elif self.focus==LEFTEYE:
-                    gazep=dat[k][:,[1,2]]                        
-                    #gazep[np.isnan(gazep[:,0]),:]=dat[k][np.isnan(gazep[:,0]),[4,5]]
-                elif self.focus==RIGHTEYE:
-                    gazep=dat[k][:,[4,5]]
-                    #gazep[np.isnan(gazep[:,0]),:]=dat[k][np.isnan(gazep[:,0]),[1,2]]
-                
-                totgaze.append(np.concatenate([dat[k],gazep],1))
-            else: totgaze.append(np.zeros((0,dat[k].shape[1]+2)))
-            inds[-1].append(len(totgaze[-1])+inds[-1][0])
-        totgaze=np.concatenate(totgaze,0)
-
-        dist=np.sqrt(np.power(np.diff(totgaze[:,[1,4]],1),2)+
-            np.power(np.diff(totgaze[:,[2,5]],1),2))
+        # add two columns with gaze point
+        if self.focus==BINOCULAR:
+            gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
+            temp=dat[np.isnan(dat[:,1]),:]
+            if temp.size>0: gazep[np.isnan(dat[:,1]),:]=temp[:,[4,5]]
+            temp=dat[np.isnan(dat[:,4]),:]
+            if temp.size>0: gazep[np.isnan(dat[:,4]),:]=temp[:,[1,2]]
+        elif self.focus==LEFTEYE:
+            gazep=dat[:,[1,2]]                        
+            #gazep[np.isnan(gazep[:,0]),:]=dat[k][np.isnan(gazep[:,0]),[4,5]]
+        elif self.focus==RIGHTEYE:
+            gazep=dat[:,[4,5]]
+            #gazep[np.isnan(gazep[:,0]),:]=dat[k][np.isnan(gazep[:,0]),[1,2]]       
+        self.gaze=np.concatenate([dat,gazep],1)
+        # discard parts with large discrepancy between two eyes
+        dist=np.sqrt(np.power(np.diff(self.gaze[:,[1,4]],1),2)+
+            np.power(np.diff(self.gaze[:,[2,5]],1),2))
         if (dist>EYEDEV).sum()>0:
             for hhh in [1,2,4,5,7,8]:
                 #print (dist>3).shape
-                totgaze[(dist>EYEDEV).squeeze(),hhh]=np.nan*np.ones((dist>EYEDEV).sum())
+                self.gaze[(dist>EYEDEV).squeeze(),hhh]=np.nan*np.ones((dist>EYEDEV).sum())
+        #if self.trial==29: print self.gaze.shape,np.isnan(self.gaze[:,7]).nonzero()
         for i in [7,8]:
-            totgaze[:,i]=filterGaussian(totgaze[:,i],self.hz)
-            #totgaze[inds[1][0]:inds[1][1],i] =interpolateBlinks(totgaze[:,0],totgaze[:,i],self.hz)
-        print self.trial, np.isnan(totgaze[:,7]).sum(),np.isnan(totgaze[:,8]).sum() 
-        vel=computeVelocity(totgaze,self.hz)
-        acc=computeAcceleration(totgaze,self.hz)
-        fix,fev=computeFixations(totgaze,vel,acc,self.hz)
-        sac,sev=computeSaccades(totgaze,vel,acc,self.hz)
-        blink,bev=computeBlinks(totgaze,self.hz)
-        for k in range(len(dat)):# split into phases again
-            self.gaze.append(totgaze[inds[k][0]:inds[k][1],:])
-            self.vel.append(vel[inds[k][0]:inds[k][1]])
-            self.acc.append(acc[inds[k][0]:inds[k][1]])
-            self.isFix.append(fix[inds[k][0]:inds[k][1]])
-            self.isSac.append(sac[inds[k][0]:inds[k][1]])
-            self.isBlink.append(blink[inds[k][0]:inds[k][1]])
-            if k==1:
-                #self.fev=helpf(fev,inds[k])
-                self.sev=helpf(sev,inds[k])
-                #self.lev=helpf(lev,inds[k])
-                self.bev=helpf(bev,inds[k])
+            self.gaze[:,i]=filterGaussian(self.gaze[:,i],self.hz)
+            self.gaze[:,i] =interpolateBlinks(self.gaze[:,0],self.gaze[:,i],self.hz) 
+        self.vel=computeVelocity(self.gaze,self.hz)
+        self.acc=computeAcceleration(self.gaze,self.hz)
+        self.isFix,fev=computeFixations(self.gaze,self.vel,self.acc,self.hz)
+        self.isSac,sev=computeSaccades(self.gaze,self.vel,self.acc,self.hz)
+        self.isBlink,bev=computeBlinks(self.gaze,self.hz)
+        #self.fev=helpf(fev,inds[k])
+        self.sev=helpf(sev,[self.ts,self.te])
+        #self.lev=helpf(lev,inds[k])
+        self.bev=helpf(bev,[self.ts,self.te])
                 
         # find pursuit states for phase 2
         if PUR:
             self.computeAgentDistances()
-            opur,opev=computeOLpursuit(totgaze,vel,acc,self.hz)
-            cpur,cpev=computeCLpursuit(totgaze,vel,acc,self.hz)
-            self.opur=[[],opur[inds[1][0]:inds[1][1]],[]]
-            self.cpur=[[],cpur[inds[1][0]:inds[1][1]],[]]
-            self.opev=helpf(opev,inds[1])
-            self.cpev=helpf(cpev,inds[1])
+            opur,opev=computeOLpursuit(self.gaze,self.vel,self.acc,self.hz)
+            cpur,cpev=computeCLpursuit(self.gaze,self.vel,self.acc,self.hz)
+            self.opev=helpf(opev,[self.ts,self.te])
+            self.cpev=helpf(cpev,[self.ts,self.te])
+            self.opur=opur[self.ts:self.te];
+            self.cpur=cpur[self.ts:self.te]
             i=0
             while i<len(self.cpev):
                 s=self.cpev[i][0];e=self.cpev[i][1]-1
                 a=selectAgentCL(self.dist[s:e,:],self.dev[s:e,:])
                 if len(a)>0:
                     self.cpev[i].extend(a); i+=1
-                else:self.cpev.pop(i);self.cpur[1][s:(e+1)]=False
+                else:self.cpev.pop(i);self.cpur[s:(e+1)]=False
 
-            b= np.logical_and(self.opur[1],~self.cpur[1])
-            self.opur[1],self.opev= computeState(b,[OLPURMD*self.hz,np.inf])
+            b= np.logical_and(self.opur,~self.cpur)
+            self.opur,self.opev= computeState(b,[OLPURMD*self.hz,np.inf])
             for i in range(len(self.opev)):
                 s=self.opev[i][0];e=self.opev[i][1]-1
                 a=selectAgentOL(self.dist[s:e,:])
@@ -597,36 +560,60 @@ class ETTrialData():
         out=[tm]
         for kk in [7,8]:
             out.append(interpRange(g[:,0], g[:,kk],tm))
-        return np.array(out).T  
+        return np.array(out).T
+    def selectPhase(self,dat,phase):
+        if phase==0: return dat[:self.ts]
+        elif phase==1:
+            if self.ts>=0: return dat[self.ts:self.te]
+            else: return np.zeros((0,9))
+        elif phase==2:
+            if self.te>=0: return dat[self.te:]
+            else: return np.zeros((0,9))
+        else: print 'Invalid Phase'
     def getGaze(self,phase=1,hz=None):
-        if not hz is None: return ETTrialData.rescale(self.gaze[phase],hz)
-        else: return self.gaze[phase][:,[0,-2,-1]] 
+        if phase==0: out= self.gaze[:self.ts,:]
+        elif phase==1:
+            if self.ts>=0:
+                out= np.copy(self.gaze[self.ts:self.te,:])
+                out[:,0]-= (self.t0[0])
+            else: return np.zeros((0,9))
+        elif phase==2:
+            if self.te>=0:
+                out= np.copy(self.gaze[self.te:,:])
+                out[:,0]-= (self.t0[1])
+            else: return np.zeros((0,9))
+        else: print 'Phase not supported'
+        return out
+
     def getVelocity(self,phase= 1,t=None):
-        return self.vel[phase]   
+        return self.selectPhase(self.vel,phase)
     def getAcceleration(self,phase=1,t=None):
-        return self.acc[phase]
+        return self.selectPhase(self.acc,phase)
     def getFixations(self,phase=1,t=None):
-        return self.isFix[phase]
+        return self.selectPhase(self.isFix,phase)
     def getSaccades(self,phase=1,t=None):
-        return self.isSac[phase]
-    def getLongSaccades(self,phase=1,t=None):
-        return self.isLSac[phase]
-    def getPursuit(self,phase=1,t=None):
-        return self.isPur[phase]
+        return self.selectPhase(self.isSac,phase)
     def getCLP(self,phase=1,t=None):
-        return self.cpur[phase]
+        return self.cpur
     def getOLP(self,phase=1,t=None):
-        return self.opur[phase]
+        return self.opur
     def getTracking(self,phase):
-        out=np.zeros(self.gaze[1].shape[0])
+        out=np.zeros(self.te-self.ts)
         for tr in self.track:
-            if tr[2]: out[tr[0]:tr[1]]=1
+            if tr[-1]: out[tr[0]:tr[1]]=1
         return out
     def getSearch(self,phase):
-        out=np.zeros(self.gaze[1].shape[0])
+        out=np.zeros(self.te-self.ts)
         for tr in self.track:
-            if not tr[2]: out[tr[0]:tr[1]]=1
+            if not tr[-1]: out[tr[0]:tr[1]]=1
         return out
+    
+def discardInvalidTrials(data):
+    bb=range(len(data))
+    bb.reverse()
+    for i in bb:
+        if data[i].ts<0: data.pop(i)
+    return data
 
 def readEdf(vp,block):
     def reformat(trial,cent,tstart,distance):
@@ -650,7 +637,7 @@ def readEdf(vp,block):
         line=f.readline()
         data=[]
         PHASE= -1 # 0-DCORR, 1-TRIAL, 2-DECISION, 4-CALIB
-        etdat=[[],[],[]]
+        etdat=[]
         t0=[0,0,0]
         calib=[]
         i=0
@@ -696,16 +683,15 @@ def readEdf(vp,block):
                 PHASE=2; t0[2]= float(words[1])
             #if len(words)>2 and words[2]=='POSTTRIAL':
             if len(words)>2 and (words[2]=='POSTTRIAL' or words[2]=='OMISSION'):
-                for k in range(3):
-                    etdat[k] = reformat(etdat[k],cent,t0[k],distance)
-                if etdat[0].size>0 or etdat[1].size>0 or  etdat[2].size>0:
-                    et=ETTrialData(etdat,calib,hz,eye,vp,block,t)
+                etdat = reformat(etdat,cent,t0[0],distance)
+                if etdat.size>0:
+                    et=ETTrialData(etdat,calib,t0,[vp,block,t,hz,eye])
                     data.append(et)
                 
-                for k in range(3): etdat[k]=[]
+                etdat=[];t0=[0,0,0]
                 calib=[];PHASE= -1
                 LBLINK=False; RBLINK=False
-            if PHASE== -1: continue
+            if PHASE== -1 or PHASE==4: continue
             if words[0]=='SBLINK' or words[0]=='EBLINK':
                 if words[1]=='L': LBLINK= not LBLINK
                 else : RBLINK= not RBLINK
@@ -734,13 +720,13 @@ def readEdf(vp,block):
                             xleft=np.nan; yleft=np.nan;
                     meas=(float(words[0]),xleft,yleft,float(words[3]))
                     size=4
-                etdat[PHASE].append(meas)
+                etdat.append(meas)
             except: pass
             #if len(trial)>0:print len(trial[0])
             #if len(dcorr)>1: print dcorr[-1]
         f.close()
     except: f.close(); raise
-    
+    data=discardInvalidTrials(data)
     return data
 
 #data=readEdf(vp=7,block=1)
@@ -1041,17 +1027,20 @@ def checkEyelinkDatasets():
                 print 'missing ', vp, block
 
 if __name__ == '__main__':
-    
-    data=readEdf(18,3)
 
-    evs=[]
-    for i in [13]:#range(len(data)):
-        if (data[i].gaze[1]).size>0:
+    
+    
+    data=readEdf(18,9)
+
+    #evs=[]
+    for i in range(len(data)):
+        if data[i].ts>=0:
             print i
             data[i].driftCorrection()
             data[i].extractTracking()
+            data[i].exportTracking()
             #evs.extend(data[i].track)
-            #data[i].plotTracking()
+            data[i].plotTracking()
 
 ##    
 ##    #data = readTobii(129,0)
