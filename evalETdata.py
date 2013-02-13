@@ -79,7 +79,16 @@ def myDeg2pix(deg,dist,cent,width):
 ##FIXATH=1500
 ##FILTERCUTOFF = 25 # hz
 
-# eyelink settings
+# settings, eyelink data
+FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
+BLKMINDUR=0.05
+#NBLMINDUR=0.01
+PLAG = 0 # lag between agent movement and pursuit movement
+#used for agent tracking identification
+EYEDEV=4
+BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
+INTERPMD=0.1 # max duration for which blink interpolation is performed
+
 LSACVTH=50
 LSACATH=8000
 LSACMINDUR=0.06
@@ -88,31 +97,25 @@ SACVTH=21
 SACATH=4000
 SACMINDUR=0.02
 
-FIXVTH=8
+FIXVTH=6
 FIXATH=800
-FIXMINDUR=0.1 #second
+FIXMINDUR=0.06 #second
+NFIXMINDUR=0.05
+FIXFOCUSRADIUS=3.5
 
-OLPURVTH= SACVTH
-OLPURATH= SACATH
+OLPURVTHU= SACVTH
+OLPURVTHL= 4
+OLPURATH= FIXATH
 OLPURMD=0.06
+OLFOCUSRADIUS=3.5 # focus radius for agents
 
 CLPURVTHU=SACVTH
-CLPURVTHL=FIXVTH
-CLPURATHU=np.inf#FIXATH
-CLPURATHL=np.inf
-CLPURMD=0.14
-
-FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
-BLKMINDUR=0.05
-NBLMINDUR=0.01
-OLFOCUSRADIUS=3.5 # focus radius for agents
+CLPURVTHL=9
+CLPURATH=FIXATH
+CLPURMD=0.1
 CLFOCUSRADIUS=4
-MAXPHI=35#10 #
-PLAG = 0 # lag between agent movement and pursuit movement
-#used for agent tracking identification
-EYEDEV=4
-BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
-INTERPMD=0.250 # max duration for which blink interpolation is performed
+MAXPHI=25#10 #
+
 def selectAgentCL(dist,dev):
     #a=(dist.max(0)<3).nonzero()[0]
     #b=norm(np.median(dev,axis=0),axis=1)<MAXPHI
@@ -123,6 +126,10 @@ def selectAgentCL(dist,dev):
     return a
 def selectAgentOL(dist):
     a=(np.mean(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
+    return a
+
+def selectAgentFIX(dist):
+    a=(np.mean(dist,axis=0)<FIXFOCUSRADIUS).nonzero()[0]
     return a
 
 
@@ -148,24 +155,18 @@ def computeAcceleration(tser,hz ,filt=False):
     if filt: acc=filterGaussian(acc,hz)
     return acc
 
-def computeState(isFix,md):
+def computeState(isFix,md,nfm=np.inf):
     fixations=[]
     if isFix.sum()==0: return np.int32(isFix),[]
     fixon = np.bitwise_and(isFix,
         np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
     fixoff=np.bitwise_and(np.roll(isFix,1),
         np.bitwise_not(isFix)).nonzero()[0].tolist()
-    if fixon[-1]>fixoff[-1]:
-        fixoff.append(isFix.shape[0]-1)
-    if fixon[0]>fixoff[0]:
-        fixon.insert(0,0)
-    if len(fixon)!=len(fixoff):
-        print 'invalid fixonoff'
-        raise TypeError
+    if fixon[-1]>fixoff[-1]:fixoff.append(isFix.shape[0]-1)
+    if fixon[0]>fixoff[0]:fixon.insert(0,0)
+    if len(fixon)!=len(fixoff): print 'invalid fixonoff';raise TypeError
     for f in range(len(fixon)):
-        fs=fixon[f]
-        fe=(fixoff[f]+1)
-        dur=fe-fs
+        fs=fixon[f];fe=(fixoff[f]+1);dur=fe-fs
         if  dur<md[0] or dur>md[1]:
             isFix[fs:fe]=False
         else: fixations.append([fs,fe-1])
@@ -199,6 +200,17 @@ def interpolateBlinks(t,d,hz):
     
 def computeFixations(tser,vel,acc,hz):
     isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
+    fixon = np.bitwise_and(isFix,
+        np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
+    fixoff=np.bitwise_and(np.roll(isFix,1),
+        np.bitwise_not(isFix)).nonzero()[0].tolist()
+    if fixon[-1]>fixoff[-1]:fixoff.append(isFix.shape[0]-1)
+    if fixon[0]>fixoff[0]:fixon.insert(0,0)
+    if len(fixon)!=len(fixoff): print 'invalid fixonoff';raise TypeError
+    for f in range(len(fixon)):
+        if f>0 and fixon[f]-fe <NFIXMINDUR*hz:
+            isFix[fe:(fixoff[f]+1)]=True
+        fe=fixoff[f] 
     return computeState(isFix,[FIXMINDUR*hz,np.inf])
 
 ##def computePursuit(tser,vel,acc,hz):
@@ -209,15 +221,17 @@ def computeFixations(tser,vel,acc,hz):
 ##    isPur=np.logical_and(isPur,~isFix)
 ##    return computeState(isPur,[PURMINDUR*hz,np.inf])
 def computeOLpursuit(tser,vel,acc,hz):
-    isFix=np.logical_and(vel<OLPURVTH,np.abs(acc)<OLPURATH)
-    return computeState(isFix,[OLPURMD*hz,np.inf])
+    temp=np.logical_and(vel>OLPURVTHL,
+        np.logical_and(vel<OLPURVTHU,np.abs(acc)<OLPURATH))
+    return computeState(temp,[OLPURMD*hz,np.inf])
 def computeCLpursuit(tser,vel,acc,hz):
-    temp=np.logical_and(np.logical_and(vel<CLPURVTHU,np.abs(acc)<CLPURATHU),
-        np.logical_or(vel>CLPURVTHL,np.abs(acc)>CLPURATHL))
+    temp=np.logical_and(vel>CLPURVTHL,
+        np.logical_and(vel<CLPURVTHU,np.abs(acc)<CLPURATH))
     return computeState(temp,[CLPURMD*hz,np.inf])
 
 def computeSaccades(tser,vel,acc,hz):
-    isFix=np.logical_or(vel>SACVTH,np.abs(acc)>SACATH)
+    isFix=np.logical_or(np.isnan(vel),
+        np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
     return computeState(isFix,[SACMINDUR*hz,np.inf])
 
 def computeLongSaccades(tser,vel,acc,hz):
@@ -299,6 +313,9 @@ class ETTrialData():
         for p in self.cpev:
             if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
                 return p[2:]
+        for p in self.fev:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
+                return p[2:]
         return []
         
     def computeAgentDistances(self):
@@ -378,7 +395,7 @@ class ETTrialData():
         self.events=[]
         ind=[0,0,0,0]
         #data[t].extractAgentDistances()
-        d=[self.opev,self.cpev,self.sev]#,bsac]
+        d=[self.fev,self.opev,self.cpev,self.sev]#,bsac]
         for f in range(int(30*self.hz)):
             for k in range(len(d)):
                 if ind[k]< len(d[k]) and d[k][ind[k]][0]==f:
@@ -394,7 +411,7 @@ class ETTrialData():
         trackon=False
         for ev in self.events:
             A= ev[2:-1]
-            if ev[-1] in [FIX,PUR]:
+            if ev[-1] in [OLPUR,CLPUR]:
                 if len(set(lastA) & set(A)) and trackon:# and lastEtype==SAC:
                     info[2]+=int(lastEtype ==SAC);
                     info[1]=ev[1]
@@ -405,8 +422,8 @@ class ETTrialData():
                 #if not (ev[-1]==FIX and lastEtype==PUR):
                 lastA=copy(A)  
             #if ev[-1]==SAC: info[2].append(ev)
-            if ev[-1]==FIX: info[5].append(ev);info[3]+=1; 
-            if ev[-1]==PUR:
+            if ev[-1]==OLPUR: info[5].append(ev);info[3]+=1; 
+            if ev[-1]==CLPUR:
                 
                 info[5].append(ev)
                 info[4]+=1;
@@ -422,7 +439,7 @@ class ETTrialData():
             flag=False
             if h[4]>0:
                 for f in h[5]:
-                    if f[-1]==PUR and f[1]-f[0]>250: flag=True
+                    if f[-1]==CLPUR and f[1]-f[0]>250: flag=True
             if h[2]>0 or flag: track.append([h[0],h[1],h,True])
             else: track.append([h[0],h[1],h,False])
         self.track=track
@@ -436,9 +453,15 @@ class ETTrialData():
             if f[-1]:r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.4,color='k')
             else: r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.8,color='r')
             ax.add_patch(r)
-        plt.xlim([0,10000])
+        plt.xlim([0,15000])
         plt.ylim([-1,41])
         plt.show()
+    def exportEvents(self):
+        out=[]
+        for ev in self.events:
+            if ev[-1]!=SAC:
+                out.append([ev[0]*2,ev[1]*2,ev[-1]])
+        np.savetxt('vp%02db%02dt%02d.evt'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
     def exportTracking(self):
         out=[]
         ei=0
@@ -537,22 +560,28 @@ class ETTrialData():
             cpur,cpev=computeCLpursuit(self.gaze,self.vel,self.acc,self.hz)
             self.opev=helpf(opev,[self.ts,self.te])
             self.cpev=helpf(cpev,[self.ts,self.te])
+            self.fev=helpf(fev,[self.ts,self.te])
             self.opur=opur[self.ts:self.te];
             self.cpur=cpur[self.ts:self.te]
             i=0
             while i<len(self.cpev):
                 s=self.cpev[i][0];e=self.cpev[i][1]-1
                 a=selectAgentCL(self.dist[s:e,:],self.dev[s:e,:])
-                if len(a)>0:
-                    self.cpev[i].extend(a); i+=1
-                else:self.cpev.pop(i);self.cpur[s:(e+1)]=False
+                #if len(a)>0:
+                self.cpev[i].extend(a); i+=1
+                #else:self.cpev.pop(i);self.cpur[s:(e+1)]=False
 
-            b= np.logical_and(self.opur,~self.cpur)
+            b= np.logical_and(np.logical_and(self.opur,~self.cpur),~self.isFix[self.ts:self.te])
             self.opur,self.opev= computeState(b,[OLPURMD*self.hz,np.inf])
             for i in range(len(self.opev)):
                 s=self.opev[i][0];e=self.opev[i][1]-1
                 a=selectAgentOL(self.dist[s:e,:])
                 self.opev[i].extend(a)
+
+            for i in range(len(self.fev)):
+                s=self.fev[i][0];e=self.fev[i][1]-1
+                a=selectAgentFIX(self.dist[s:e,:])
+                self.fev[i].extend(a)
     
     @staticmethod
     def rescale(g,hz):
@@ -630,7 +659,10 @@ def readEdf(vp,block):
     cent=(0,0)
     path = getcwd()
     path = path.rstrip('code')
-    f=open(path+'eyelinkOutput/VP%03dB%d.asc'%(vp,block),'r')
+    try:
+        f=open(path+'eyelinkOutput/VP%03dB%d.asc'%(vp,block),'r')
+    except:
+        f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
     LBLINK=False; RBLINK=False
     ende=False
     try:
@@ -1030,7 +1062,7 @@ if __name__ == '__main__':
 
     
     
-    data=readEdf(18,9)
+    data=readEdf(18,10)
 
     #evs=[]
     for i in range(len(data)):
@@ -1038,9 +1070,11 @@ if __name__ == '__main__':
             print i
             data[i].driftCorrection()
             data[i].extractTracking()
-            data[i].exportTracking()
+            data[i].exportEvents()
+            data[i].plotEvents()
+            #data[i].exportTracking()
             #evs.extend(data[i].track)
-            data[i].plotTracking()
+            #data[i].plotTracking()
 
 ##    
 ##    #data = readTobii(129,0)

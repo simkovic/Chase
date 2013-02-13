@@ -24,6 +24,7 @@ class Trajectory():
         self.trajRefresh=trajRefresh
         self.gazeData=gazeData
         g=self.gazeData.getGaze(phase)
+        print phase, 'g[0,0] ', g[0,0]
         self.wind=wind
         self.phase=phase
         self.cond=trajectories.shape[1]
@@ -56,12 +57,10 @@ class Trajectory():
             self.gaze=np.array((interpRange(g[:,0],g[:,1],tm),
                 interpRange(g[:,0],g[:,2],tm)))
         else:
-            g=self.gazeData.gaze[phase][:,[0,1,2]]
             self.gaze=np.array((interpRange(g[:,0],g[:,1],tm),
                 interpRange(g[:,0],g[:,2],tm)))
-            g=self.gazeData.gaze[phase][:,[0,4,5]]
-            self.gaze2=np.array((interpRange(g[:,0],g[:,1],tm),
-                interpRange(g[:,0],g[:,2],tm)))
+            self.gaze2=np.array((interpRange(g[:,0],g[:,4],tm),
+                interpRange(g[:,0],g[:,5],tm)))
         try:
             if type(self.wind)==type(None):
                 self.wind=Q.initDisplay()
@@ -211,13 +210,13 @@ class ETReplay(Trajectory,GazePoint):
         else: GazePoint.__init__(self, gazeData,wind=wind)
 
         try:
-            indic=['Velocity','Acceleration','Fixation','Saccade','Pursuit','Tracking','Searching']
-            self.lim=([0,450],[-42000,42000],[0,1],[0,1],[0,1],[0,1],[0,1])# limit of y axis
-            self.span=(0.9,0.9,0.6,0.6,0.6,0.6,0.6)# height of the window taken by graph
-            self.offset=(0.1,0.1,0.2,0.2,0.2,0.2,0.2)
+            indic=['Velocity','Acceleration','Saccade','Fixation','OL Pursuit','CL Pursuit','Tracking','Searching']
+            self.lim=([0,450],[-42000,42000],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1])# limit of y axis
+            self.span=(0.9,0.9,0.6,0.6,0.6,0.6,0.6,0.6)# height of the window taken by graph
+            self.offset=(0.1,0.1,0.2,0.2,0.2,0.2,0.2,0.2)
             fhandles=[self.gazeData.getVelocity,self.gazeData.getAcceleration,
-                      self.gazeData.getFixations,self.gazeData.getSaccades,
-                      self.gazeData.getPursuit, self.gazeData.getTracking,
+                      self.gazeData.getSaccades,self.gazeData.getFixations,self.gazeData.getOLP,
+                      self.gazeData.getCLP, self.gazeData.getTracking,
                       self.gazeData.getSearch]
             self.ws=30 
             ga=[7.8337, 18.7095,-13.3941,13.3941] # graph area
@@ -262,9 +261,7 @@ class ETReplay(Trajectory,GazePoint):
             fs=max(0,self.f-self.ws)
             fe=min(self.f+self.ws,self.gazeData.getGaze().shape[0]-1)
             yveldata=self.gData[g][fs:fe]
-            
             yveldata=(yveldata-self.lim[g][0])/float(self.lim[g][1]-self.lim[g][0])
-
             yveldata[yveldata>self.lim[g][1]]=self.lim[g][1]
             yveldata[yveldata<self.lim[g][0]]=self.lim[g][0]
             yveldata=np.matrix((self.ga[3]-(g+1)*self.inc)
@@ -295,14 +292,12 @@ if __name__ == '__main__':
     from Maze import *
     from evalETdata import *
     vp=18
-    block=3
-    trial=7
+    block=10
+    trial=6
     data=readEdf(vp,block)
-    D = ETBlockData(data)
-    D.driftCorrection()
-    D.loadBehavioralData()
-    trl=D.getTrial(trial)
-    trl.extractAgentDistances()
+
+    trl=data[trial]
+    trl.driftCorrection()
     trl.extractTracking()
     R=ETReplay(trl.getTraj(),gazeData=trl,
                trajRefresh=100.0,phase=1,eyes=2)
