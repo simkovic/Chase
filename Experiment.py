@@ -376,11 +376,11 @@ class BabyExperiment(Experiment):
         clrs=np.ones((self.cond,3))
         clrs[0,:]=self.rewardColor1
         clrs[1,:]=self.rewardColor1
-        if self.phases[self.pi]< 2: self.elem.setColors(clrs)
+        #if self.phases[self.pi]< 2: self.elem.setColors(clrs)
     def turnOffReward(self):
         self.etController.sendMessage('Reward Off')
         self.rewardIter=0
-        self.elem.setColors(np.ones((self.cond,3)))
+        #self.elem.setColors(np.ones((self.cond,3)))
         self.nrRewards+=1
     def reward(self):
         ''' Present reward '''
@@ -395,7 +395,7 @@ class BabyExperiment(Experiment):
         #print '2 ',nc
         clrs[0,:]=nc
         clrs[1,:]=nc
-        self.elem.setColors(clrs)
+        #self.elem.setColors(clrs)
         #print nc,pa, self.elem.colors[pa,:]
         
     def omission(self):
