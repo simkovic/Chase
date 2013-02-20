@@ -162,6 +162,7 @@ def computeState(isFix,md,nfm=np.inf):
         np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
     fixoff=np.bitwise_and(np.roll(isFix,1),
         np.bitwise_not(isFix)).nonzero()[0].tolist()
+    if len(fixon)==0 and len(fixoff)==0: fixon=[0]; fixoff=[isFix.size-1]
     if fixon[-1]>fixoff[-1]:fixoff.append(isFix.shape[0]-1)
     if fixon[0]>fixoff[0]:fixon.insert(0,0)
     if len(fixon)!=len(fixoff): print 'invalid fixonoff';raise TypeError
@@ -177,11 +178,12 @@ def interpolateBlinks(t,d,hz):
     ''' interpolate short missing intervals 
     '''
     isblink= np.isnan(d)
-    if isblink.sum()==0: return d
+    if isblink.sum()<2 or isblink.sum()>(isblink.size-2): return d
     blinkon = np.bitwise_and(isblink,np.bitwise_not(
         np.roll(isblink,1))).nonzero()[0].tolist()
     blinkoff=np.bitwise_and(np.roll(isblink,1),
         np.bitwise_not(isblink)).nonzero()[0].tolist()
+    if len(blinkon)==0 and len(blinkoff)==0: return d
     #print 'bla',len(blinkon), len(blinkoff)
     if blinkon[-1]>blinkoff[-1]: blinkoff.append(t.size-1)
     if blinkon[0]>blinkoff[0]: blinkon.insert(0,0)
@@ -200,6 +202,7 @@ def interpolateBlinks(t,d,hz):
     
 def computeFixations(tser,vel,acc,hz):
     isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
+    if isFix.sum()==0: return np.int32(isFix),[]
     fixon = np.bitwise_and(isFix,
         np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
     fixoff=np.bitwise_and(np.roll(isFix,1),
@@ -232,7 +235,9 @@ def computeCLpursuit(tser,vel,acc,hz):
 def computeSaccades(tser,vel,acc,hz):
     isFix=np.logical_or(np.isnan(vel),
         np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
-    return computeState(isFix,[SACMINDUR*hz,np.inf])
+    discard, b = computeState(np.logical_or(vel>SACVTH,np.abs(acc)>SACATH),[SACMINDUR*hz,np.inf])
+    a,discard= computeState(isFix,[SACMINDUR*hz,np.inf])
+    return a,b
 
 def computeLongSaccades(tser,vel,acc,hz):
     isFix=np.logical_or(vel>LSACVTH,np.abs(acc)>LSACATH)
@@ -376,9 +381,10 @@ class ETTrialData():
             for j in [1,4,2,5]:
                 dif=self.gaze[h:(h+50),j].mean()
                 self.gaze[:,j]-=dif
-            # recompute fixations
-            self.extractFixations(self.gaze[:,:7],True)
-        else: print s,'DRIFT CORRECTION FAILED', np.sum(d.isFix[0][-50:])
+            
+        else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
+        # recompute fixations
+        self.extractFixations(self.gaze[:,:7],True)
         
     def extractTracking(self):
         """ extracts high-level events - search and tracking"""
@@ -517,7 +523,8 @@ class ETTrialData():
                     or (ff[1]>inds[0] and ff[1]<inds[1])):
                     temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
                     out.append(temp)
-            return out 
+            return out
+        
         # add two columns with gaze point
         if self.focus==BINOCULAR:
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
@@ -1060,21 +1067,43 @@ def checkEyelinkDatasets():
 
 if __name__ == '__main__':
 
-    
-    
-    data=readEdf(18,10)
-
-    #evs=[]
-    for i in range(len(data)):
-        if data[i].ts>=0:
-            print i
-            data[i].driftCorrection()
-            data[i].extractTracking()
-            data[i].exportEvents()
-            data[i].plotEvents()
-            #data[i].exportTracking()
-            #evs.extend(data[i].track)
-            #data[i].plotTracking()
+    path='/home/matus/Desktop/pylink/evaluation/sacTargets/'
+    for b in range(4,25):
+        data=readEdf(18,b)
+        sactot=0
+        #evs=[]
+        for i in range(len(data)):
+            if data[i].ts>=0:
+                print i
+                data[i].driftCorrection()
+                for ev in data[i].sev: sactot+= int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
+                #data[i].extractTracking()
+                #data[i].exportEvents()
+                #data[i].plotEvents()
+                #data[i].exportTracking()
+                #evs.extend(data[i].track)
+                #data[i].plotTracking()
+        
+        sevall=[]
+        D=np.zeros((sactot,100,15,2))*np.nan
+        k=0
+        print 'sactot=',sactot
+        
+        for i in range(len(data)):
+            if data[i].ts>=0:
+                g=data[i].getGaze()
+                for ev in data[i].sev:
+                    if ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0]:
+                        D[k,:,:14,:]=data[i].traj[(ev[0]-50):(ev[0]+50),:,:]
+                        D[k,:,-1,:]=g[(ev[0]-50):(ev[0]+50),[7,8]]
+                        k+=1
+                        sevall.append([[ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8]],
+                                       [ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8]]])
+                    else: print 'warn ', i
+        np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
+        np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)     
+                        
+            
 
 ##    
 ##    #data = readTobii(129,0)
