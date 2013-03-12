@@ -7,7 +7,7 @@ from os import getcwd
 class Settings():
     def __init__(self,monname,os,trialDur,refreshRate,agentSize,phiRange,
         pDirChange,initDistCC,bckgCLR,agentCLR,mouseoverCLR,selectedCLR,aSpeed,
-        guiPos,winPos):
+        guiPos,winPos,fullscr):
         self.refreshRate=float(refreshRate)
         self.monname=monname
         self.monitor=monitors.Monitor(self.monname)
@@ -34,10 +34,11 @@ class Settings():
         self.stimPath=path+"stimuli"+self.delim
         self.agentRadius=self.agentSize/2.0
         self.nrframes=self.trialDur*self.refreshRate+1
+        self.fullscr=fullscr
   
-    def initDisplay(self,sz=1000,fullscr=True):
+    def initDisplay(self,sz=1000):
         if type(sz)==int: sz=(sz,sz)
-        wind=visual.Window(monitor=self.monname,fullscr=fullscr,
+        wind=visual.Window(monitor=self.monname,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
             winType='pyglet')
         return wind
@@ -62,14 +63,15 @@ laptop={'monname' :     'dell',
         'trialDur':     30,                 # in seconds
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
-        'winPos':       (0,0)}              # in pixels
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      False}
 eyelinklab ={'monname' :     'sony',
         'refreshRate':  100,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],  # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -77,21 +79,23 @@ eyelinklab ={'monname' :     'sony',
         'trialDur':     30,                 # in seconds
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
-        'winPos':       (0,0)}              # in pixels
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      True}
 tobiilab ={'monname' :     'tobii',
-        'refreshRate':  75,                # [hz]
+        'refreshRate':  75,                 # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [5.4,5.4],  # avg number of direction changes per second
+        'pDirChange':   [5.4,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
-        'trialDur':     120,                 # in seconds
+        'trialDur':     120,                # in seconds
         'aSpeed':       9,                  # in degrees of visual angle per second
         'guiPos':       (-800,400),         # in pixels
-        'winPos':       (1280,0)}           # in pixels
+        'winPos':       (1280,0),           # in pixels
+        'fullscr':      True}
 
-Q=Settings(**tobiilab)
+Q=Settings(**laptop)

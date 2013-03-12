@@ -7,6 +7,21 @@ from jagstools import jags
 from pymc.Matplot import plot
 import scipy.stats as stats
 
+def errorbar(p):
+    perc=5
+    dt=np.zeros((p.shape[0],6))
+    for i in range(p.shape[0]):
+        dt[i,0]= np.median(p[i,:])
+        dt[i,1]=dt[i,0]-stats.scoreatpercentile(p[i,:],perc)
+        dt[i,2]=stats.scoreatpercentile(p[i,:],100-perc)-dt[i,0]
+        dt[i,3]= np.median(p[i,:])
+        dt[i,4]=dt[i,3]-stats.scoreatpercentile(p[i,:],perc)
+        dt[i,5]=stats.scoreatpercentile(p[i,:],100-perc)-dt[i,3]
+    plt.figure()
+    b=np.sort(dt[:,:3],axis=0)
+    plt.errorbar(range(p.shape[0]),b[:,0],yerr=[b[:,1],b[:,2]],fmt='o')
+
+
 def loadData(vpn, verbose=False):
 
     D=[]
@@ -38,8 +53,12 @@ for r in rem: vpn.remove(r)
 
 stat=np.ones((len(vpn),4,2))*np.nan
 rts=np.zeros((len(vpn),160))*np.nan
-acc=np.zeros((len(vpn),2))*np.nan
+acc=np.zeros((len(vpn),160))*np.nan
+acc2=np.zeros((len(vpn),2))*np.nan
+covar=np.zeros((len(vpn),160))*2
 N=np.zeros(len(vpn))
+K=np.copy(D[:,-1])
+K[D[:,6]==30]=np.nan
 for i in range(len(vpn)):
     for b in range(4):
         sel=np.logical_and(D[:,0]==vpn[i],D[:,1]==b+1)
@@ -49,59 +68,124 @@ for i in range(len(vpn)):
             sel2= np.logical_and(sel,~(D[:,6]==30))
             stat[i,b,1]=np.median(D[sel2,6])
             rts[i,b*40:(b+1)*40]=D[sel,6]
+            acc[i,b*40:(b+1)*40]=K[sel]
+            covar[i,b*40:(b+1)*40]=np.int32(D[sel,3]>34)
     sel2= np.logical_and(D[:,0]==vpn[i],D[:,6]!=30)
-    acc[i,0]= np.sum(D[sel2,-1])
-    acc[i,1]=np.sum(sel2)
+    acc2[i,0]= np.sum(D[sel2,-1])
+    acc2[i,1]=np.sum(sel2)
 
 def modelACC(acc):
     pname='chaseACC'
-    indata=[acc[:,0],acc[:,1],acc.shape[0]]
-    indatlabels=['cor','tot','vpnr']
-    outdatlabels=['p','mu','K']
+    #binom
+    #indata=[acc2[:,0],acc2[:,1],acc2.shape[0]]
+    #indatlabels=['cor','tot','vpnr']
+    x=np.copy(rts)
+    x[np.isnan(x)]=30
+    indata=[acc,acc.shape[0],x,covar]
+    indatlabels=['y','vpnr','x','w']
+
+    outdatlabels=['p','a','b','c','amu','asd','bmu','bsd','cmu','csd']
     inpars=[]
     inparlabels=[]
-    model='''
+    modelBinom='''
     model{
         for (i in 1:vpnr){
             cor[i]~ dbin(p[i],tot[i])
             p[i]~dbeta(1,1)
+        }}'''
+    modelComp='''
+    model{
+        for (i in 1:vpnr){
+            for (t in 1:160){
+                y[i,t] ~ dbern(p[i,t,mi])
+                p[i,t,1]<-1 / (1 + exp(-z[i,t]))
+                z[i,t] <- a[i] + b[i] * x[i,t]
+                p[i,t,2]<-pp[i]  
+            }
+            pp[i]~ dbeta(m[mi]*k[mi],(1-m[mi])*k[mi])
+            a[i] ~ dt(amu[mi],pow(asd[mi],-2),4)
+            b[i] ~ dt(bmu[mi],pow(bsd[mi],-2),4)
         }
-        
+        m[1]~dnorm(0.9,0.02)I(0,1)
+        k[1]~dnorm(12,1)
+        m[2]~dbeta(1,1)
+        k[2]~dgamma(10,1)
+        amu[1]~dnorm(0,.0001)
+        bmu[1]~dnorm(0,.0001)
+        asd[1]~dgamma(10,1)
+        bsd[1]~dgamma(10,1)
+
+        amu[2]~dnorm(3,0.2)
+        bmu[2]~dnorm(-0.04,0.01)
+        asd[2]~dnorm(1,0.2)
+        bsd[2]~dnorm(0.04,0.005)
+
+        mi~dcat(modelProb[])
+        modelProb[1]<-.5
+        modelProb[2]<-.5
     }
     '''
+    modelLogit='''
+    model{
+        for (i in 1:vpnr){
+            for (t in 1:160){
+                y[i,t] ~ dbern(p[i,t])
+                p[i,t]<-1 / (1 + exp(-z[i,t]))
+                z[i,t] <- a[i] + b[i] * x[i,t]+c[i]*w[i,t]
+            }
+            a[i] ~ dt(amu,pow(asd,-2),4)
+            b[i] ~ dt(bmu,pow(bsd,-2),4)
+            c[i] ~ dt(cmu,pow(csd,-2),4)
+        }
+        amu~dnorm(0,.0001)
+        bmu~dnorm(0,.0001)
+        cmu~dnorm(0,.0001)
+        asd~dgamma(10,1)
+        bsd~dgamma(10,1)
+        csd~dgamma(10,1)
+    }
+    '''
+
     from jagstools import jags
-    D=jags(pname,indata,indatlabels,outdatlabels,model,
-        inpars,inparlabels,chainLen=50000,burnIn=5000,thin=5)
+    D=jags(pname,indata,indatlabels,outdatlabels,modelLogit,
+        inpars,inparlabels,chainLen=2000,burnIn=500,thin=5)
     p=D[0]
-    for vp in range(acc.shape[0]): plt.plot(vp,p[vp,:].mean(),'ok')
+    errorbar(p)
+    #for vp in range(acc2.shape[0]): plt.plot(vp,p[vp,:].mean(),'ok')
+    #plt.hist(acc2[:,0]/acc2[:,1])
+    #plt.figure()
+    #stats.probplot(acc2[:,0]/acc2[:,1],dist='beta',plot=plt,
+    #    sparams=(int((D[1]*D[2]).mean()),int(((1-D[1])*D[2]).mean()) ))
     return p
-from jagstools import loadCoda
-D=loadCoda('chaseRT1')
-rtpred=D[0]
-p=modelACC(acc)
-perc=25
-dt=np.zeros((p.shape[0],6))
-for i in range(p.shape[0]):
-    dt[i,0]= np.median(p[i,:])
-    dt[i,1]=dt[i,0]-stats.scoreatpercentile(p[i,:],perc)
-    dt[i,2]=stats.scoreatpercentile(p[i,:],100-perc)-dt[i,0]
-    dt[i,3]= np.median(rtpred[i,:])
-    dt[i,4]=dt[i,3]-stats.scoreatpercentile(rtpred[i,:],perc)
-    dt[i,5]=stats.scoreatpercentile(rtpred[i,:],100-perc)-dt[i,3]
-plt.figure()
-b=np.sort(dt[:,:3],axis=0)
-plt.errorbar(range(p.shape[0]),b[:,0],yerr=[b[:,1],b[:,2]],fmt='o')
-plt.xlim([-1,46])
-plt.ylim([0.5,1])
-plt.xlabel('Subjects (Sorted by Median)')
-plt.ylabel('Accuracy')
-plt.figure()
-b=np.sort(dt[:,3:],axis=0)
-plt.errorbar(range(p.shape[0]),b[:,0],yerr=[b[:,1],b[:,2]],fmt='o')
-plt.xlim([-1,46])
-plt.ylim([0,30])
-plt.xlabel('Subjects (Sorted by Median)')
-plt.ylabel('Search Time')
+
+
+##from jagstools import loadCoda
+##D=loadCoda('chaseRT1')
+##rtpred=D[0]
+##p=modelACC(acc)
+##perc=25
+##dt=np.zeros((p.shape[0],6))
+##for i in range(p.shape[0]):
+##    dt[i,0]= np.median(p[i,:])
+##    dt[i,1]=dt[i,0]-stats.scoreatpercentile(p[i,:],perc)
+##    dt[i,2]=stats.scoreatpercentile(p[i,:],100-perc)-dt[i,0]
+##    dt[i,3]= np.median(rtpred[i,:])
+##    dt[i,4]=dt[i,3]-stats.scoreatpercentile(rtpred[i,:],perc)
+##    dt[i,5]=stats.scoreatpercentile(rtpred[i,:],100-perc)-dt[i,3]
+##plt.figure()
+##b=np.sort(dt[:,:3],axis=0)
+##plt.errorbar(range(p.shape[0]),b[:,0],yerr=[b[:,1],b[:,2]],fmt='o')
+##plt.xlim([-1,46])
+##plt.ylim([0.5,1])
+##plt.xlabel('Subjects (Sorted by Median)')
+##plt.ylabel('Accuracy')
+##plt.figure()
+##b=np.sort(dt[:,3:],axis=0)
+##plt.errorbar(range(p.shape[0]),b[:,0],yerr=[b[:,1],b[:,2]],fmt='o')
+##plt.xlim([-1,46])
+##plt.ylim([0,30])
+##plt.xlabel('Subjects (Sorted by Median)')
+##plt.ylabel('Search Time')
         
 def modelSingleVP(vp=2):
     rts[rts==30]=np.nan    
@@ -150,118 +234,122 @@ def modelSingleVP(vp=2):
     plot(mean,'mean')
     plot(sdev,'sd')
 
-def modelRT(rts):
-    rts[rts==30]=np.nan    
-    pname='chaseRT'
-    dat=np.copy(rts)
-    shift=np.nanmin(rts,axis=1)-0.001
-    censored=np.float32(np.isnan(dat))
-    for vp in range(N.size):
-        dat[vp,:]-= shift[vp]
-        censored[vp,(N[vp]*40):]=np.nan
+#def modelRT(rts):
+rts[rts==30]=np.nan    
+pname='chaseRT'
+dat=np.copy(rts)
+shift=np.nanmin(rts,axis=1)-0.001
+censored=np.float32(np.isnan(dat))
+for vp in range(N.size):
+    dat[vp,:]-= shift[vp]
+    censored[vp,(N[vp]*40):]=np.nan
 
 
-    indata=[dat, censored,shift,N.size]
-    indatlabels=['rt','rtcens','shift','n']
-    rtInit=np.ones((N.size,160))*np.nan
-    rtInit[censored==1]=31
-    inpars=[rtInit]
-    inparlabels=['rt']
+indata=[dat,covar ,censored,shift,N.size]
+indatlabels=['rt','w','rtcens','shift','n']
+rtInit=np.ones((N.size,160))*np.nan
+rtInit[censored==1]=31
+inpars=[rtInit]
+inparlabels=['rt']
 
-    modelgrand='''
-    model{
-        for (vp in 1:n){
-            for (t in 1:160){
-                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-                rt[vp,t] ~ dgamma(pow(mu,2)*pow(sdev,-2),mu*pow(sdev,-2))
-            }
-        }
-
-        mu ~ dunif(0,30)
-        sdev ~ dunif(0,30)
-    }
-    '''
-
-
-    modelunpooled='''
-    model{
-        for (vp in 1:n){
-            for (t in 1:160){
-                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-                rt[vp,t] ~dgamma(a[vp],b[vp])
-            }
-
-            rtpred[vp]<-rttemp[vp]+shift[vp]
-            rttemp[vp]~ dgamma(a[vp],b[vp])
-            a[vp]<-pow(mu[vp],2)*pow(sdev[vp],-2)
-            b[vp]<-mu[vp]*pow(sdev[vp],-2)
-            mu[vp] ~ dunif(0,30)
-            sdev[vp] ~ dunif(0,30)
+modelgrand='''
+model{
+    for (vp in 1:n){
+        for (t in 1:160){
+            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+            rt[vp,t] ~ dgamma(pow(mu,2)*pow(sdev,-2),mu*pow(sdev,-2))
         }
     }
-    '''
 
-    modelhier='''
-    model{
-        for (vp in 1:n){
-            for (t in 1:160){
-                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-                rt[vp,t] ~dgamma(a[vp],b[vp])
-            }
+    mu ~ dunif(0,30)
+    sdev ~ dunif(0,30)
+}
+'''
 
-            rtpred[vp]<-rttemp[vp]+shift[vp]
-            rttemp[vp]~ dgamma(a[vp],b[vp])
-            a[vp]<-pow(mu[vp],2)*pow(sdev[vp],-2)
-            b[vp]<-mu[vp]*pow(sdev[vp],-2)
-            mu[vp] ~ dt(mumu,pow(musd,-2),tdf)
-            sdev[vp] ~ dgamma(pow(sdmu,2)*pow(sdsd,-2),sdmu*pow(sdsd,-2))
+
+modelunpooled='''
+model{
+    for (vp in 1:n){
+        for (t in 1:160){
+            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+            rt[vp,t] ~dgamma(a[vp],b[vp])
         }
-        mumu~dunif(0,30)
-        musd~dunif(0,30)
-        sdmu~dunif(0,30)
-        sdsd~dunif(0,30)
-        tdf <- 1 - tdfGain * log(1-udf)
-        udf ~ dunif(0,1)
-        tdfGain <- 1
+
+        rtpred[vp]<-rttemp[vp]+shift[vp]
+        rttemp[vp]~ dgamma(a[vp],b[vp])
+        a[vp]<-pow(mu[vp],2)*pow(sdev[vp],-2)
+        b[vp]<-mu[vp]*pow(sdev[vp],-2)
+        mu[vp] ~ dunif(0,30)
+        sdev[vp] ~ dunif(0,30)
     }
-    '''
+}
+'''
+
+modelhier='''
+model{
+    for (vp in 1:n){
+        for (t in 1:160){
+            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+            rt[vp,t] ~dgamma(a[vp,t],b[vp,t])
+            a[vp,t]<-pow(b0[vp]+b1[vp]*w[vp,t],2)*pow(sdev[vp],-2)
+            b[vp,t]<-(b0[vp]+b1[vp]*w[vp,t])*pow(sdev[vp],-2)
+            
+        }
+        b0[vp] ~ dt(b0mu,pow(b0sd,-2),4)
+        b1[vp] ~ dt(b1mu,pow(b1sd,-2),4)
+        sdev[vp] ~ dgamma(pow(sdmu,2)*pow(sdsd,-2),sdmu*pow(sdsd,-2))
+    }
+    b0mu~dunif(0,30)
+    b0sd~dunif(0,30)
+    b1mu~dnorm(0,.001)
+    b1sd~dgamma(10,1)
+    sdmu~dunif(0,30)
+    sdsd~dunif(0,30)
+    tdf <- 1 - tdfGain * log(1-udf)
+    udf ~ dunif(0,1)
+    tdfGain <- 1
+}
+'''
 
 
-    plt.close('all')
-    outdatlabels=['rtpred','mu','sdev','mumu','musd','sdmu','sdsd','tdf']
-    rtpred,mean,sdev,mumu,musd,sdmu,sdsd,tdf=jags(pname,indata,indatlabels,outdatlabels,modelhier,
-        inpars,inparlabels,chainLen=50000,burnIn=5000,thin=5)
+plt.close('all')
+outdatlabels=['b0','b1','sdev','b0mu','b0sd','b1mu','b1sd','sdmu','sdsd','tdf']
+D=jags(pname,indata,indatlabels,outdatlabels,modelhier,
+    inpars,inparlabels,chainLen=5000,burnIn=500,thin=5)
 
-    plot(mumu,'mumu')
-    plot(musd,'musd')
-    plot(sdmu,'sdmu')
-    plot(sdsd,'sdsd')
-    plot(tdf,'tdf')
-    plt.figure()
-    for vp in range(len(vpn)): plt.plot(vp,mean[vp,:].mean(),'ok')
-    plt.title('mean')
-    plt.figure()
-    bp=[];r2=[]
-    for vp in range(len(vpn)):
-        plt.plot(vp,sdev[vp,:].mean(),'ok')
-        shape=mean[vp,:].mean()**2 / sdev[vp,:].mean()**2
-        scale=sdev[vp,:].mean()**2 / mean[vp,:].mean()
-        e,f=stats.probplot(rts[vp,~np.isnan(rts[vp,:])],dist='gamma',
-            sparams=(shape,shift[vp],scale))
-        r2.append(f[-1])
-        #print '\t',(rtpred[vp,:]>30).mean(),(censored[vp,:]==1).sum()/N[vp]/40
-        bp.append(stats.binom_test((censored[vp,:]==1).sum(),
-                                N[vp]*40,(rtpred[vp,:]>30).mean() ))
-    plt.title('sdev')
-    plt.figure()        
-    plt.plot(r2,'ok')
-    plt.title('R^2 coefs')
-    plt.figure()        
-    plt.plot(bp,'ok')
-    plt.ylim([0,1])
-    plt.title('binom test tail')
-    print 'Mean R2',np.array(r2).mean()
-    return rtpred
+for d in D:
+    if d.ndim==2: errorbar(d)
+    elif d.ndim==1: plot(d,'bla')
+##plot(D[5],'mumu')
+##plot(musd,'musd')
+##plot(sdmu,'sdmu')
+##plot(sdsd,'sdsd')
+##plot(tdf,'tdf')
+##plt.figure()
+##for vp in range(len(vpn)): plt.plot(vp,mean[vp,:].mean(),'ok')
+##plt.title('mean')
+##plt.figure()
+##bp=[];r2=[]
+##for vp in range(len(vpn)):
+##    plt.plot(vp,sdev[vp,:].mean(),'ok')
+##    shape=mean[vp,:].mean()**2 / sdev[vp,:].mean()**2
+##    scale=sdev[vp,:].mean()**2 / mean[vp,:].mean()
+##    e,f=stats.probplot(rts[vp,~np.isnan(rts[vp,:])],dist='gamma',
+##        sparams=(shape,shift[vp],scale))
+##    r2.append(f[-1])
+##    #print '\t',(rtpred[vp,:]>30).mean(),(censored[vp,:]==1).sum()/N[vp]/40
+##    bp.append(stats.binom_test((censored[vp,:]==1).sum(),
+##                            N[vp]*40,(rtpred[vp,:]>30).mean() ))
+##plt.title('sdev')
+##plt.figure()        
+##plt.plot(r2,'ok')
+##plt.title('R^2 coefs')
+##plt.figure()        
+##plt.plot(bp,'ok')
+##plt.ylim([0,1])
+##plt.title('binom test tail')
+##print 'Mean R2',np.array(r2).mean()
+#return rtpred
 
 
 
