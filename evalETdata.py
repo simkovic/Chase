@@ -1068,7 +1068,7 @@ def checkEyelinkDatasets():
 if __name__ == '__main__':
 
     path='/home/matus/Desktop/pylink/evaluation/sacTargets/'
-    for b in range(4,25):
+    for b in range(13,25):
         data=readEdf(18,b)
         sactot=0
         #evs=[]
@@ -1076,7 +1076,7 @@ if __name__ == '__main__':
             if data[i].ts>=0:
                 print i
                 data[i].driftCorrection()
-                for ev in data[i].sev: sactot+= int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
+                for ev in data[i].sev: sactot+=1# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
                 #data[i].extractTracking()
                 #data[i].exportEvents()
                 #data[i].plotEvents()
@@ -1085,7 +1085,7 @@ if __name__ == '__main__':
                 #data[i].plotTracking()
         
         sevall=[]
-        D=np.zeros((sactot,100,15,2))*np.nan
+        D=np.zeros((sactot,200,15,2))*np.nan
         k=0
         print 'sactot=',sactot
         
@@ -1093,16 +1093,20 @@ if __name__ == '__main__':
             if data[i].ts>=0:
                 g=data[i].getGaze()
                 for ev in data[i].sev:
-                    if ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0]:
-                        D[k,:,:14,:]=data[i].traj[(ev[0]-50):(ev[0]+50),:,:]
-                        D[k,:,-1,:]=g[(ev[0]-50):(ev[0]+50),[7,8]]
-                        k+=1
-                        sevall.append([[ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8]],
-                                       [ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8]]])
-                    else: print 'warn ', i
+                    si=max(ev[0]-100,0)
+                    ei=min(ev[0]+100,data[i].traj.shape[0]-1)
+                    ssi= si-ev[0]+100
+                    eei= 100+ei -ev[0]
+                    #print si,ei,ssi, eei
+                    D[k,ssi:eei,:14,:]=data[i].traj[si:ei,:,:]
+                    D[k,ssi:eei,-1,:]=g[si:ei,[7,8]]
+                    k+=1
+                    sevall.append([[ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8]],
+                                    [ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8]]])
+                    #if ev[0]-50<0 or ev[0]+50>=data[i].traj.shape[0]:stop
+                    #else: print 'warn ', i
         np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
-        np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)     
-                        
+        np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
             
 
 ##    
