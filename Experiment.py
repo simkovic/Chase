@@ -11,6 +11,8 @@ import numpy as np
 import random
 try: from Eyelink import TrackerEyeLink
 except ImportError: print 'Warning >> Eyelink import failed'
+try: from SMI import TrackerSMI
+except ImportError: print 'Warning >> Eyelink import failed'
 from Tobii import TobiiController,TobiiControllerFromOutput
 class Experiment():
     def __init__(self):
@@ -463,10 +465,11 @@ class BehavioralExperiment(Experiment):
             self.wind.close()
 
 
-class EyelinkExperiment(BehavioralExperiment):
+class AdultExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
         BehavioralExperiment.__init__(self)
-        self.eyeTracker = TrackerEyeLink(self.getWind(), core.Clock(),sj=self.id,block=self.block,doSetup=doSetup,target=self.fixcross)
+        #self.eyeTracker = TrackerEyeLink(self.getWind(), core.Clock(),sj=self.id,block=self.block,doSetup=doSetup,target=self.fixcross)
+        self.eyeTracker = TrackerSMI(self.getWind(), sj=self.id,block=self.block,target=self.fixcross)
         self.eyeTracker.sendMessage('MONITORDISTANCE %f'% self.wind.monitor.getDistance())
     def run(self):
         BehavioralExperiment.run(self)
@@ -483,6 +486,9 @@ class EyelinkExperiment(BehavioralExperiment):
     def omission(self):
         self.eyeTracker.sendMessage('OMISSION')
         BehavioralExperiment.omission(self)
+    def trialIsFinished(self):
+        self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
+        BehavioralExperiment.trialIsFinished(self)
         
 class TobiiExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
@@ -511,7 +517,7 @@ if __name__ == '__main__':
     #E=BehavioralExperiment()
     #E=TobiiExperiment()
     #E=Gao09Experiment()
-    E=BabyExperiment()
+    E=AdultExperiment()
     E.run()
 
 
