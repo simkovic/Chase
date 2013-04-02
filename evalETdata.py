@@ -688,6 +688,3 @@ class ETTrialData():
             if not tr[-1]: out[tr[0]:tr[1]]=1
         return out
 
-
-
- 

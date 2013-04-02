@@ -34,6 +34,7 @@ class Settings():
         self.stimPath=path+"stimuli"+self.delim
         self.agentRadius=self.agentSize/2.0
         self.nrframes=self.trialDur*self.refreshRate+1
+        self.fullscr=fullscr
   
     def initDisplay(self,sz=1000):
         if type(sz)==int: sz=(sz,sz)
@@ -77,13 +78,14 @@ laptop={'monitor' :     dell,
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
         'fullscr':      False}
+
 eyelinklab ={'monitor' :sonycrt,
         'refreshRate':  100,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],  # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -93,6 +95,7 @@ eyelinklab ={'monitor' :sonycrt,
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
         'fullscr':      True}
+
 smilab ={'monitor' :     smidell,
         'refreshRate':  60,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
@@ -115,14 +118,15 @@ tobiilab ={'monitor' :  t60,
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [5.4,5.4],  # avg number of direction changes per second
+        'pDirChange':   [5.4,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
-        'trialDur':     120,                 # in seconds
+        'trialDur':     120,                # in seconds
         'aSpeed':       9,                  # in degrees of visual angle per second
         'guiPos':       (-800,400),         # in pixels
         'winPos':       (1280,0),           # in pixels
         'fullscr':      True}
 Q=Settings(**eyelinklab)
+
