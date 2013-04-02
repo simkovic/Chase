@@ -11,9 +11,6 @@ from scipy.interpolate import interp1d
 from copy import copy
 import time,os
 
-
-# TODO: readTobii() for reading drift correction data
-
 plt.ion()
 
 def norm(x,axis=0):
@@ -23,9 +20,15 @@ def norm(x,axis=0):
 
 def interpRange(xold,yold,xnew):
     ynew=np.float32(xnew.copy())
-    f=interp1d(xold,yold)
+    f=interp1d(xold,yold,bounds_error=False)
+    
     for i in range(xnew.size):
-        ynew[i] =f(xnew[i])
+        try: ynew[i] =f(xnew[i])
+        except: 
+            print 'interp',i,xnew[i],xold[0].shape,xold.shape
+            np.save('xnew.npy',xnew)
+            np.save('xold.npy',xold)
+            raise
     return ynew
 
 
@@ -85,7 +88,7 @@ BLKMINDUR=0.05
 #NBLMINDUR=0.01
 PLAG = 0 # lag between agent movement and pursuit movement
 #used for agent tracking identification
-EYEDEV=4
+EYEDEV=20#4
 BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
 INTERPMD=0.1 # max duration for which blink interpolation is performed
 
@@ -147,11 +150,13 @@ def computeVelocity(tser,hz,filt=False):
     """returns velocity in deg per second"""
     vel=(np.sqrt(np.diff(tser[:,7])**2
         +np.diff(tser[:,8])**2)*hz)
+    vel=np.concatenate([[vel[0]],vel])
     if filt: vel=filterGaussian(vel,hz)
     return vel
 def computeAcceleration(tser,hz ,filt=False):
     vel = computeVelocity(tser,hz,filt)
-    acc=np.concatenate((np.diff(vel*hz),[0]),0)
+    acc=np.diff(vel*hz)
+    acc=np.concatenate([acc,[acc[-1]]])
     if filt: acc=filterGaussian(acc,hz)
     return acc
 
@@ -162,6 +167,7 @@ def computeState(isFix,md,nfm=np.inf):
         np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
     fixoff=np.bitwise_and(np.roll(isFix,1),
         np.bitwise_not(isFix)).nonzero()[0].tolist()
+    if len(fixon)==0 and len(fixoff)==0: fixon=[0]; fixoff=[isFix.size-1]
     if fixon[-1]>fixoff[-1]:fixoff.append(isFix.shape[0]-1)
     if fixon[0]>fixoff[0]:fixon.insert(0,0)
     if len(fixon)!=len(fixoff): print 'invalid fixonoff';raise TypeError
@@ -177,11 +183,12 @@ def interpolateBlinks(t,d,hz):
     ''' interpolate short missing intervals 
     '''
     isblink= np.isnan(d)
-    if isblink.sum()==0: return d
+    if isblink.sum()<2 or isblink.sum()>(isblink.size-2): return d
     blinkon = np.bitwise_and(isblink,np.bitwise_not(
         np.roll(isblink,1))).nonzero()[0].tolist()
     blinkoff=np.bitwise_and(np.roll(isblink,1),
         np.bitwise_not(isblink)).nonzero()[0].tolist()
+    if len(blinkon)==0 and len(blinkoff)==0: return d
     #print 'bla',len(blinkon), len(blinkoff)
     if blinkon[-1]>blinkoff[-1]: blinkoff.append(t.size-1)
     if blinkon[0]>blinkoff[0]: blinkon.insert(0,0)
@@ -200,6 +207,7 @@ def interpolateBlinks(t,d,hz):
     
 def computeFixations(tser,vel,acc,hz):
     isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
+    if isFix.sum()==0: return np.int32(isFix),[]
     fixon = np.bitwise_and(isFix,
         np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
     fixoff=np.bitwise_and(np.roll(isFix,1),
@@ -232,7 +240,9 @@ def computeCLpursuit(tser,vel,acc,hz):
 def computeSaccades(tser,vel,acc,hz):
     isFix=np.logical_or(np.isnan(vel),
         np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
-    return computeState(isFix,[SACMINDUR*hz,np.inf])
+    discard, b = computeState(np.logical_or(vel>SACVTH,np.abs(acc)>SACATH),[SACMINDUR*hz,np.inf])
+    a,discard= computeState(isFix,[SACMINDUR*hz,np.inf])
+    return a,b
 
 def computeLongSaccades(tser,vel,acc,hz):
     isFix=np.logical_or(vel>LSACVTH,np.abs(acc)>LSACATH)
@@ -283,8 +293,8 @@ class ETBlockData():
 ##        #for d in self.etdata: d.extractAgentDistances()
             
 class ETTrialData():
-    def __init__(self,dat,calib,t0,info,recTime="0:0:0",
-                 INTERPBLINKS=False,fcutoff=70,focus=BINOCULAR):
+    def __init__(self,dat,calib,t0,info,recTime="0:0:0",fs=None,
+                 INTERPBLINKS=False,fcutoff=70,focus=BINOCULAR,msgs=[]):
         self.calib=calib
         self.vp=int(info[0])
         self.block=int(info[1])
@@ -292,6 +302,9 @@ class ETTrialData():
         self.hz=float(info[3])
         self.eye=info[4]
         self.t0=[t0[1]-t0[0],t0[2]-t0[0]]
+        self.fs=fs
+        self.msgs=msgs
+        if self.fs==None: self.fs= self.computeFs()
         self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
         if self.t0[0]>0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
@@ -300,9 +313,19 @@ class ETTrialData():
         self.recTime=datetime.strptime(recTime,"%H:%M:%S")
         self.extractFixations(dat)
         
+    def computeFs(self):
+        path = getcwd()
+        path = path.rstrip('code')
+        f=open(path+'input/vp%03d/Settings.pkl'%self.vp)
+        while f.readline().count('refreshRate')==0: pass
+        f.readline();
+        monhz=float(f.readline().lstrip('F').rstrip('\r\n'))
+        f.close()
+        dur=self.t0[1]-self.t0[0]
+        N=int(round((dur)*monhz/1000.0))
+        return np.array([range(N),np.linspace(0,dur,N)]).T
         
-    def getTraj(self):
-        return self.oldtraj
+    
     def getDist(self,a=0):
         return self.dist[:,a]/20.0
     def getAgent(self,t):
@@ -317,14 +340,17 @@ class ETTrialData():
             if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
                 return p[2:]
         return []
-        
-    def computeAgentDistances(self):
+
+    def loadTrajectories(self):
         path = getcwd()
         path = path.rstrip('/code')
         order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
         s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%(self.vp,self.vp,self.block,order) 
         traj=np.load(s)
         self.oldtraj=traj
+        
+    def computeAgentDistances(self):
+        self.loadTrajectories()
         #self.traj=traj
         g=self.getGaze()
         tt=np.arange(0,30001,10)
@@ -376,9 +402,10 @@ class ETTrialData():
             for j in [1,4,2,5]:
                 dif=self.gaze[h:(h+50),j].mean()
                 self.gaze[:,j]-=dif
-            # recompute fixations
-            self.extractFixations(self.gaze[:,:7],True)
-        else: print s,'DRIFT CORRECTION FAILED', np.sum(d.isFix[0][-50:])
+            
+        else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
+        # recompute fixations
+        self.extractFixations(self.gaze[:,:7],True)
         
     def extractTracking(self):
         """ extracts high-level events - search and tracking"""
@@ -517,7 +544,8 @@ class ETTrialData():
                     or (ff[1]>inds[0] and ff[1]<inds[1])):
                     temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
                     out.append(temp)
-            return out 
+            return out
+        
         # add two columns with gaze point
         if self.focus==BINOCULAR:
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
@@ -584,21 +612,43 @@ class ETTrialData():
                 self.fev[i].extend(a)
     
     @staticmethod
-    def rescale(g,hz):
-        tm=np.arange(g[0,0],g[-1,0],1000/float(hz))
+    def resample(g,hz):
+        """
+            g - rowise data, with first collumn time dimension
+                all remaining columns will be rescaled to frequency hz
+        """
+        if hz== None: return g
+        if np.isscalar(hz):
+            tm=np.linspace(g[0,0],g[-1,0],int(round((g[-1,0]-g[0,0])*hz/1000.0)))
+        else: tm=hz
         out=[tm]
-        for kk in [7,8]:
+        #print g.shape,tm.shape
+        for kk in range(1,g.shape[1]):
             out.append(interpRange(g[:,0], g[:,kk],tm))
         return np.array(out).T
-    def selectPhase(self,dat,phase):
-        if phase==0: return dat[:self.ts]
+    def selectPhase(self,dat,phase,hz):
+        dat=np.array([self.gaze[:,0]-self.t0[0],dat]).T
+        if phase==0: out= dat[:self.ts]
         elif phase==1:
-            if self.ts>=0: return dat[self.ts:self.te]
-            else: return np.zeros((0,9))
+            if self.ts>=0: out= dat[self.ts:self.te]
+            else: out= np.zeros((0,9))
         elif phase==2:
-            if self.te>=0: return dat[self.te:]
-            else: return np.zeros((0,9))
+            if self.te>=0: out= dat[self.te:]
+            else: out= np.zeros((0,9))
         else: print 'Invalid Phase'
+        out=ETTrialData.resample(out,hz)
+        return out[:,1]
+    def getTraj(self,hz=None):
+        t=self.fs[:,1]
+        try: out=self.oldtraj[:t.size,:,:]
+        except AttributeError: self.loadTrajectories(); out=self.oldtraj[:t.size,:,:]
+        res=[]
+        res.append(ETTrialData.resample(np.concatenate((np.array(t,ndmin=2).T,out[:,:,0]),axis=1),hz))
+        res.append(ETTrialData.resample(np.concatenate((np.array(t,ndmin=2).T,out[:,:,1]),axis=1),hz))
+        res= np.array(res)
+        res=np.rollaxis(res,0,3)
+        return res[:,1:,:]
+    
     def getGaze(self,phase=1,hz=None):
         if phase==0: out= self.gaze[:self.ts,:]
         elif phase==1:
@@ -612,19 +662,20 @@ class ETTrialData():
                 out[:,0]-= (self.t0[1])
             else: return np.zeros((0,9))
         else: print 'Phase not supported'
+        out=ETTrialData.resample(out,hz)
         return out
 
-    def getVelocity(self,phase= 1,t=None):
-        return self.selectPhase(self.vel,phase)
-    def getAcceleration(self,phase=1,t=None):
-        return self.selectPhase(self.acc,phase)
-    def getFixations(self,phase=1,t=None):
-        return self.selectPhase(self.isFix,phase)
-    def getSaccades(self,phase=1,t=None):
-        return self.selectPhase(self.isSac,phase)
-    def getCLP(self,phase=1,t=None):
+    def getVelocity(self,phase= 1,hz=None):
+        return self.selectPhase(self.vel,phase,hz)
+    def getAcceleration(self,phase=1,hz=None):
+        return self.selectPhase(self.acc,phase,hz)
+    def getFixations(self,phase=1,hz=None):
+        return self.selectPhase(self.isFix,phase,hz)
+    def getSaccades(self,phase=1,hz=None):
+        return self.selectPhase(self.isSac,phase,hz)
+    def getCLP(self,phase=1,hz=None):
         return self.cpur
-    def getOLP(self,phase=1,t=None):
+    def getOLP(self,phase=1,hz=None):
         return self.opur
     def getTracking(self,phase):
         out=np.zeros(self.te-self.ts)
@@ -636,449 +687,7 @@ class ETTrialData():
         for tr in self.track:
             if not tr[-1]: out[tr[0]:tr[1]]=1
         return out
-    
-def discardInvalidTrials(data):
-    bb=range(len(data))
-    bb.reverse()
-    for i in bb:
-        if data[i].ts<0: data.pop(i)
-    return data
 
-def readEdf(vp,block):
-    def reformat(trial,cent,tstart,distance):
-        if len(trial)==0: return np.zeros((0,7))
-        trial=np.array(trial)
-        if type(trial) is type( () ): print 'error in readEdf'
-        trial[:,0]-=tstart
-        trial[:,1]=myPix2deg(trial[:,1],distance,cent[0],40)
-        trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],32)
-        if trial.shape[1]==7:
-            trial[:,4]=myPix2deg(trial[:,4],distance,cent[0],40)
-            trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],32)
-        return trial
-    cent=(0,0)
-    path = getcwd()
-    path = path.rstrip('code')
-    try:
-        f=open(path+'eyelinkOutput/VP%03dB%d.asc'%(vp,block),'r')
-    except:
-        f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
-    LBLINK=False; RBLINK=False
-    ende=False
-    try:
-        line=f.readline()
-        data=[]
-        PHASE= -1 # 0-DCORR, 1-TRIAL, 2-DECISION, 4-CALIB
-        etdat=[]
-        t0=[0,0,0]
-        calib=[]
-        i=0
-        t=0
-        size=7
-        while True:   
-            words=f.readline().split()
-            i+=1            
-            #if i%100==0: print i
-            #if i<200: print i, words
-            #if i>1300: break
-            if len(words)>2 and words[0]=='EVENTS':
-                for w in range(len(words)):
-                    if words[w]=='RATE':
-                        hz=float(words[w+1])
-                        break
-            if len(words)>5 and words[2]=='DISPLAY_COORDS':
-                cent=(float(words[5])/2.0,float(words[6])/2.0)
-            if len(words)==4 and words[2]=='MONITORDISTANCE':
-                distance=float(words[3])
-            if len(words)>2 and words[2]=='TRIALID': t=float(words[3])
-            if len(words)==0:
-                if not ende:
-                    ende=True
-                    continue
-                break
-            if len(words)>2 and words[2]=='!CAL':
-                if len(words)==3: PHASE=4
-                elif words[3]=='VALIDATION' and not (words[5]=='ABORTED'):
-                    if words[6] == 'RIGHT':
-                        calib[-1].append([t,float(words[9]),float(words[11]),RIGHTEYE])
-                        PHASE= -1
-                    else:
-                        calib.append([])
-                        calib[-1].append([t,float(words[9]),float(words[11]),LEFTEYE])
-           
-            if len(words)>2 and words[2]=='PRETRIAL':
-                eye=words[5]
-                PHASE=0;t0[0]=float(words[1])
-            if len(words)>2 and words[2]=='START':
-                PHASE=1;t0[1]=float(words[1])
-            if len(words)>2 and (words[2]=='DETECTION'):
-                PHASE=2; t0[2]= float(words[1])
-            #if len(words)>2 and words[2]=='POSTTRIAL':
-            if len(words)>2 and (words[2]=='POSTTRIAL' or words[2]=='OMISSION'):
-                etdat = reformat(etdat,cent,t0[0],distance)
-                if etdat.size>0:
-                    et=ETTrialData(etdat,calib,t0,[vp,block,t,hz,eye])
-                    data.append(et)
-                
-                etdat=[];t0=[0,0,0]
-                calib=[];PHASE= -1
-                LBLINK=False; RBLINK=False
-            if PHASE== -1 or PHASE==4: continue
-            if words[0]=='SBLINK' or words[0]=='EBLINK':
-                if words[1]=='L': LBLINK= not LBLINK
-                else : RBLINK= not RBLINK
-            #if words[0]=='2133742': print words, LBLINK,RBLINK
-            try: # to gather data
-                if len(words)>5:
-                    # we check whether the data gaze position is on the screen
-                    if words[1]=='.': xleft=np.nan; yleft=np.nan
-                    else:
-                        xleft=float(words[1]); yleft=float(words[2])
-                        if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
-                            xleft=np.nan; yleft=np.nan;
-                    if words[4]=='.': xright=np.nan; yright=np.nan
-                    else:
-                        xright=float(words[4]); yright=float(words[5])
-                        if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
-                            xright=np.nan; yright=np.nan;
-                    meas=(float(words[0]),xleft,yleft,float(words[3]),
-                        xright,yright,float(words[6]))
-                    size=7
-                else:
-                    if LBLINK or RBLINK: xleft=np.nan; yleft=np.nan
-                    else:
-                        xleft=float(words[1]); yleft=float(words[2])
-                        if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
-                            xleft=np.nan; yleft=np.nan;
-                    meas=(float(words[0]),xleft,yleft,float(words[3]))
-                    size=4
-                etdat.append(meas)
-            except: pass
-            #if len(trial)>0:print len(trial[0])
-            #if len(dcorr)>1: print dcorr[-1]
-        f.close()
-    except: f.close(); raise
-    data=discardInvalidTrials(data)
-    return data
 
-#data=readEdf(vp=7,block=1)
 
-#tr=data[0]
-#vel=tr.getVelocity()
-#acc=tr.getAcceleration()
-#sac=tr.getSaccades()
-
-##d=np.loadtxt('VP001B1.csv')
-##d[d==-1]=np.nan
-###d=d[~np.any(d[:,[1,2,4,5]]==-1,axis=1),:]
-##et=ETTrialData([],60,3,1,1,1)
-##d[:,[1,4]]=pix2deg(d[:,[1,4]]-640,60)
-##d[:,[2,5]]=pix2deg(d[:,[2,5]]-512,60)
-##
-##dd=np.copy(d)
-##D=np.zeros((130,50))
-##for f in range(10,140):
-##    for i in [1,2,4,5]:
-##        dd[:,i]=et.filterGaussian(d[:,i],f)
-##    et=ETTrialData(dd,60,3,1,1,1)
-##    vel=et.getVelocity()
-##    D[f-10,:],discard=np.histogram(np.log(vel[~np.isnan(vel)]),50,range=(-2,6))
-##plt.imshow(D,extent=(-2,6,140,10),aspect=0.05)
-##
-##plt.figure()
-##fs=[10,20,24,28,32,36,40]
-##for j in range(len(fs)):
-##    if j<len(fs):
-##        for i in [1,2,4,5]:
-##            dd[:,i]=et.filterGaussian(d[:,i],fs[j])
-##    else: dd=np.copy(d)
-##    et=ETTrialData(dd,60,3,1,1,1)
-##    vel=et.getVelocity()
-##    plt.subplot(3,3,j+1)
-##    plt.hist(np.log(vel[~np.isnan(vel)]),50,range=(-2,6))
-##    plt.xlim([-2,6])
-##    plt.ylim([0,300])
-##    plt.title(str(fs[j]))
-
-##    ws=50
-##
-##    ax1 = plt.subplot2grid((3,2), (0,0), colspan=2,rowspan=2)
-##    ax1.set_aspect('equal')
-##    ax2 = plt.subplot2grid((3,2), (2,0), colspan=2)
-##    ax2.plot(np.arange(0,vel.size*4,4)/1000.0,np.log(vel))
-##    ax2.set_ylim([0,5])
-##    for v in range(vel.size-ws):
-##        
-##        ax1.scatter(tr.gaze[v+ws,1],tr.gaze[v+ws,2])
-##        ax1.set_xlim([-10,10])
-##        ax1.set_ylim([-10,10])
-##        
-##        ax2.set_xlim([v/250.0,(v+ws)/250.0])
-##        plt.draw()
-##        if v % 2 ==0:
-##            print v       
-def isNumber(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-  
-def readTobii(vp,block,lagged=False):
-    ''' function for reading the tobii controller outputs list of ETDataTrial instances
-
-        Each trial starts with line '[time]\tTrial\t[nr]'
-        and ends with line '[time]\tOmission'
-
-        lagged - return time stamp when the data was made available (ca. 30 ms time lag)
-    '''
-    path = getcwd()
-    path = path.rstrip('/code')
-    f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
-    #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
-    try:
-        data=[];trial=[]; theta=[];t=0;msgs=[]
-        on=False
-        while True:
-            words=f.readline()
-            if len(words)==0: break
-            words=words.strip('\n').strip('\r').split('\t')
-            if not on: # collect header information
-                if len(words)==2 and  words[0]=='Monitor Distance': 
-                    distance=float(words[1])
-                if len(words)==2 and  words[0]=='Monitor Width': 
-                    monwidth=float(words[1])
-                if len(words)==2 and words[0]=='Recording time:':
-                    recTime=words[1]
-                if len(words)==2 and words[0]=='Recording refresh rate: ':
-                    hz=float(words[1])
-                if len(words)==2 and words[0]=='Recording resolution': 
-                    cent=words[1].rsplit('x')
-                    cent=(int(cent[0])/2.0,int(cent[1])/2.0)
-                    ratio=cent[1]/float(cent[0])
-                    print cent
-                if len(words)==4 and words[2]=='Trial':
-                    on=True; tstart=float(words[0])
-            elif len(words)>=11: # record data
-                # we check whether the data gaze position is on the screen
-                xleft=float(words[2]); yleft=float(words[3])
-                if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
-                    xleft=np.nan; yleft=np.nan;
-                xright=float(words[5]); yright=float(words[6])
-                if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
-                    xright=np.nan; yright=np.nan;
-
-                if lagged: tm =float(words[0])+float(words[8]);ff=int(words[1])
-                else: tm=float(words[0]);ff=int(words[1])-2
-                tdata=(tm,xleft,yleft,float(words[9]),
-                    xright,yright,float(words[10]),ff)
-                trial.append(tdata)
-            elif (words[2]=='Detection' or words[2]=='Omission'):
-                # we have all data for this trial, transform to deg and append
-                on=False
-                trial=np.array(trial)
-                trial[:,0]-= tstart
-                trial[trial==-1]=np.nan # TODO consider validity instead of coordinates
-                
-                trial[:,1]=myPix2deg(trial[:,1],distance,cent[0],monwidth)
-                trial[:,2]=-myPix2deg(trial[:,2],distance,cent[1],monwidth*ratio)
-                trial[:,4]=myPix2deg(trial[:,4],distance,cent[0],monwidth)
-                trial[:,5]=-myPix2deg(trial[:,5],distance,cent[1],monwidth*ratio)
-                et=ETTrialData(trial,[],[],hz,'BOTH',vp,block,t,recTime=recTime)
-                et.theta=np.array(theta);theta=[]
-                et.msg=msgs; msgs=[]
-                data.append(et)
-                bla
-                t+=1
-                trial=[]
-            #elif len(words)==4 and words[1]=='Theta': theta.append([float(words[0]),float(words[2])])
-            elif len(words)==6: msgs.append([float(words[0])-tstart,words[2]+' '+words[5]])
-            elif words[2]!='Phase': msgs.append([float(words[0])-tstart,int(words[1]),words[2]])
-    except: f.close(); raise
-    f.close()
-    return data
-
-def checkDrift():
-    # lets check whether there is a drift in the tobii data
-    plt.close('all')
-    d=np.array(dcorr)
-    print d.shape
-    # left
-    for t in [0,1,2,7,8,9]:
-        plt.plot(((d[t,:,1]-640)**2+ (d[t,:,2]-512)**2)**0.5 )
-    plt.legend(['0','1','2','7','8','9'])
-    # right
-    plt.figure()
-    for t in [0,1,2,7,8,9]:
-        plt.plot(((d[t,:,4]-640)**2+ (d[t,:,5]-512)**2)**0.5 )
-    plt.legend(['0','1','2','7','8','9'])
-    plt.figure()
-    plt.plot(((d[:,:,1].mean(1)-640)**2+(d[:,:,2].mean(1)-512)**2)**0.5)
-    plt.plot(((d[:,:,4].mean(1)-640)**2+(d[:,:,5].mean(1)-512)**2)**0.5)
-    plt.legend(['left','right'])
-
-def findDriftEyelink(vp,block):
-    plt.close('all')
-    data=readEdf(vp,block)
-    #print data[1].dcorr.shape
-    for dd in range(8):
-        S=dd*5
-        E=(dd+1)*5
-        N=E-S
-        plt.figure(figsize=(16,12))
-        for i in range(N):
-            dat=data[S+i].dcorr
-            both=dat.shape[1]>4
-            plt.subplot(N,3,3*i+1)
-            plt.plot(dat[:,0],dat[:,1],'g')
-            if both: plt.plot(dat[:,0],dat[:,4],'r')
-            plt.title('X axis')
-            plt.xlim([0, 1200])
-            plt.ylim([-3, 3])
-            plt.ylabel('trial %d'% (S+i))
-            plt.plot([0,1200],[0,0],'k')
-            plt.subplot(N,3,3*i+2)
-            plt.plot(dat[:,0],dat[:,2],'g')
-            if both: plt.plot(dat[:,0],dat[:,5],'r')
-            plt.title('Y axis')
-            plt.xlim([0, 1200])
-            plt.ylim([-3, 3])
-            plt.plot([0,1200],[0,0],'k')
-
-            
-            if both:
-                difx=np.abs(np.diff(dat[:,[1,4]].mean(axis=1),3))
-                dify=np.abs(np.diff(dat[:,[2,5]].mean(axis=1),3))
-            else:
-                difx=np.abs(np.diff(dat[:,1],3))
-                dify=np.abs(np.diff(dat[:,2],3))
-            if ((vp==31 and block==4 and S+i==17) or
-                (vp==31 and block==4 and S+i==16) or
-                (vp==31 and block==4 and S+i<=12) or
-                (vp==33 and block==1 and (S+i==12 or S+i==16 or S+i==17 or S+i==22 or S+i==23))):
-                difx=np.abs(np.diff(dat[:,1],3))
-                dify=np.abs(np.diff(dat[:,2],3))
-            dif=np.sqrt(difx**2+dify**2)
-            plt.subplot(N,3,3*i+3)
-            plt.plot(dat[2:-1,0],dif)
-            plt.xlim([0, 1200])
-            start=(dat[2:-1,0]>190).nonzero()[0][0]
-            mx=np.nanmax(dif[start:])
-            if mx>0.2:
-                k=(dif==mx).nonzero()[0][0]
-                if vp==30 and block==3 and S+i==14: k=103
-                if vp==31 and block==2 and S+i==26: k=104
-                if vp==31 and block==4 and S+i==20: k=94
-                dx=dat[k+1,1]-dat[k+2,1]
-                dy=dat[k+1,2]-dat[k+2,2]
-                plt.plot(dat[k+2,0],mx,'ko')
-                #print dat[k+2,0],np.max(dif[80:]),np.argmax(dif[80:]),dat[-1,0]
-            else: dx=0;dy=0
-            if ((vp==30 and block==3 and S+i==14) or
-                (vp==30 and block==3 and S+i==36) or
-                (vp==32 and block==1 and S+i==3) or
-                (vp==33 and block==1 and S+i==26) or
-                (vp==33 and block==1 and S+i==7)): dx=0; dy=0
-            plt.title('dx=%.3f, dy=%.3f'%(dx,dy))
-            #if S+i==7: bla
-
-def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
-    plt.close('all')
-    labels=[]
-    #vpn=range(101,112)#[102,106,113]#range(101,106)
-    N=len(vpn)
-    for ii in range(N): labels.append('vp %d'%vpn[ii])
-    
-    D=np.zeros((N,12))*np.nan
-    DC=np.zeros((N,2))
-    kk=0
-    os.chdir('..')
-    
-    for vp in vpn:
-        plt.figure()
-        data=readTobii(vp,0)
-        ordd=np.load(os.getcwd()+'/input/vp%d/ordervp%db0.npy'%(vp,vp))
-        print vp,ordd
-        for i in range(len(data)):
-            cond=np.isnan(data[i].gaze[:,1])==False
-            D[kk,i]=cond.sum()/60.0
-            x=data[i].gaze[cond,0]/1000.0
-            plt.plot(x,
-                     data[i].gaze[cond,4]*0+i+1,'.b')
-            ls=np.nan
-            for msg in data[i].msg:
-                if msg[1]=='Reward On':
-                    ls=float(msg[0])/1000.0
-                elif msg[1]=='Reward Off':
-                    if np.isnan(ls): print 'error ls is nan'
-                    plt.plot([ls, float(msg[0])/1000.0],[i+1.2,i+1.2],lw=4)
-                    ls=np.nan
-                elif msg[1]=='10 th saccade ':
-                    plt.plot(float(msg[0])/1000.0,i+1,'xr')
-            if not np.isnan(ls):
-                plt.plot([ls,x[-1]],[i+1.2,i+1.2],lw=4)
-                #print msg[1]    
-        #DC[kk,0]=D[kk,ordd<5].mean()
-        #DC[kk,1]=D[kk,ordd>=5].mean()
-        plt.ylabel('Trial')
-        plt.xlabel('Time in seconds')
-        plt.xlim([0, maxTrDur])
-        plt.ylim([0.5,len(data)+0.5])
-        plt.title('VP %d' % vp)
-        kk+=1
-    plt.figure()
-    plt.plot(D.T)
-    plt.ylabel('Total Looking Time')
-    plt.ylim([0, maxTrDur])
-    plt.xlabel('Trial')
-    plt.legend(labels)
-    plt.figure()
-    plt.plot(np.repeat([[6],[8]],4,axis=1),DC.T,'x',markersize=10)
-    plt.xlim([5,12])
-    plt.xlabel('Number of rings')
-    plt.ylabel('Average looking time per trial in seconds')
-    plt.legend(labels)
-    plt.figure()
-    plt.imshow(D,interpolation='nearest',vmin=0,
-        vmax=maxTrDur,extent=[0.5,12.5,vpn[-1]+0.5,vpn[0]-0.5])
-    ax=plt.gca()
-    ax.set_yticks(np.arange(vpn[0],vpn[-1]+1))
-    plt.show()
-    plt.colorbar()
-    
-def checkEyelinkDatasets():
-    for vp in range(20,70):
-        for block in range(0,5):
-            try:
-                data=readEdf(vp,block)
-                if not (len(data) == 40 or (len(data)==10 and  block==0)):
-                    print 'error ', vp, block, len(data)
-                else:
-                    print '    ok', vp, block, len(data)
-            except:
-                print 'missing ', vp, block
-
-if __name__ == '__main__':
-
-    
-    
-    data=readEdf(18,10)
-
-    #evs=[]
-    for i in range(len(data)):
-        if data[i].ts>=0:
-            print i
-            data[i].driftCorrection()
-            data[i].extractTracking()
-            data[i].exportEvents()
-            data[i].plotEvents()
-            #data[i].exportTracking()
-            #evs.extend(data[i].track)
-            #data[i].plotTracking()
-
-##    
-##    #data = readTobii(129,0)
-##    #print data[1].msg
-##    #plotLTbabyPilot(range(125,126))
-##    #time.sleep(5)
-    
+ 

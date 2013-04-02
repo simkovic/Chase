@@ -42,7 +42,7 @@ class Experiment():
             subinf.close()               
         else: print 'Experiment cancelled'
         # save settings, which we will use
-        f=open('SettingsExp.pkl','w')
+        f=open(Q.inputPath+'vp%03d'%self.id+Q.delim+'SettingsExp.pkl','w')
         dump(Q,f)
         f.close()
         #init stuff
@@ -129,18 +129,16 @@ class Experiment():
             return 1
             
         else: return 0
-    def trialIsFinished(self):
-        return False
-    def omission(self):
-        pass
-    def getf(self):
-        return self.f
+    def trialIsFinished(self): return False
+    def omission(self): pass
+    def getf(self): return self.f
+    def flip(self): self.wind.flip()
     def runTrial(self,trajectories,fixCross=True):
         self.nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
             nElements=self.cond, sizes=Q.agentSize*self.scale,
-            elementMask='circle',elementTex=None,colors=Q.agentCLR)
+            elementMask=RING,elementTex=None,colors=Q.agentCLR)
         # display fixation cross
         if fixCross:
             self.fixcross.draw()
@@ -159,7 +157,7 @@ class Experiment():
             self.pos=trajectories[self.f,:,[X,Y]].transpose()*self.scale
             self.elem.setXYs(self.pos)
             self.elem.draw()
-            self.wind.flip()
+            self.flip()
             # check for termination signal
             for key in event.getKeys():
                 if key in ['escape']:
@@ -486,9 +484,9 @@ class AdultExperiment(BehavioralExperiment):
     def omission(self):
         self.eyeTracker.sendMessage('OMISSION')
         BehavioralExperiment.omission(self)
-    def trialIsFinished(self):
+    def flip(self):
         self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
-        BehavioralExperiment.trialIsFinished(self)
+        return BehavioralExperiment.flip(self)
         
 class TobiiExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
@@ -517,7 +515,7 @@ if __name__ == '__main__':
     #E=BehavioralExperiment()
     #E=TobiiExperiment()
     #E=Gao09Experiment()
-    E=AdultExperiment()
+    E=BehavioralExperiment()
     E.run()
 
 

@@ -383,6 +383,9 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         vpname='vp%03d' % vp
         os.mkdir(vpname)
         os.chdir(vpname)
+        f=open('SettingsTraj.pkl','w')
+        pickle.dump(Q,f)
+        f.close()
         for block in bs:
             if block ==0: nrtrials=10
             else: nrtrials=trialstotal
@@ -403,9 +406,6 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
                 if not np.any(np.bitwise_and(r,r2)):
                     break
             np.save('order%sb%d'% (vpname,block),r)
-        f=open('Settings.pkl','w')
-        pickle.dump(Q,f)
-        f.close()
         os.chdir('..')
     os.chdir('..')
     
@@ -500,7 +500,7 @@ def generateGao09e1(vpn):
                 np.save(fn,trajectories[:,1:,:]);i+=1
 
         np.save('gao09e1order%sb%d'% (vpname,block),r)
-        f=open('Settings.pkl','w')
+        f=open('SettingsTraj.pkl','w')
         pickle.dump(Q,f)
         f.close()
         os.chdir('..')
@@ -552,12 +552,11 @@ def exportSvmGao09(nrtrials=10000):
 
 if __name__ == '__main__':
     
-    from ReplayData import TrajectoryData
     d=28
     #random.seed(3)
     maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    #generateMixedExperiment(range(52,60),40,blocks=4,condition=14,dispSize=26,probeTrials=True)
+    generateMixedExperiment([84],40,blocks=1,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
@@ -570,7 +569,7 @@ if __name__ == '__main__':
     #generateExperiment([92],2,[6],[22])
     #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
     
-    generateBabyExperiment([129])
+    #generateBabyExperiment([129])
     
     #t=generateShortTrial(maze)
     #print t.shape

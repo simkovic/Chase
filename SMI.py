@@ -23,8 +23,8 @@ class ETSTATUS():
 class Settings():
     """ I put here everything I considered worth varying"""
     # fixation extraction
-    THETA=0.6; # parameter for online exponential smoothing AR(1) filter
-    FIXVTH=18 # upper velocity threshold for fixations in deg per sec
+    THETA=0.9; # parameter for online exponential smoothing AR(1) filter
+    FIXVTH=40 # upper velocity threshold for fixations in deg per sec
     FIXMINDUR=0.06 # minimum fixation duration in seconds
     FUSS=10 # sample size over which the average fixation target position is computed
     BLINKTOL=30 # minimum nr of consecutive blink data required to interupt a fixation
@@ -52,6 +52,10 @@ class TrackerSMI:
         res = iViewXAPI.iV_Connect(c_char_p('147.142.240.109'), c_int(4444),c_char_p('147.142.240.108'), c_int(5555))
         if res!=1: print 'Connection failed with code ', res
         else: self.etstatus=ETSTATUS.CREATED
+        redSetup1=CStandAlone(410,312,955,750,120,35)# stimx,stimy,floor2screen, floor2red, screen2red,angle
+        redSetup2=CStandAlone(410,312,955,885,120,15)
+        #res = iViewXAPI.iV_SetupREDStandAloneMode(byref(redSetup1))
+        print "iV_SetupStandAloneMode " + str(res)
         iViewXAPI.iV_GetSystemInfo(byref(systemData))
         self.hz=float(systemData.samplerate)
         self.fname='VP%03dB%d'%(self.sid,self.block)
@@ -82,8 +86,9 @@ class TrackerSMI:
         if not self.etstatus>=ETSTATUS.CREATED:
             print 'doMain >> eyetracker not connected'
             return False
+        
         self.msg.setText('Welcome to SMI\n\tEyetracker Status: %s\n' %ETSTATUS.toString[self.etstatus]
-            +'Type:\n\tS - show setup screen \n\tC - calibrate \n\tE - run Experiment \n\tESC - Abort')
+            +'Press:\n\tS - show setup screen \n\tC - calibrate \n\tE - run Experiment \n\tESC - Abort')
         while True: # stay within the main section until experiment starts
             self.msg.draw()
             self.win.flip()
@@ -91,16 +96,22 @@ class TrackerSMI:
                 if 's' == key: self.doSetup()
                 elif 'c' == key: 
                     self.doCalibration()
+                    if self.etstatus==ETSTATUS.CALACCEPTED:
+                        acc='Accuracy:\n\tLX= %.3f, RX= %.3f\n\tLY= %.3f, RY= %.3f\n'%self.accInfo
+                    else: acc=''
                     self.msg.setText('Welcome to Tobii\n\tEyetracker Status: '+
-                        '%s\n' %ETSTATUS.toString[self.etstatus]+'Type:\n\tS - show'+
+                        '%s\n' %ETSTATUS.toString[self.etstatus]+acc+'Press:\n\tS - show'+
                         ' setup screen \n\tC - calibrate \n\tE - run Experiment \n\tESC - Abort')
                 elif 'e' == key:
                     res=iViewXAPI.iV_StartRecording()
                     print "iV_StartRecording " + str(res)
+                    acc='Accuracy: LX= %.3f, RX= %.3f LY= %.3f, RY= %.3f'%self.accInfo
+                    self.sendMessage(acc)
                     #res=iViewXAPI.iV_PauseRecording()
                     #print "iV_PauseRecording " + str(res)
                     return # start experiment
                 elif 'escape' == key: # abort
+                    self.closeConnection()
                     self.win.close()
                     sys.exit()
                 else: 'TODO'
@@ -125,7 +136,7 @@ class TrackerSMI:
     
     def doCalibration(self, paced=True,calibrationGrid=np.ones((3,3)),
         stimulus=None,soundStim=None, shrinkingSpeed=1.5, rotationSpeed=-2):
-        calibrationData = CCalibration(9, 1, 0, 1, 1, 255, 128, 3, 15, b"")
+        calibrationData = CCalibration(9, 1, 0, 0, 1, 255, 128, 3, 15, b"")
 
         res = iViewXAPI.iV_SetupCalibration(byref(calibrationData))
         print "iV_SetupCalibration " + str(res)
@@ -137,8 +148,10 @@ class TrackerSMI:
 
         res = iViewXAPI.iV_GetAccuracy(byref(accuracyData), 0)
         print "iV_GetAccuracy " + str(res)
+        self.accInfo=(accuracyData.deviationXLeft,accuracyData.deviationXRight,accuracyData.deviationYLeft,accuracyData.deviationYRight )
         print "deviationXLeft " + str(accuracyData.deviationXLeft) + " deviationYLeft " + str(accuracyData.deviationYLeft)
         print "deviationXRight " + str(accuracyData.deviationXRight) + " deviationYRight " + str(accuracyData.deviationYRight)
+        self.etstatus=ETSTATUS.CALACCEPTED
         
     ############################################################################
     # tracking methods
@@ -261,6 +274,7 @@ class TrackerSMI:
             self.fixloc= Settings.THETA*self.fixloc+(1-Settings.THETA)*cgp
             if self.fixdur < Settings.FUSS: self.fixsum+=cgp # take fixation target as its center
             velocity=self.fixloc-fixlocold;
+            #self.vel.append(np.linalg.norm(velocity)*self.hz)
             isSac= np.linalg.norm(velocity)*self.hz> Settings.FIXVTH
             if not isSac: self.fixdur+=1; return
         self.fixloc=np.copy(cgp)
@@ -290,6 +304,7 @@ class TrackerSMI:
         self.fixBlinkCount=0
         self.fixloc=np.array((np.nan,np.nan))
         self.fixsum=np.array((np.nan,np.nan))
+        self.vel=[]
         self.fixdur=0
         t0=Settings.clock.getTime()
         self.d=[]
@@ -321,7 +336,7 @@ if __name__ == "__main__":
                               units = 'pix', pos = (0,0), size = (10, 10),  color = [1,1,1])
     note = visual.TextStim(win, pos=[0,0], units = 'pix', text='none', color=(1,1,1))
     clock = core.Clock()
-    eyeTracker = TrackerSMI(win, clock,target=point)
+    eyeTracker = TrackerSMI(win,target=point)
     status = eyeTracker.getStatus()
     tr=0
     for Ttype in [True,True,True,True,True]: #loop for each "trial"

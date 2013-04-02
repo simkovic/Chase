@@ -5,13 +5,13 @@ from os import getcwd
 
 
 class Settings():
-    def __init__(self,monname,os,trialDur,refreshRate,agentSize,phiRange,
+    def __init__(self,monitor,os,trialDur,refreshRate,agentSize,phiRange,
         pDirChange,initDistCC,bckgCLR,agentCLR,mouseoverCLR,selectedCLR,aSpeed,
-        guiPos,winPos):
+        guiPos,winPos,fullscr):
         self.refreshRate=float(refreshRate)
-        self.monname=monname
-        self.monitor=monitors.Monitor(self.monname)
+        self.monitor=monitor
         self.os=os
+        self.fullscr=fullscr
         self.trialDur=trialDur
         self.agentSize=agentSize
         self.phiRange=phiRange
@@ -35,9 +35,9 @@ class Settings():
         self.agentRadius=self.agentSize/2.0
         self.nrframes=self.trialDur*self.refreshRate+1
   
-    def initDisplay(self,sz=1000,fullscr=True):
+    def initDisplay(self,sz=1000):
         if type(sz)==int: sz=(sz,sz)
-        wind=visual.Window(monitor=self.monname,fullscr=fullscr,
+        wind=visual.Window(monitor=self.monitor,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
             winType='pyglet')
         return wind
@@ -46,10 +46,23 @@ class Settings():
     def norm2deg(self,xy):
         xy=self.norm2pix(xy)
         return pix2deg(xy,self.monitor)
-        
+    def pix2deg(self,pix):
+        return pix2deg(pix,self.monitor)
+    def loadSettings(self,vp):
+        import pickle
+        filepath=Q.inputPath+'vp%03d'%vp+self.delim+'SettingsExp.pkl'
+        f=open(filepath,'r')
+        try: out=pickle.load(f);f.close()
+        except: f.close(); raise
+        return out
+# monitors
+dell=monitors.Monitor('dell', width=37.8, distance=50); dell.setSizePix((1280,1024))
+sonycrt=monitors.Monitor('sony', width=40, distance=60); sonycrt.setSizePix((1280,1024))
+smidell=monitors.Monitor('smiDell', width=47.5, distance=60);smidell.setSizePix((1680,1024))
+t60=monitors.Monitor('tobii', width=34, distance=50); t60.setSizePix((1280,1024))
 
-laptop={'monname' :     'dell',
-        'refreshRate':  75,                 # [hz]
+laptop={'monitor' :     dell,
+        'refreshRate':  60,                 # [hz]
         'os':           LINUX,              # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
@@ -62,8 +75,9 @@ laptop={'monname' :     'dell',
         'trialDur':     30,                 # in seconds
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
-        'winPos':       (0,0)}              # in pixels
-eyelinklab ={'monname' :     'sony',
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      False}
+eyelinklab ={'monitor' :sonycrt,
         'refreshRate':  100,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
@@ -77,8 +91,25 @@ eyelinklab ={'monname' :     'sony',
         'trialDur':     30,                 # in seconds
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
-        'winPos':       (0,0)}              # in pixels
-tobiilab ={'monname' :     'tobii',
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      True}
+smilab ={'monitor' :     smidell,
+        'refreshRate':  60,                # [hz]
+        'os':           WINDOWS,            # Linux or Windows
+        'phiRange':     [120,0*2],          # in degrees [0-360]
+        'agentSize':    1,                  # in degrees of visial angle
+        'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
+        'pDirChange':   [4.8,5.4],  # avg number of direction changes per second
+        'bckgCLR':      [-0,-0,-0],
+        'agentCLR':     1,                  # [1 -1]
+        'mouseoverCLR': 0.5,                # [1 -1]
+        'selectedCLR':  -0.5,               # [1 -1]
+        'trialDur':     30,                 # in seconds
+        'aSpeed':       14.5,               # in degrees of visual angle per second
+        'guiPos':       (200,400),          # in pixels
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      True}
+tobiilab ={'monitor' :  t60,
         'refreshRate':  75,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
@@ -92,6 +123,6 @@ tobiilab ={'monname' :     'tobii',
         'trialDur':     120,                 # in seconds
         'aSpeed':       9,                  # in degrees of visual angle per second
         'guiPos':       (-800,400),         # in pixels
-        'winPos':       (1280,0)}           # in pixels
-
-Q=Settings(**tobiilab)
+        'winPos':       (1280,0),           # in pixels
+        'fullscr':      True}
+Q=Settings(**eyelinklab)
