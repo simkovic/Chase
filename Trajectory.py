@@ -383,9 +383,8 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         vpname='vp%03d' % vp
         os.mkdir(vpname)
         os.chdir(vpname)
-        f=open('SettingsTraj.pkl','w')
-        pickle.dump(Q,f)
-        f.close()
+        Q.save('SettingsTraj.pkl')
+        
         for block in bs:
             if block ==0: nrtrials=10
             else: nrtrials=trialstotal
@@ -448,9 +447,7 @@ def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],
             print r
             np.save('order%sb%d'% (vpname,block),r)
             np.save('phase%sb%d'% (vpname,block),phase)
-            f=open('SettingsTraj.pkl','w')
-            pickle.dump(Q,f)
-            f.close()
+            Q.save('SettingsTraj.pkl')
         os.chdir('..')
     os.chdir('..')
 
@@ -500,9 +497,7 @@ def generateGao09e1(vpn):
                 np.save(fn,trajectories[:,1:,:]);i+=1
 
         np.save('gao09e1order%sb%d'% (vpname,block),r)
-        f=open('SettingsTraj.pkl','w')
-        pickle.dump(Q,f)
-        f.close()
+        Q.save('SettingsTraj.pkl')
         os.chdir('..')
     os.chdir('..')
 def exportSvmGao09(nrtrials=10000):

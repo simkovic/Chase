@@ -2,7 +2,7 @@ from psychopy import visual,monitors
 from psychopy.misc import pix2deg
 from Constants import *
 from os import getcwd
-
+import pickle
 
 class Settings():
     def __init__(self,monitor,os,trialDur,refreshRate,agentSize,phiRange,
@@ -49,10 +49,13 @@ class Settings():
         return pix2deg(xy,self.monitor)
     def pix2deg(self,pix):
         return pix2deg(pix,self.monitor)
-    def loadSettings(self,vp):
-        import pickle
-        filepath=Q.inputPath+'vp%03d'%vp+self.delim+'SettingsExp.pkl'
-        f=open(filepath,'r')
+    def save(self,filepath):
+        f=open(filepath,'wb')
+        try: pickle.dump(self,f);f.close()
+        except: f.close(); raise
+    @staticmethod
+    def load(filepath):
+        f=open(filepath,'rb')
         try: out=pickle.load(f);f.close()
         except: f.close(); raise
         return out
@@ -128,5 +131,8 @@ tobiilab ={'monitor' :  t60,
         'guiPos':       (-800,400),         # in pixels
         'winPos':       (1280,0),           # in pixels
         'fullscr':      True}
-Q=Settings(**eyelinklab)
 
+Q=Settings(**eyelinklab)
+#fpath=Q.inputPath+'vp084'+Q.delim+'SettingsExp.pkl'
+#Q.save(fpath)
+#

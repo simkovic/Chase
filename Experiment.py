@@ -5,7 +5,6 @@ from Constants import *
 from psychopy import visual, core, event,gui,sound
 from psychopy.misc import pix2deg, deg2pix
 import time, sys
-from pickle import dump
 import numpy as np
 
 import random
@@ -42,9 +41,7 @@ class Experiment():
             subinf.close()               
         else: print 'Experiment cancelled'
         # save settings, which we will use
-        f=open(Q.inputPath+'vp%03d'%self.id+Q.delim+'SettingsExp.pkl','w')
-        dump(Q,f)
-        f.close()
+        Q.save(Q.inputPath+'vp%03d'%self.id+Q.delim+'SettingsExp.pkl')
         #init stuff
         self.wind=Q.initDisplay()
         self.mouse = event.Mouse(False,None,self.wind)
