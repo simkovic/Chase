@@ -132,7 +132,10 @@ tobiilab ={'monitor' :  t60,
         'winPos':       (1280,0),           # in pixels
         'fullscr':      True}
 
-Q=Settings(**eyelinklab)
-#fpath=Q.inputPath+'vp084'+Q.delim+'SettingsExp.pkl'
-#Q.save(fpath)
+
+Q=Settings(**laptop)
+#Q2=Settings(**smilab)
+#fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
+#print fpath
+#Q2.save(fpath)
 #

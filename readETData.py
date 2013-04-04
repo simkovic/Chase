@@ -1,7 +1,9 @@
 import numpy as np
 from Settings import *
 from os import getcwd
-from evalETdata import ETTrialData
+from evalETdata import ETTrialData, interpRange
+import pylab as plt
+plt.ion()
 
 def _isNumber(s):
     try:
@@ -20,7 +22,7 @@ def _discardInvalidTrials(data):
 def _reformat(trial,tstart,Qexp):
     if len(trial)==0: return np.zeros((0,7))
     trial=np.array(trial)
-    ms=np.array(Qexp.monitor.size)/2.0
+    ms=np.array(Qexp.monitor.getSizePix())/2.0
     if type(trial) is type( () ): print 'error in readEdf'
     trial[:,0]-=tstart
     trial[:,1]=Qexp.pix2deg(trial[:,1]-ms[0])
@@ -143,6 +145,8 @@ def readSMI(vp,block):
     path = getcwd()
     path = path.rstrip('code')
     f=open(path+'smiOutput/VP%03dB%d Samples.txt'%(vp,block),'r')
+    Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
+    ms= Qexp.monitor.getSizePix()
     try:
         line=f.readline()
         data=[]
@@ -188,7 +192,7 @@ def readSMI(vp,block):
                 PHASE=2; t0[2]= float(words[0])/1000.0
             #if len(words)>2 and words[2]=='POSTTRIAL':
             if len(words)>5 and (words[5]=='POSTTRIAL' or words[5]=='OMISSION'):
-                etdat = _reformat(etdat,cent,t0[0],distance)
+                etdat = _reformat(etdat,t0[0],Qexp)
                 ftriggers=np.array(ftriggers)
                 print ftriggers.shape
                 if ftriggers.size>0: ftriggers[:,1] -= t0[1]
@@ -206,13 +210,13 @@ def readSMI(vp,block):
                 if words[7]=='.': xleft=np.nan; yleft=np.nan
                 else:
                     xleft=float(words[7]); yleft=float(words[8])
-                    #if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
+                    #if xleft>ms[0] or xleft<0 or yleft>ms[1] or yleft<0:
                     if yleft==0 or xleft==0:
                         xleft=np.nan; yleft=np.nan;
                 if words[9]=='.': xright=np.nan; yright=np.nan
                 else:
                     xright=float(words[9]); yright=float(words[10])
-                    #if xright>cent[0]*2 or xright<=0 or yright<=0 or yright>cent[1]*2:
+                    #if xright>ms[0] or xright<=0 or yright<=0 or yright>ms[1]:
                     if xright==0 or yright==0:
                         xright=np.nan; yright=np.nan;
                 meas=(float(words[0])/1000.0,xleft,yleft,
@@ -235,64 +239,69 @@ def readTobii(vp,block,lagged=False):
 
         lagged - return time stamp when the data was made available (ca. 30 ms time lag)
     '''
+    print 'Reading Tobii Data'
     path = getcwd()
     path = path.rstrip('/code')
     f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
     #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
+    ms= Qexp.monitor.getSizePix()
     try:
-        data=[];trial=[]; theta=[];t=0;msgs=[]
+        data=[];trial=[]; theta=[];t=0;msgs=[]; t0=[0,0,0]
         on=False
         while True:
             words=f.readline()
             if len(words)==0: break
             words=words.strip('\n').strip('\r').split('\t')
-            if not on: # collect header information
-                if len(words)==2 and  words[0]=='Monitor Distance': 
-                    distance=float(words[1])
-                if len(words)==2 and  words[0]=='Monitor Width': 
-                    monwidth=float(words[1])
-                if len(words)==2 and words[0]=='Recording time:':
-                    recTime=words[1]
-                if len(words)==2 and words[0]=='Recording refresh rate: ':
+            if len(words)==2: # collect header information
+                if words[0]=='Recording time:':
+                    recTime=words[1]; t0[0]=0; on=True
+                if words[0]=='Subject: ':on=False
+                if words[0]=='Recording refresh rate: ':
                     hz=float(words[1])
-                if len(words)==2 and words[0]=='Recording resolution': 
-                    cent=words[1].rsplit('x')
-                    cent=(int(cent[0])/2.0,int(cent[1])/2.0)
-                    ratio=cent[1]/float(cent[0])
-                    print cent
-                if len(words)==4 and words[2]=='Trial':
-                    on=True; tstart=float(words[0])
-            elif len(words)>=11: # record data
+            elif len(words)==4 and words[2]=='Trial':
+                t0[1]=trial[-1][0] # perturb
+            elif len(words)>=11 and on: # record data
                 # we check whether the data gaze position is on the screen
                 xleft=float(words[2]); yleft=float(words[3])
-                if xleft>cent[0]*2 or xleft<0 or yleft>cent[1]*2 or yleft<0:
+                if xleft>ms[0] or xleft<0 or yleft>ms[1] or yleft<0:
                     xleft=np.nan; yleft=np.nan;
                 xright=float(words[5]); yright=float(words[6])
-                if xright>cent[0]*2 or xright<0 or yright<0 or yright>cent[1]*2:
+                if xright>ms[0] or xright<0 or yright<0 or yright>ms[1]:
                     xright=np.nan; yright=np.nan;
-
                 if lagged: tm =float(words[0])+float(words[8]);ff=int(words[1])
                 else: tm=float(words[0]);ff=int(words[1])-2
                 tdata=(tm,xleft,yleft,float(words[9]),
                     xright,yright,float(words[10]),ff)
                 trial.append(tdata)
-            elif (words[2]=='Detection' or words[2]=='Omission'):
+            elif len(words)>2 and (words[2]=='Detection' or words[2]=='Omission'):
                 # we have all data for this trial, transform to deg and append
-                on=False
+                on=False;t0[2]=trial[-1][0]
                 trial=np.array(trial)
                 trial[trial==-1]=np.nan # TODO consider validity instead of coordinates
-                trial=_reformat(trial,tstart,Qexp)
-                et=ETTrialData(trial[:,:-1],[],[trial[0,0],tstart,trial[-1,0]],
-                    [vp,block,t,hz,'BOTH'],fs=trial[:,[0,-1]],recTime=recTime,msgs=msgs)
+                trial=_reformat(trial,t0[0],Qexp)
+                #print t0, trial.shape, trial[0,0]
+                et=ETTrialData(trial[:,:-1],[],t0,
+                    [vp,block,t,hz,'BOTH'],fs=[],recTime=recTime,msgs=msgs)
+                fs=trial[et.ts:et.te,[-1,0]]
+                fs[:,1]-=t0[1]
+                for fff in range(fs.shape[0]-2,-1,-1):
+                    if fs[fff+1,0]<fs[fff,0]:
+                        fs[fff,0]=fs[fff+1,0]
+                et.fs=np.zeros((fs[-1,0],2))
+                et.fs[:,0]=range(int(fs[-1,0]))
+                et.fs[:,1]=interpRange(fs[:,0],fs[:,1],et.fs[:,0])
                 data.append(et)
                 t+=1;trial=[];msgs=[]
-            elif len(words)==6: msgs.append([float(words[0])-tstart,words[2]+' '+words[5]])
-            elif words[2]!='Phase': msgs.append([float(words[0])-tstart,int(words[1]),words[2]])
-    except: f.close(); raise
+            elif on and len(words)==6: msgs.append([float(words[0]),words[2]+' '+words[5]])
+            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0]),int(words[1]),words[2]])
+    except: f.close(); print words; raise
     f.close()
+    print 'Finished Reading Data'
     return data
-data=readTobii(150,0)
+if __name__ == '__main__':
+    data=readTobii(150,0)
+    print data[0].fs.shape
 
 # some raw scripts
 

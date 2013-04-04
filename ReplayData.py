@@ -242,16 +242,16 @@ if __name__ == '__main__':
     from Maze import *
     from evalETdata import *
     from readETData import *
-    vp=150
+    vp=81
     block=0
-    trial=0
-    data=readTobii(vp,block)
+    trial=2
+    data=readSMI(vp,block)
 
     trl=data[trial]
     trl.loadTrajectories()
     #trl.driftCorrection()
     #trl.extractTracking()
-    R=ETReplay(gazeData=trl,phase=1,eyes=1)
+    R=ETReplay(gazeData=trl,phase=1,eyes=2)
     R.play(tlag=0.05)
     #print R.tend
 ##    data=readTobii(vp,block)

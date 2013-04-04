@@ -306,9 +306,11 @@ class ETTrialData():
         self.msgs=msgs
         if self.fs==None: self.fs= self.computeFs()
         self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
-        if self.t0[0]>0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
+        if self.t0[0]>=0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
-        if self.t0[1]>0: self.te=min((dat[:,0]>(self.t0[1])).nonzero()[0])
+        #print 'hhh',self.t0, self.ts
+        if  self.t0[1]>0 and len((dat[:,0]>(self.t0[1])).nonzero()[0])>0: 
+            self.te=min((dat[:,0]>(self.t0[1])).nonzero()[0])
         else: self.te=-1
         self.recTime=datetime.strptime(recTime,"%H:%M:%S")
         self.extractFixations(dat)
