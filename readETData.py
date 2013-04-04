@@ -1,5 +1,5 @@
 import numpy as np
-from Settings import Q
+from Settings import *
 from os import getcwd
 from evalETdata import ETTrialData
 
@@ -20,13 +20,14 @@ def _discardInvalidTrials(data):
 def _reformat(trial,tstart,Qexp):
     if len(trial)==0: return np.zeros((0,7))
     trial=np.array(trial)
+    ms=np.array(Qexp.monitor.size)/2.0
     if type(trial) is type( () ): print 'error in readEdf'
     trial[:,0]-=tstart
-    trial[:,1]=Qexp.pix2deg(trial[:,1])
-    trial[:,2]=-Qexp.pix2deg(trial[:,2])
-    if trial.shape[1]==7:
-        trial[:,4]=Q.exp.pix2deg(trial[:,4])
-        trial[:,5]=-Q.exp.pix2deg(trial[:,5])
+    trial[:,1]=Qexp.pix2deg(trial[:,1]-ms[0])
+    trial[:,2]=-Qexp.pix2deg(trial[:,2]-ms[1])
+    if trial.shape[1]>4:
+        trial[:,4]=Qexp.pix2deg(trial[:,4]-ms[0])
+        trial[:,5]=-Qexp.pix2deg(trial[:,5]-ms[1])
     return trial
 
 def readEdf(vp,block):
@@ -237,7 +238,7 @@ def readTobii(vp,block,lagged=False):
     path = getcwd()
     path = path.rstrip('/code')
     f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
-    Qexp=Q.loadSettings(vp)
+    Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
     #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     try:
         data=[];trial=[]; theta=[];t=0;msgs=[]
@@ -292,6 +293,8 @@ def readTobii(vp,block,lagged=False):
     f.close()
     return data
 data=readTobii(150,0)
+
+# some raw scripts
 
 def checkDrift():
     # lets check whether there is a drift in the tobii data

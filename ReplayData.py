@@ -241,10 +241,11 @@ if __name__ == '__main__':
     from Constants import *
     from Maze import *
     from evalETdata import *
-    vp=18
-    block=3
-    trial=2
-    data=readEdf(vp,block)
+    from readETData import *
+    vp=150
+    block=0
+    trial=0
+    data=readTobii(vp,block)
 
     trl=data[trial]
     trl.loadTrajectories()

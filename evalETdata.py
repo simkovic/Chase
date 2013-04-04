@@ -546,7 +546,7 @@ class ETTrialData():
                     out.append(temp)
             return out
         
-        # add two columns with gaze point
+        # add two columns with binocular gaze point
         if self.focus==BINOCULAR:
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
             temp=dat[np.isnan(dat[:,1]),:]
