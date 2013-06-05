@@ -88,7 +88,7 @@ BLKMINDUR=0.05
 #NBLMINDUR=0.01
 PLAG = 0 # lag between agent movement and pursuit movement
 #used for agent tracking identification
-EYEDEV=20#4
+EYEDEV=4
 BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
 INTERPMD=0.1 # max duration for which blink interpolation is performed
 
@@ -260,8 +260,7 @@ class ETBlockData():
         
     def getTrial(self,trialid):
         return self.etdata[trialid]
-        
-        
+
     def loadBehavioralData(self):
         path = getcwd()
         path = path.rstrip('code')
@@ -278,19 +277,7 @@ class ETBlockData():
             dev[t]=abs(a-b)
             if dev[t]>5: print '\tt=%d deviation %.3f'%(t,dev[t])
         if np.all(dev<5): print '\tdetection times ok (abs error <5 msec)' 
-            
-        
-##    def driftCorrection(self):
-##        
-##        i=0
-##        remove=[]
-##        print 'subject %d, block %d, SUMMARY'%(self.vp,self.block)
-##        for d in self.etdata:
-##            pass
-##        # remove unsuccesful online dcorrs
-##        remove.reverse()
-##        for k in remove: self.etdata.pop(k)
-##        #for d in self.etdata: d.extractAgentDistances()
+
             
 class ETTrialData():
     def __init__(self,dat,calib,t0,info,recTime="0:0:0",fs=None,
@@ -355,15 +342,14 @@ class ETTrialData():
         self.loadTrajectories()
         #self.traj=traj
         g=self.getGaze()
-        tt=np.arange(0,30001,10)
-        
+        traj=self.oldtraj[:self.fs.shape[0],:,:]
         self.dist=np.zeros((g.shape[0],traj.shape[1]))
         self.traj=np.zeros((g.shape[0],traj.shape[1],traj.shape[2]))
         self.dev=np.zeros((g.shape[0]-1,traj.shape[1]))
         for a in range(traj.shape[1]):
             #print tt.shape, traj[:,a,0].shape
-            self.traj[:,a,0]=interpRange(tt, traj[:,a,0],g[:,0])
-            self.traj[:,a,1]=interpRange(tt, traj[:,a,1],g[:,0])
+            self.traj[:,a,0]=interpRange(self.fs[:,1], traj[:,a,0],g[:,0])
+            self.traj[:,a,1]=interpRange(self.fs[:,1], traj[:,a,1],g[:,0])
             dx=np.roll(self.traj[:,a,0],int(0*self.hz),axis=0)-g[:,7]
             dy=np.roll(self.traj[:,a,1],int(0*self.hz),axis=0)-g[:,8]
             self.dist[:,a]= np.sqrt(np.power(dx,2)+np.power(dy,2))
@@ -375,14 +361,14 @@ class ETTrialData():
         self.dev=np.mod(self.dev/np.pi*180.0+180,360)-180
 
             
-    def driftCorrection(self):
+    def driftCorrection(self,jump=0):
         """ performs drift correction for each eye and axis
             separately based on the fixation location immediately
             preceding the trial onset
         """
         s= '\tt= %d, '%(self.trial)
-        kk=(np.diff(self.gaze[:,0])>4).nonzero()[0]
-        if len(kk)>0: print s, 'LAG >4, ',kk
+        kk=(np.diff(self.gaze[:,0])>8).nonzero()[0]
+        if len(kk)>0: print s, 'LAG >8, ',kk, self.gaze[kk+1,0]-self.gaze[kk,0], self.gaze[kk,3], self.gaze[kk,6]
         dif=np.isnan(self.gaze[:,1]).sum()-np.isnan(self.gaze[:,4]).sum()
         if self.focus==LEFTEYE and dif>0:
             print s,' right eye has more data '%dif
@@ -395,14 +381,19 @@ class ETTrialData():
             else: print s, 'calibration BAD',self.calib[-1]
         
         if self.ts==-1: print  s, 'online dcorr failed'
+        if jump==-1: 
+            print 'skipping drift correction'
+            return
         # find the latest fixation
-        isFix=self.getFixations(phase=0)
-        h= isFix.size-50
+        isFix=self.getFixations(phase=1)
+        isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
+        h= isFix.size-50-jump
         while (not np.all(isFix[h:(h+50)]) and h>=0 ): h-=1
         #print i, d.isFix[0].size-h
+        self.dcfix=[self.gaze[h+10,0]-self.t0[0],self.gaze[h+40,0]-self.t0[0]]
         if h>=0:
             for j in [1,4,2,5]:
-                dif=self.gaze[h:(h+50),j].mean()
+                dif=self.gaze[(h+10):(h+40),j].mean()
                 self.gaze[:,j]-=dif
             
         else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
@@ -453,7 +444,6 @@ class ETTrialData():
             #if ev[-1]==SAC: info[2].append(ev)
             if ev[-1]==OLPUR: info[5].append(ev);info[3]+=1; 
             if ev[-1]==CLPUR:
-                
                 info[5].append(ev)
                 info[4]+=1;
                 trackon=True# (ev[1]-ev[0])>100
@@ -501,10 +491,6 @@ class ETTrialData():
             ei+=1
         np.savetxt('vp%02db%02dt%02d.trc'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
         
-            
-
-                        
-        
     def plotAgents(self):
         ''' plot which agents were tracked'''
         plt.figure()
@@ -519,7 +505,27 @@ class ETTrialData():
         plt.ylim([-1,15])
         plt.show()
 
-    
+    def plotMissingData(self):
+        g=self.getGaze()
+        #plt.cla()
+        ax=plt.gca()
+        clrs=['g','r'];xy=[0.8,0.4];idd=[7]
+        for e in range(len(idd)):
+            m=np.isnan(g[:,idd[e]])
+            on = np.bitwise_and(m,np.bitwise_not(np.roll(m,1))).nonzero()[0].tolist()
+            off=np.bitwise_and(np.roll(m,1),np.bitwise_not(m)).nonzero()[0].tolist()
+            if len(on)==0 and len(off)==0: continue
+            if on[-1]>off[-1]: off.append(m.shape[0]-1)
+            if on[0]> off[0]: on.insert(0,0)
+            if len(on)!=len(off): print 'invalid onoff';raise TypeError
+            for f in range(len(on)):
+                fs=g[on[f],0];fe=g[off[f],0];dur=fe-fs
+                if dur>10:
+                    r=mpl.patches.Rectangle((fs,self.trial-0.1),fe-fs,xy[e],color=clrs[e])
+                    ax.add_patch(r)
+        plt.xlim([0,30000])
+        plt.ylim([-1,41])
+
         
     def plotEvents(self):
         ''' plots events '''
@@ -628,14 +634,25 @@ class ETTrialData():
         for kk in range(1,g.shape[1]):
             out.append(interpRange(g[:,0], g[:,kk],tm))
         return np.array(out).T
-    def selectPhase(self,dat,phase,hz):
-        dat=np.array([self.gaze[:,0]-self.t0[0],dat]).T
-        if phase==0: out= dat[:self.ts]
+    def selectPhase(self,data,phase,hz):
+        """ phase:
+            -1 - select all (used with opur, cpur)
+            0 - drift correction
+            1 - trial
+            2 - target selection
+            3 - [-200,200] ms around trial start (used for checking drift correction)
+        """
+        dat=np.array([self.gaze[:,0]-self.t0[0],data]).T
+        if phase ==-1:  out=np.array([self.gaze[self.ts:self.te,0]-self.t0[0],data]).T
+        elif phase==0: out= dat[:self.ts]
         elif phase==1:
             if self.ts>=0: out= dat[self.ts:self.te]
             else: out= np.zeros((0,9))
         elif phase==2:
             if self.te>=0: out= dat[self.te:]
+            else: out= np.zeros((0,9))
+        elif phase==3:
+            if self.ts>=0: out= dat[self.ts-50:self.ts+50]
             else: out= np.zeros((0,9))
         else: print 'Invalid Phase'
         out=ETTrialData.resample(out,hz)
@@ -652,7 +669,8 @@ class ETTrialData():
         return res[:,1:,:]
     
     def getGaze(self,phase=1,hz=None):
-        if phase==0: out= self.gaze[:self.ts,:]
+        if phase==-1: out=self.gaze
+        elif phase==0: out= self.gaze[:self.ts,:]
         elif phase==1:
             if self.ts>=0:
                 out= np.copy(self.gaze[self.ts:self.te,:])
@@ -663,6 +681,11 @@ class ETTrialData():
                 out= np.copy(self.gaze[self.te:,:])
                 out[:,0]-= (self.t0[1])
             else: return np.zeros((0,9))
+        elif phase==3:
+            if self.ts>=0:
+                out= np.copy(self.gaze[self.ts-100:self.ts+100,:])
+                out[:,0]-= (self.t0[0])
+            else: out= np.zeros((0,9))
         else: print 'Phase not supported'
         out=ETTrialData.resample(out,hz)
         return out
@@ -676,17 +699,75 @@ class ETTrialData():
     def getSaccades(self,phase=1,hz=None):
         return self.selectPhase(self.isSac,phase,hz)
     def getCLP(self,phase=1,hz=None):
-        return self.cpur
+        return self.selectPhase(self.cpur,-1,hz)
     def getOLP(self,phase=1,hz=None):
-        return self.opur
-    def getTracking(self,phase):
+        return self.selectPhase(self.opur,-1,hz)
+    def getTracking(self,phase,hz=None):
         out=np.zeros(self.te-self.ts)
         for tr in self.track:
             if tr[-1]: out[tr[0]:tr[1]]=1
         return out
-    def getSearch(self,phase):
+    def getSearch(self,phase,hz=None):
         out=np.zeros(self.te-self.ts)
         for tr in self.track:
             if not tr[-1]: out[tr[0]:tr[1]]=1
         return out
 
+def manualDC(vp,b,t):
+    """ do we need manual drift correction?"""
+    out=0
+    if vp==1:
+        if b==3 and t==25: out=-10
+        elif b==3 and t==34: out=-1
+        elif b==5 and t==10: out=50
+        elif b==6 and t==19: out=20
+        elif b==6 and t==24: out=20
+        elif b==8 and t==14: out=50
+        elif b==11 and t==17: out=-1
+        elif b==12 and t==37: out=-1
+        elif b==14 and t==38: out=-1
+        elif b==18 and t==8: out=-1
+        elif b==19 and t==6: out=-1 
+    return out
+def plotDC():
+    plt.interactive(False)
+    vp=1
+    from readETData import readEyelink
+    for b in range(1,22):
+        print 'block ', b
+        data=readEyelink(vp,b)
+        for i in range(len(data)):
+            plt.figure()
+            d=data[i]
+            gg=d.getGaze(phase=3)
+            plt.plot(gg[:,0],gg[:,1],'g--')
+            plt.plot(gg[:,0],gg[:,2],'r--')
+            plt.plot(gg[:,0],gg[:,4],'b--')
+            plt.plot(gg[:,0],gg[:,5],'k--')
+            d.driftCorrection(jump=manualDC(vp,b,i))
+            gg=d.getGaze(phase=3)
+            plt.plot(gg[:,0],gg[:,1],'g')
+            plt.plot(gg[:,0],gg[:,2],'r')
+            plt.plot(gg[:,0],gg[:,4],'b')
+            plt.plot(gg[:,0],gg[:,5],'k')
+            plt.plot([gg[0,0],gg[-1,0]],[0,0],'k')
+            plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
+            plt.grid()
+            plt.ylim([-0.5,0.5])
+            plt.savefig(os.getcwd()+'/pic/dc/b%02dtr%02d'%(b,i))
+            plt.close()
+            i+=1 
+
+def plotMD():
+    vp=1
+    from readETData import readEyelink
+    for b in range(1,22):
+        plt.cla()
+        print 'block ', b
+        data=readEyelink(vp,b)
+        for d in data:
+            d.driftCorrection(jump=manualDC(vp,b,i))
+            d.plotMissingData()
+        plt.show()
+        plt.savefig(os.getcwd()+'/pic/missingdata/fb%02d'%(d.block))
+            

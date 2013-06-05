@@ -22,10 +22,11 @@ class Trajectory():
         # put data together
         g=gazeData.getGaze(phase,hz=self.t)
         tr=gazeData.getTraj(hz=self.t)
-
         if eyes==1: g=g[:,[7,8]];g=np.array(g,ndmin=3)
         else: g=np.array([g[:,[1,2]],g[:,[4,5]]])
+        
         g=np.rollaxis(g,0,2)
+        
         self.pos=np.concatenate([tr,g],axis=1)
         try:
             if type(self.wind)==type(None):
@@ -160,12 +161,12 @@ class ETReplay(Trajectory):
         Trajectory.__init__(self,gazeData,wind=wind,**kwargs)
         self.gazeData=gazeData
         try:
-            indic=['Velocity','Acceleration','Saccade','Fixation']#,'OL Pursuit','CL Pursuit','Tracking','Searching']
+            indic=['Velocity','Acceleration','Saccade','Fixation','OL Pursuit','CL Pursuit','Tracking','Searching']
             self.lim=([0,450],[-42000,42000],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1])# limit of y axis
             self.span=(0.9,0.9,0.6,0.6,0.6,0.6,0.6,0.6)# height of the window taken by graph
             self.offset=(0.1,0.1,0.2,0.2,0.2,0.2,0.2,0.2)
             fhandles=[self.gazeData.getVelocity,self.gazeData.getAcceleration,
-                      self.gazeData.getSaccades,self.gazeData.getFixations]#,self.gazeData.getOLP,self.gazeData.getCLP, self.gazeData.getTracking,self.gazeData.getSearch]
+                      self.gazeData.getSaccades,self.gazeData.getFixations,self.gazeData.getOLP,self.gazeData.getCLP,self.gazeData.getTracking,self.gazeData.getSearch]
             self.ws=30 
             ga=[7.8337, 18.7095,-13.3941,13.3941] # graph area
             self.ga=ga
@@ -195,7 +196,7 @@ class ETReplay(Trajectory):
             #step=1000/float(Q.refreshRate)
             #xNew=np.arange(self.tstart,self.tend,step)
             #xOld=self.gazeData.getGaze(self.phase)[:,0]#[:-1,0]
-            np.save('t.npy',self.t)
+            #np.save('t.npy',self.t)
             for g in range(len(fhandles)):
                 yOld=fhandles[g](self.phase,hz=self.t)
                 #print 'graphdata ',g, xOld.shape,yOld.shape
@@ -242,21 +243,22 @@ if __name__ == '__main__':
     from Maze import *
     from evalETdata import *
     from readETData import *
-    vp=81
-    block=0
+    vp=1
+    block=1
     trial=2
-    data=readSMI(vp,block)
+    data=readEyelink(vp,block)
 
     trl=data[trial]
+    
     trl.loadTrajectories()
-    #trl.driftCorrection()
-    #trl.extractTracking()
-    R=ETReplay(gazeData=trl,phase=1,eyes=2)
-    R.play(tlag=0.05)
+    trl.driftCorrection()
+    trl.extractTracking()
+    R=ETReplay(gazeData=trl,phase=1,eyes=1)
+    R.play(tlag=0.02)
     #print R.tend
 ##    data=readTobii(vp,block)
 ##    #maze=TestMaze(10,dispSize=24)
-##    order=np.load('input%svp%03d%sordervp%03db%d.npy'%(Q.delim,vp,Q.delim,vp,block))
+    
 ##    scale=0.8
 ##    traj=scale*np.load('input%svp%03d%svp%03db%dtrial%03d.npy'%(Q.delim,vp,Q.delim,vp,block,order[trial]))
 ##    data[trial].gaze*=scale

@@ -33,10 +33,10 @@ def loadData(vpn, verbose=False):
         D.append(dat[dat[:,1]>0,:])
     D=np.concatenate(D,0)
     return D
-
+#def loadScript():
 vpn=range(20,70)
 vpn.remove(27)
-
+vpn=[1]
 D=loadData(vpn)
 acc=np.zeros((len(vpn),2))*np.nan
 
@@ -51,16 +51,17 @@ for i in (p<0.50).nonzero()[0].tolist():
     rem.append(vpn[i])
 for r in rem: vpn.remove(r)
 
-stat=np.ones((len(vpn),4,2))*np.nan
-rts=np.zeros((len(vpn),160))*np.nan
-acc=np.zeros((len(vpn),160))*np.nan
+BL=21
+stat=np.ones((len(vpn),BL,2))*np.nan
+rts=np.zeros((len(vpn),BL*40))*np.nan
+acc=np.zeros((len(vpn),BL*40))*np.nan
 acc2=np.zeros((len(vpn),2))*np.nan
-covar=np.zeros((len(vpn),160))*2
+covar=np.zeros((len(vpn),BL*40))*2
 N=np.zeros(len(vpn))
 K=np.copy(D[:,-1])
 K[D[:,6]==30]=np.nan
 for i in range(len(vpn)):
-    for b in range(4):
+    for b in range(BL):
         sel=np.logical_and(D[:,0]==vpn[i],D[:,1]==b+1)
         if sel.sum()>0:
             N[i]+=1
@@ -73,6 +74,8 @@ for i in range(len(vpn)):
     sel2= np.logical_and(D[:,0]==vpn[i],D[:,6]!=30)
     acc2[i,0]= np.sum(D[sel2,-1])
     acc2[i,1]=np.sum(sel2)
+
+
 
 def modelACC(acc):
     pname='chaseACC'
@@ -233,93 +236,192 @@ def modelSingleVP(vp=2):
     #plot(scale,'scale')
     plot(mean,'mean')
     plot(sdev,'sd')
-
-#def modelRT(rts):
+#def modelTrainingDataSingleVP(vp=0):
+vp=0
 rts[rts==30]=np.nan    
 pname='chaseRT'
-dat=np.copy(rts)
-shift=np.nanmin(rts,axis=1)-0.001
+dat=rts[vp,:]
 censored=np.float32(np.isnan(dat))
-for vp in range(N.size):
-    dat[vp,:]-= shift[vp]
-    censored[vp,(N[vp]*40):]=np.nan
-
-
-indata=[dat,covar ,censored,shift,N.size]
-indatlabels=['rt','w','rtcens','shift','n']
-rtInit=np.ones((N.size,160))*np.nan
+censored[N[vp]*40:]=np.nan
+shift=np.zeros(BL)
+dd=np.copy(dat)
+for b in range(BL):
+    shift[b]=np.nanmin(dat[b*40:(b+1)*40])-0.001
+    dd[b*40:(b+1)*40]-= shift[b]
+shift=np.nanmin(dat)-0.001
+indata=[dd, censored,shift]
+indatlabels=['rt','rtcens','shift']
+outdatlabels=['rt','sdev','b0','b1','b2']
+rtInit=np.ones(BL*40)*np.nan
 rtInit[censored==1]=31
 inpars=[rtInit]
 inparlabels=['rt']
-
-modelgrand='''
+modelblocks='''
 model{
-    for (vp in 1:n){
-        for (t in 1:160){
-            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-            rt[vp,t] ~ dgamma(pow(mu,2)*pow(sdev,-2),mu*pow(sdev,-2))
-        }
+    for (b in 1:21){
+    for (t in 1:40){
+        rtcens[(b-1)*40+t]~ dinterval(rt[(b-1)*40+t],30-shift)
+        rt[(b-1)*40+t] ~ dgamma(pow(mean[b],2)*pow(sdev[b],-2),mean[b]*pow(sdev[b],-2))
     }
-
-    mu ~ dunif(0,30)
+    mean[b] ~ dt(mm,pow(ms,-2),3)
+    sdev[b]~dunif(0,30)
+    }
+    
+    mm ~ dunif(0,40)
+    ms ~ dunif(0,30)
+    dm ~ dunif(0,30)
+    ds ~ dunif(0,30)
+}
+'''
+modeltrials='''
+model{
+    rtcens[1]~ dinterval(rt[1],30-shift)
+    rt[1] ~ dunif(0,50)
+    for (t in 2:840){
+        rtcens[t]~ dinterval(rt[t],30-shift)
+        rt[t] ~ dgamma(pow(mean[t],2)*pow(sdev,-2),mean[t]*pow(sdev,-2))
+        mean[t] <- b0+b1*rt[t-1]+b2*t
+    }
+    b2 ~ dnorm(0,1/1000)
+    b1 ~ dnorm(0,1/1000)
+    b0 ~ dunif(0,30)
     sdev ~ dunif(0,30)
 }
 '''
-
-
-modelunpooled='''
-model{
-    for (vp in 1:n){
-        for (t in 1:160){
-            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-            rt[vp,t] ~dgamma(a[vp],b[vp])
-        }
-
-        rtpred[vp]<-rttemp[vp]+shift[vp]
-        rttemp[vp]~ dgamma(a[vp],b[vp])
-        a[vp]<-pow(mu[vp],2)*pow(sdev[vp],-2)
-        b[vp]<-mu[vp]*pow(sdev[vp],-2)
-        mu[vp] ~ dunif(0,30)
-        sdev[vp] ~ dunif(0,30)
-    }
-}
-'''
-
-modelhier='''
-model{
-    for (vp in 1:n){
-        for (t in 1:160){
-            rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
-            rt[vp,t] ~dgamma(a[vp,t],b[vp,t])
-            a[vp,t]<-pow(b0[vp]+b1[vp]*w[vp,t],2)*pow(sdev[vp],-2)
-            b[vp,t]<-(b0[vp]+b1[vp]*w[vp,t])*pow(sdev[vp],-2)
-            
-        }
-        b0[vp] ~ dt(b0mu,pow(b0sd,-2),4)
-        b1[vp] ~ dt(b1mu,pow(b1sd,-2),4)
-        sdev[vp] ~ dgamma(pow(sdmu,2)*pow(sdsd,-2),sdmu*pow(sdsd,-2))
-    }
-    b0mu~dunif(0,30)
-    b0sd~dunif(0,30)
-    b1mu~dnorm(0,.001)
-    b1sd~dgamma(10,1)
-    sdmu~dunif(0,30)
-    sdsd~dunif(0,30)
-    tdf <- 1 - tdfGain * log(1-udf)
-    udf ~ dunif(0,1)
-    tdfGain <- 1
-}
-'''
-
-
+#sdev[b] ~ dgamma(pow(dm,2)*pow(ds,-2),dm*pow(ds,-2))
+#rt[t]~dweib(mean,pow(sdev,-mean))
+#rt[t] ~ dgamma(pow(mean,2)*pow(sdev,-2),mean*pow(sdev,-2))
+from jagstools import jags
+from pymc.Matplot import plot
+import scipy.stats as stats
 plt.close('all')
-outdatlabels=['b0','b1','sdev','b0mu','b0sd','b1mu','b1sd','sdmu','sdsd','tdf']
-D=jags(pname,indata,indatlabels,outdatlabels,modelhier,
-    inpars,inparlabels,chainLen=5000,burnIn=500,thin=5)
+rt,sdev,b0,b1,b2=jags(pname,indata,indatlabels,outdatlabels,modeltrials,
+    inpars,inparlabels,chainLen=20000,burnIn=5000,thin=5)
 
-for d in D:
-    if d.ndim==2: errorbar(d)
-    elif d.ndim==1: plot(d,'bla')
+##Rs=[]
+##for b in range(BL):
+##    #plt.figure()
+##    #plt.subplot(2,1,1)
+##    cc=censored[b*40:(b+1)*40]
+##    dd=dat[b*40:(b+1)*40]
+##    rttt=rts[vp,b*40:(b+1)*40]
+##    #plt.hist(rttt[cc==0],bins=range(0,30,2))
+##    x=np.arange(0.1,30,0.1)
+##    mn=mean[b].mean(); sd= sdev[b].mean();locp=shift
+##    y=stats.gamma.pdf(x,mn**2*sd**-2,loc=locp,scale=sd**2/mn)
+##    #plt.plot(x,y*40)
+##    #plt.subplot(2,1,2)
+##    ka,kb=stats.probplot(dd[cc==0],dist='gamma',plot=None,
+##        sparams=(mn**2*sd**-2,locp,sd**2 / mn))
+##    print 'block: ', b, np.round(kb[-1],3)
+##    Rs.append(kb[-1])
+##    cd=1-stats.gamma.cdf(30,mn**2*sd**-2,loc=locp,scale=sd**2/mn)
+##    print '\t',cc.mean(),np.round(cd,3)
+##    res=stats.binom_test(cc.sum(),40,cd)
+##    if res<0.2: print '\t','binomtest signifficant %.3f' %res
+##print np.nansum(np.array(Rs))/(~np.isnan(Rs)).sum(), np.median(np.array(Rs))
+###plot(mean.T,'mean')
+###plot(sdev.T,'sd')
+
+##plt.subplot(2,1,1)
+##plt.hist(rts[vp,censored==0],bins=range(0,30,2))
+##x=np.arange(0.1,30,0.1)
+##mn=mean.mean(); sd=sdev.mean()
+##y=stats.gamma.pdf(x,mn**2*sd**-2,loc=shift,scale=sd**2/mn)
+###y=stats.weibull_min.pdf(x,mn,loc=shift,scale=sd)
+##plt.plot(x,y*840)
+##plt.subplot(2,1,2)
+##ka,kb=stats.probplot(rts[0,censored==0],dist='gamma',plot=plt,
+##    sparams=(mn**2*sd**-2,shift,sd**2/mn))
+
+def modelRT(rts):
+    """ model used for analysis"""
+    rts[rts==30]=np.nan    
+    pname='chaseRT'
+    dat=np.copy(rts)
+    shift=np.nanmin(rts,axis=1)-0.001
+    censored=np.float32(np.isnan(dat))
+    for vp in range(N.size):
+        dat[vp,:]-= shift[vp]
+        censored[vp,(N[vp]*40):]=np.nan
+
+
+    indata=[dat,covar ,censored,shift,N.size]
+    indatlabels=['rt','w','rtcens','shift','n']
+    rtInit=np.ones((N.size,160))*np.nan
+    rtInit[censored==1]=31
+    inpars=[rtInit]
+    inparlabels=['rt']
+
+    modelgrand='''
+    model{
+        for (vp in 1:n){
+            for (t in 1:160){
+                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+                rt[vp,t] ~ dgamma(pow(mu,2)*pow(sdev,-2),mu*pow(sdev,-2))
+            }
+        }
+
+        mu ~ dunif(0,30)
+        sdev ~ dunif(0,30)
+    }
+    '''
+
+
+    modelunpooled='''
+    model{
+        for (vp in 1:n){
+            for (t in 1:160){
+                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+                rt[vp,t] ~dgamma(a[vp],b[vp])
+            }
+
+            rtpred[vp]<-rttemp[vp]+shift[vp]
+            rttemp[vp]~ dgamma(a[vp],b[vp])
+            a[vp]<-pow(mu[vp],2)*pow(sdev[vp],-2)
+            b[vp]<-mu[vp]*pow(sdev[vp],-2)
+            mu[vp] ~ dunif(0,30)
+            sdev[vp] ~ dunif(0,30)
+        }
+    }
+    '''
+
+    modelhier='''
+    model{
+        for (vp in 1:n){
+            for (t in 1:160){
+                rtcens[vp,t]~ dinterval(rt[vp,t],30-shift[vp])
+                rt[vp,t] ~dgamma(a[vp,t],b[vp,t])
+                a[vp,t]<-pow(b0[vp]+b1[vp]*w[vp,t],2)*pow(sdev[vp],-2)
+                b[vp,t]<-(b0[vp]+b1[vp]*w[vp,t])*pow(sdev[vp],-2)
+                
+            }
+            b0[vp] ~ dt(b0mu,pow(b0sd,-2),4)
+            b1[vp] ~ dt(b1mu,pow(b1sd,-2),4)
+            sdev[vp] ~ dgamma(pow(sdmu,2)*pow(sdsd,-2),sdmu*pow(sdsd,-2))
+        }
+        b0mu~dunif(0,30)
+        b0sd~dunif(0,30)
+        b1mu~dnorm(0,.001)
+        b1sd~dgamma(10,1)
+        sdmu~dunif(0,30)
+        sdsd~dunif(0,30)
+        tdf <- 1 - tdfGain * log(1-udf)
+        udf ~ dunif(0,1)
+        tdfGain <- 1
+    }
+    '''
+
+
+    plt.close('all')
+    outdatlabels=['b0','b1','sdev','b0mu','b0sd','b1mu','b1sd','sdmu','sdsd','tdf']
+    D=jags(pname,indata,indatlabels,outdatlabels,modelhier,
+        inpars,inparlabels,chainLen=5000,burnIn=500,thin=5)
+
+    for d in D:
+        if d.ndim==2: errorbar(d)
+        elif d.ndim==1: plot(d,'bla')
+    
 ##plot(D[5],'mumu')
 ##plot(musd,'musd')
 ##plot(sdmu,'sdmu')
