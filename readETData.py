@@ -91,8 +91,10 @@ def readEyelink(vp,block):
                 PHASE=1;t0[1]=float(words[1])
             if len(words)>2 and (words[2]=='DETECTION'):
                 PHASE=2; t0[2]= float(words[1])
+            if len(words)>2 and words[2]=='OMISSION':
+                PHASE=2; t0[2]= float(words[1])
             #if len(words)>2 and words[2]=='POSTTRIAL':
-            if len(words)>2 and (words[2]=='POSTTRIAL' and PHASE==2 or words[2]=='OMISSION'):
+            if len(words)>2 and (words[2]=='POSTTRIAL' and PHASE==2):
                 etdat = _reformat(etdat,t0[0],Qexp)
                 ftriggers=np.array(ftriggers)
                 #print 'ftriggers.shape ',ftriggers.shape
@@ -509,5 +511,5 @@ def eyelinkScript():
 if __name__ == '__main__':
     #data=readTobii(150,0)
     data=readEyelink(1,1)
-    data[0].driftCorrection()
-    print data[0].getCLP().shape
+    data[1].driftCorrection()
+    data[1].extractTracking()

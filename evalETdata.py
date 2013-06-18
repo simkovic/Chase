@@ -12,6 +12,19 @@ from copy import copy
 import time,os
 
 plt.ion()
+def t2f(t,tser):
+    out=np.diff(tser<t).nonzero()[0]
+    if out.size==0: return tser.size
+    else: return out[0]
+def mergeEvents(events):
+    maxx=events[0][-1][1]
+    for i in range(1, len(events)): maxx=max(maxx,events[i][-1][1])
+    out=[]
+    for i in range(maxx):
+        for ev in events:
+            for k in range(len(ev)):
+                if ev[k][0]==i:out.append(ev[k])
+    return out
 
 def norm(x,axis=0):
     x=np.power(x,2)
@@ -86,15 +99,14 @@ def myDeg2pix(deg,dist,cent,width):
 FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
 BLKMINDUR=0.05
 #NBLMINDUR=0.01
-PLAG = 0 # lag between agent movement and pursuit movement
 #used for agent tracking identification
 EYEDEV=4
 BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
 INTERPMD=0.1 # max duration for which blink interpolation is performed
 
-LSACVTH=50
-LSACATH=8000
-LSACMINDUR=0.06
+LSACVTH=80
+LSACATH=np.inf
+LSACMINDUR=0.02
 
 SACVTH=21
 SACATH=4000
@@ -104,31 +116,36 @@ FIXVTH=6
 FIXATH=800
 FIXMINDUR=0.06 #second
 NFIXMINDUR=0.05
-FIXFOCUSRADIUS=3.5
+FIXFOCUSRADIUS=4
 
 OLPURVTHU= SACVTH
 OLPURVTHL= 4
 OLPURATH= FIXATH
 OLPURMD=0.06
-OLFOCUSRADIUS=3.5 # focus radius for agents
+OLFOCUSRADIUS=4 # focus radius for agents
 
+PLAG = 0.15 # lag between agent movement and pursuit movement in sec
 CLPURVTHU=SACVTH
 CLPURVTHL=9
 CLPURATH=FIXATH
 CLPURMD=0.1
 CLFOCUSRADIUS=4
+CLSACTARGETDUR=0.1 # sec
+CLSACTARGETRADIUS=1 # deg
 MAXPHI=25#10 #
 
-def selectAgentCL(dist,dev):
+def selectAgentCL(dist,dev,hz):
     #a=(dist.max(0)<3).nonzero()[0]
     #b=norm(np.median(dev,axis=0),axis=1)<MAXPHI
     #b=np.mod(dev/np.pi*180.0+180,360)-180
     #print (np.abs(dev)<MAXPHI).mean(axis=0)
     b=(np.abs(dev)<MAXPHI).mean(axis=0)>0.5
-    a=np.logical_and(dist.mean(0)<CLFOCUSRADIUS,b).nonzero()[0]
+    a=np.logical_and(dist.mean(0)<CLFOCUSRADIUS,b)
+    a= np.logical_or(dist[:int(hz*CLSACTARGETDUR)].mean(0)
+        < CLSACTARGETRADIUS,a).nonzero()[0]
     return a
 def selectAgentOL(dist):
-    a=(np.mean(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
+    a=(np.max(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
     return a
 
 def selectAgentFIX(dist):
@@ -204,21 +221,30 @@ def interpolateBlinks(t,d,hz):
             #for c in [7,8]: tser[bs:be,c]=np.nan
     return d
 
+def tseries2eventlist(tser):
+    tser=np.int32(tser)
+    if tser.sum()==0: return []
+    d=np.bitwise_and(tser,np.bitwise_not(np.roll(tser,1)))
+    on = (d[1:].nonzero()[0]+1).tolist()
+    d=np.bitwise_and(np.roll(tser,1),np.bitwise_not(tser))
+    off=d[1:].nonzero()[0].tolist()
+    if len(off)==0:off.append(tser.shape[0]-1)
+    if len(on)==0: on.insert(0,0)
+    if on[-1]>off[-1]: off.append(tser.shape[0]-1)
+    if on[0]>off[0]: on.insert(0,0)
+    if len(on)!=len(off): print 'invalid fixonoff';raise TypeError
+    out=np.array([on,off]).T
+    return out.tolist()
     
 def computeFixations(tser,vel,acc,hz):
     isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
     if isFix.sum()==0: return np.int32(isFix),[]
-    fixon = np.bitwise_and(isFix,
-        np.bitwise_not(np.roll(isFix,1))).nonzero()[0].tolist()
-    fixoff=np.bitwise_and(np.roll(isFix,1),
-        np.bitwise_not(isFix)).nonzero()[0].tolist()
-    if fixon[-1]>fixoff[-1]:fixoff.append(isFix.shape[0]-1)
-    if fixon[0]>fixoff[0]:fixon.insert(0,0)
-    if len(fixon)!=len(fixoff): print 'invalid fixonoff';raise TypeError
-    for f in range(len(fixon)):
-        if f>0 and fixon[f]-fe <NFIXMINDUR*hz:
-            isFix[fe:(fixoff[f]+1)]=True
-        fe=fixoff[f] 
+    fev=tseries2eventlist(isFix)
+    fe=0
+    for fix in fev:
+        if  fix[0]-fe <NFIXMINDUR*hz:
+            isFix[fe:(fix[1]+1)]=True
+        fe=fix[1] 
     return computeState(isFix,[FIXMINDUR*hz,np.inf])
 
 ##def computePursuit(tser,vel,acc,hz):
@@ -249,7 +275,7 @@ def computeLongSaccades(tser,vel,acc,hz):
     return computeState(isFix,[LSACMINDUR*hz,np.inf])
 
 def computeBlinks(tser,hz):
-    isFix=np.isnan(tser[:,1])
+    isFix=np.isnan(tser[:,7])
     return computeState(isFix,[BLKMINDUR*hz*0,np.inf])
         
 class ETBlockData():
@@ -411,11 +437,11 @@ class ETTrialData():
 ##                bsac.append([e-int(BLKMINDUR*self.hz), e])
 ##            if e-s>1000: print 't= %d, LONG SEQ OF MISSING DATA'% self.trial
 
-        # merge events together
+        # merge events into single stream
         self.events=[]
-        ind=[0,0,0,0]
+        ind=[0,0,0,0,0]
         #data[t].extractAgentDistances()
-        d=[self.fev,self.opev,self.cpev,self.sev]#,bsac]
+        d=[self.fev,self.opev,self.cpev,self.sev,self.bev]#,bsac]
         for f in range(int(30*self.hz)):
             for k in range(len(d)):
                 if ind[k]< len(d[k]) and d[k][ind[k]][0]==f:
@@ -424,43 +450,49 @@ class ETTrialData():
                     self.events.append(ev)
         # build high-level events
         hev=[]
-        lastlastA=[]
-        lastA=[]
-        lastEtype=-1
-        info=[]
+        A=[]; lastA=[]
+        info=[]; lastEtype=-1
         trackon=False
         for ev in self.events:
+            if not ev[-1] in [FIX,OLPUR,CLPUR]: 
+                if len(info[-1]): info.append([]);
+                continue
+            #if not ev[-1] in [FIX,OLPUR,CLPUR] or (ev[1]-ev[0])/self.hz<0.07:    continue
+            lastA=copy(A) ;
             A= ev[2:-1]
-            if ev[-1] in [OLPUR,CLPUR]:
-                if len(set(lastA) & set(A)) and trackon:# and lastEtype==SAC:
-                    info[2]+=int(lastEtype ==SAC);
-                    info[1]=ev[1]
-                else:
-                    if len(info):hev.append(info);
-                    info=[ev[0],ev[1],0,0,0,[],self.trial]
-                    trackon=False
-                #if not (ev[-1]==FIX and lastEtype==PUR):
-                lastA=copy(A)  
-            #if ev[-1]==SAC: info[2].append(ev)
-            if ev[-1]==OLPUR: info[5].append(ev);info[3]+=1; 
-            if ev[-1]==CLPUR:
-                info[5].append(ev)
-                info[4]+=1;
-                trackon=True# (ev[1]-ev[0])>100
+            if ( ev[-1] in [FIX,OLPUR,CLPUR] and not trackon and len(set(lastA) & set(A)) # standard case
+                or ev[-1]==CLPUR and not trackon and self.hz*(ev[1]-ev[0])>0.3 # no search but long pursuit
+               ): # start tracking event
+                if len(info):
+                    if len(info[-1])==0: info.pop(-1)
+                    hev.append(info);
+                info=[ev[0],ev[1],True,[]]
+                trackon=True
+            elif len(set(lastA) & set(A)) and trackon: # continue tracking
+                info[1]=ev[1]
+            else: # terminate event
+                if len(info):
+                    if len(info[-1])==0: info.pop(-1)
+                    hev.append(info);
+                info=[ev[0],ev[1],False,[]]
+                trackon=False
+            info[-1].append(ev);
                 #np.any(self.dist[ev[0]:ev[1],A].mean(0))
-                
             lastEtype=ev[-1]
         if len(info)>0: hev.append(info)
         self.hev=hev
-        # identify search and tracking
-        track=[]
+        # identify search and tracking, look 
+        #for first block isolated by saccades wheter it contians pursuit
+        track=[];
         for h in hev:
-            flag=False
-            if h[4]>0:
-                for f in h[5]:
-                    if f[-1]==CLPUR and f[1]-f[0]>250: flag=True
-            if h[2]>0 or flag: track.append([h[0],h[1],h,True])
-            else: track.append([h[0],h[1],h,False])
+            s=-1;e=-1
+            for i in range(3,len(h)):
+                for ev in h[i]: 
+                    if ev[-1]==CLPUR: 
+                        if s==-1: s=h[i][0][0];
+                        e=h[i][-1][1]
+            if h[2] and s!=-1: track.append([s,e,h])
+            #else: track.append([h[0],h[1],h,False])
         self.track=track
 
         
@@ -583,6 +615,7 @@ class ETTrialData():
         self.acc=computeAcceleration(self.gaze,self.hz)
         self.isFix,fev=computeFixations(self.gaze,self.vel,self.acc,self.hz)
         self.isSac,sev=computeSaccades(self.gaze,self.vel,self.acc,self.hz)
+        self.isLSac,discard=computeLongSaccades(self.gaze,self.vel,self.acc,self.hz)
         self.isBlink,bev=computeBlinks(self.gaze,self.hz)
         #self.fev=helpf(fev,inds[k])
         self.sev=helpf(sev,[self.ts,self.te])
@@ -602,10 +635,9 @@ class ETTrialData():
             i=0
             while i<len(self.cpev):
                 s=self.cpev[i][0];e=self.cpev[i][1]-1
-                a=selectAgentCL(self.dist[s:e,:],self.dev[s:e,:])
-                #if len(a)>0:
-                self.cpev[i].extend(a); i+=1
-                #else:self.cpev.pop(i);self.cpur[s:(e+1)]=False
+                a=selectAgentCL(self.dist[s:e,:],self.dev[s:e,:],self.hz)
+                if len(a)>0: self.cpev[i].extend(a); i+=1
+                else:self.cpev.pop(i);self.cpur[s:(e+1)]=False
 
             b= np.logical_and(np.logical_and(self.opur,~self.cpur),~self.isFix[self.ts:self.te])
             self.opur,self.opev= computeState(b,[OLPURMD*self.hz,np.inf])
@@ -698,20 +730,18 @@ class ETTrialData():
         return self.selectPhase(self.isFix,phase,hz)
     def getSaccades(self,phase=1,hz=None):
         return self.selectPhase(self.isSac,phase,hz)
+    def getLongSaccades(self,phase=1,hz=None):
+        return self.selectPhase(self.isLSac,phase,hz)
     def getCLP(self,phase=1,hz=None):
         return self.selectPhase(self.cpur,-1,hz)
     def getOLP(self,phase=1,hz=None):
         return self.selectPhase(self.opur,-1,hz)
     def getTracking(self,phase,hz=None):
-        out=np.zeros(self.te-self.ts)
+        out=np.zeros(hz.size)
         for tr in self.track:
-            if tr[-1]: out[tr[0]:tr[1]]=1
+            out[t2f(tr[0]/float(self.hz)*1000,hz):t2f(tr[1]/float(self.hz)*1000,hz) ]=1
         return out
-    def getSearch(self,phase,hz=None):
-        out=np.zeros(self.te-self.ts)
-        for tr in self.track:
-            if not tr[-1]: out[tr[0]:tr[1]]=1
-        return out
+
 
 def manualDC(vp,b,t):
     """ do we need manual drift correction?"""

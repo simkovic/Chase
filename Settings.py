@@ -1,5 +1,5 @@
 from psychopy import visual,monitors
-from psychopy.misc import pix2deg
+from psychopy.misc import pix2deg,deg2pix
 from Constants import *
 from os import getcwd
 import pickle
@@ -49,6 +49,8 @@ class Settings():
         return pix2deg(xy,self.monitor)
     def pix2deg(self,pix):
         return pix2deg(pix,self.monitor)
+    def deg2pix(self,deg):
+        return deg2pix(deg,self.monitor)
     def save(self,filepath):
         f=open(filepath,'wb')
         try: pickle.dump(self,f);f.close()
