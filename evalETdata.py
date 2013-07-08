@@ -8,6 +8,7 @@ from scipy import signal
 from scipy.interpolate import interp1d
 from datetime import datetime
 from scipy.interpolate import interp1d
+from scipy.stats import nanmean
 from copy import copy
 import time,os
 
@@ -114,14 +115,14 @@ SACMINDUR=0.02
 
 FIXVTH=6
 FIXATH=800
-FIXMINDUR=0.06 #second
+FIXMINDUR=0.08 #second
 NFIXMINDUR=0.05
 FIXFOCUSRADIUS=4
 
 OLPURVTHU= SACVTH
 OLPURVTHL= 4
 OLPURATH= FIXATH
-OLPURMD=0.06
+OLPURMD=0.08
 OLFOCUSRADIUS=4 # focus radius for agents
 
 PLAG = 0.15 # lag between agent movement and pursuit movement in sec
@@ -140,18 +141,33 @@ def selectAgentCL(dist,dev,hz):
     #b=np.mod(dev/np.pi*180.0+180,360)-180
     #print (np.abs(dev)<MAXPHI).mean(axis=0)
     b=(np.abs(dev)<MAXPHI).mean(axis=0)>0.5
-    a=np.logical_and(dist.mean(0)<CLFOCUSRADIUS,b)
-    a= np.logical_or(dist[:int(hz*CLSACTARGETDUR)].mean(0)
+    a=np.logical_and(nanmean(dist,0)<CLFOCUSRADIUS,b)
+    a= np.logical_or(nanmean(dist[:int(hz*CLSACTARGETDUR)],0)
         < CLSACTARGETRADIUS,a).nonzero()[0]
     return a
 def selectAgentOL(dist):
-    a=(np.max(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
+    a=(np.nanmax(dist,axis=0)<OLFOCUSRADIUS).nonzero()[0]
     return a
 
 def selectAgentFIX(dist):
-    a=(np.mean(dist,axis=0)<FIXFOCUSRADIUS).nonzero()[0]
+    a=(nanmean(dist,axis=0)<FIXFOCUSRADIUS).nonzero()[0]
     return a
 
+def selectAgentTRACKING(fs,fe,evs):
+    acounter=np.zeros(50)
+    tot=0
+    for ev in evs:
+        if ev[-1]==CLPUR and fs<=ev[0] and fe>=ev[1]:
+            acounter[ev[2:-1]]+=1
+            tot+=1
+    if tot==0:
+        for ev in evs:
+            if ev[-1]==OLPUR and fs<=ev[0] and fe>=ev[1]:
+                acounter[ev[2:-1]]+=1
+                tot+=1
+    out=(acounter>=min(0.5*float(tot),3)).nonzero()[0].tolist()
+    if len(out)==0: print 'NO AGENTS SELECTED !!!'
+    return out
 
 def filterGaussian(x,hz):
     #return self.filterCausal(x)
@@ -355,7 +371,13 @@ class ETTrialData():
             if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
                 return p[2:]
         return []
-
+    def getTrackedAgent(self,t):
+        g=self.gaze[self.ts:self.te,0]
+        gmax=g.size-1
+        for tr in self.track:
+            if t>g[tr[0]]-self.t0[0] and t<g[min(gmax,tr[1])]-self.t0[0]: 
+                return tr[2]
+        return []
     def loadTrajectories(self):
         path = getcwd()
         path = path.rstrip('/code')
@@ -451,9 +473,11 @@ class ETTrialData():
         # build high-level events
         hev=[]
         A=[]; lastA=[]
-        info=[]; lastEtype=-1
+        info=[-1,-1,False,[]]; lastEtype=-1
         trackon=False
+        acounter=np.zeros(self.traj.shape[1])
         for ev in self.events:
+            
             if not ev[-1] in [FIX,OLPUR,CLPUR]: 
                 if len(info[-1]): info.append([]);
                 continue
@@ -461,14 +485,15 @@ class ETTrialData():
             lastA=copy(A) ;
             A= ev[2:-1]
             if ( ev[-1] in [FIX,OLPUR,CLPUR] and not trackon and len(set(lastA) & set(A)) # standard case
-                or ev[-1]==CLPUR and not trackon and self.hz*(ev[1]-ev[0])>0.3 # no search but long pursuit
-               ): # start tracking event
+                or ev[-1]==CLPUR and not len(set(lastA) & set(A)) and (ev[1]-ev[0])/self.hz>0.3 # no search but long pursuit
+                ): # start tracking event
                 if len(info):
                     if len(info[-1])==0: info.pop(-1)
                     hev.append(info);
                 info=[ev[0],ev[1],True,[]]
                 trackon=True
-            elif len(set(lastA) & set(A)) and trackon: # continue tracking
+                #acounter=np.zeros(self.traj.shape[1])
+            elif (len(set(lastA) & set(A)) or (len(A) and np.any(acounter[A]>len(info[3])/2))) and trackon: # continue tracking
                 info[1]=ev[1]
             else: # terminate event
                 if len(info):
@@ -477,12 +502,13 @@ class ETTrialData():
                 info=[ev[0],ev[1],False,[]]
                 trackon=False
             info[-1].append(ev);
-                #np.any(self.dist[ev[0]:ev[1],A].mean(0))
+            #if ev[-1]==CLPUR: acounter[A]+=1 
             lastEtype=ev[-1]
         if len(info)>0: hev.append(info)
         self.hev=hev
         # identify search and tracking, look 
         #for first block isolated by saccades wheter it contians pursuit
+        # also look at the agents being tracked
         track=[];
         for h in hev:
             s=-1;e=-1
@@ -491,11 +517,33 @@ class ETTrialData():
                     if ev[-1]==CLPUR: 
                         if s==-1: s=h[i][0][0];
                         e=h[i][-1][1]
-            if h[2] and s!=-1: track.append([s,e,h])
+            if h[2] and s!=-1: track.append([s,h[1]])
             #else: track.append([h[0],h[1],h,False])
         self.track=track
-
-        
+        # identify tracked agents
+        self.computeTrackedAgents()
+        # and merge tracking events with similar agents
+        i=1
+        while i < len(self.track):
+            if len(set(self.track[i][2]) & set(self.track[i-1][2])):
+                # count saccades between the two tracking events
+                nrsac=0
+                for sev in self.sev:
+                    if self.track[i-1][1]<=sev[0] and self.track[i][0]>=sev[1]:
+                        nrsac+=1
+                if nrsac>2: i+=1
+                else: # merge 
+                    self.track[i-1]= [self.track[i-1][0], self.track[i][1]]
+                    #self.track[i-1].append(set(self.track[i][2]) | set(self.track[i-1][2]))
+                    self.track[i-1].append(selectAgentTRACKING(self.track[i-1][0],
+                        self.track[i-1][1],self.events))
+                    self.track.pop(i)
+            else: i+=1
+            
+    def computeTrackedAgents(self):
+        for tr in self.track:
+            if len(tr)==2:tr.append(selectAgentTRACKING(tr[0],tr[1],self.events))
+            
     def plotTracking(self):
         ''' plots events '''
         #plt.figure()
@@ -736,6 +784,11 @@ class ETTrialData():
         return self.selectPhase(self.cpur,-1,hz)
     def getOLP(self,phase=1,hz=None):
         return self.selectPhase(self.opur,-1,hz)
+    def getHEV(self,phase,hz=None):
+        out=np.zeros(hz.size)
+        for tr in self.hev:
+            if tr[2]: out[t2f(tr[0]/float(self.hz)*1000,hz):t2f(tr[1]/float(self.hz)*1000,hz) ]=1
+        return out
     def getTracking(self,phase,hz=None):
         out=np.zeros(hz.size)
         for tr in self.track:
