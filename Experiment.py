@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from Settings import Q
 from Constants import *
-from psychopy import visual, core, event,gui,sound
+from psychopy import visual, core, event,gui,sound,parallel
 from psychopy.misc import pix2deg, deg2pix
 import time, sys
 import numpy as np
@@ -155,6 +155,7 @@ class Experiment():
             self.elem.setXYs(self.pos)
             self.elem.draw()
             self.flip()
+
             # check for termination signal
             for key in event.getKeys():
                 if key in ['escape']:
@@ -230,7 +231,6 @@ class Gao09Experiment(Experiment):
         Experiment.run(self,prefix='gao09e1')
         
 class BabyExperiment(Experiment):
-    colored=False
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
     sacToReward=[3,5] # reward is presented after enough saccades are made
@@ -243,25 +243,35 @@ class BabyExperiment(Experiment):
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     finished=2 # abort after consecutive nr of attention catchers
     expDur=6 # total experiment duration in minutes
+    doReward=False # show colored reward?
     
     def __init__(self):
         Experiment.__init__(self)
         #self.etController=TobiiControllerFromOutput(self.getWind(),sid=self.id,playMode=True,block=self.block,initTrial=self.initTrial)
         self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
-        self.clrOscil=0.05
+        #self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
         self.rewardColor2=np.array((1,1,1))
+        self.clrs=[]; self.noscils=40; # gives 75/40=1.875 hz
+        a=np.linspace(1,-1,self.noscils/2,endpoint=False)
+        b=np.linspace(-1,1,self.noscils/2,endpoint=False)
+        pattern=np.concatenate([a,b])
+        #pattern=np.cos(np.linspace(0,2*np.pi,self.noscils,endpoint=False))
+        for i in range(self.rewardColor1.size):
+            self.clrs.append((pattern+1)/2.0
+                *(self.rewardColor1[i]-self.rewardColor2[i])
+                +self.rewardColor2[i])
+        self.clrs=np.array(self.clrs).T.tolist()
+        #print 'clrs',self.clrs
         self.showAttentionCatcher=False
         self.nrframes=-1
         self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
         self.account=0 # count consecutive attention catchers
         self.pi=0
+        self.eeg=parallel.PParallelInpOut32()
         
     def run(self):
-        if BabyExperiment.colored:
-            c=[(-1,-1,0),(-1,0,-1),(0,-1,-1),(1,1,0),(1,0,1),(0,1,1)] #c=['blue','red','green','black','white']
-            c=np.array(2*c); self.colors= c[np.random.permutation(len(c))]
         self.tStart=core.getTime()
         Experiment.run(self)
         self.etController.closeConnection()
@@ -277,35 +287,23 @@ class BabyExperiment(Experiment):
         self.isFixLast=False
         self.babySawReward=False
         ende=False
-        #if self.showAttentionCatcher:
-        #    self.account+=1
-        #    if (self.account>=BabyExperiment.finished and self.t>=10):
-        #        ende=True
-        #else: self.account=0
-        #if self.f==self.nrframes: ende=True
         if core.getTime()> BabyExperiment.expDur*60+self.tStart: ende=True
         if ende:
             print core.getTime()-self.tStart
             self.etController.sendMessage('Finished')
             self.etController.closeConnection()
             self.wind.close(); core.quit()
-        if BabyExperiment.colored:
-            #print self.t
-            #print self.colors[self.t,:]
-            Q.agentCLR=self.colors[self.t,:]
-            self.etController.sendMessage('Color\t%.2f %.2f %.2f'%(Q.agentCLR[0],Q.agentCLR[1],Q.agentCLR[2]))
-        #colors=((1,0,-1),(1,-1,0),(0,-1,1),(0,1,-1),(-1,0,1),(-1,1,0))
-        #self.rewardColor=np.array(colors[np.random.randint(len(colors))])
         self.timeNotLooking=0
         self.etController.preTrial(driftCorrection=self.showAttentionCatcher>0)
-        self.etController.sendMessage('Trial\t%d'%self.t)
-        #print 'Trial\t%d'%self.t
+        self.etController.sendMessage('Trial\t%d'%self.t)        
         self.etController.sendMessage('Phase\t%d'%self.phases[self.pi])
+        if self.eeg!=None: 
+            self.eeg.setData(int(self.t+1))
         Experiment.runTrial(self,*args,fixCross=False)
         self.etController.postTrial()
         
     def trialIsFinished(self):
-        
+        #if self.eeg!=None: self.eeg.setData(1)
         gc,fc,isFix,incf=self.etController.getCurrentFixation(units='deg')
         self.f+=incf 
         #if self.f>750: return True
@@ -369,34 +367,36 @@ class BabyExperiment(Experiment):
         return out
     def turnOnReward(self):
         self.etController.sendMessage('Reward On')
+        if self.eeg!=None: self.eeg.setData(70)
         self.rewardIter=1
-        clrs=np.ones((self.cond,3))
-        clrs[0,:]=self.rewardColor1
-        clrs[1,:]=self.rewardColor1
-        #if self.phases[self.pi]< 2: self.elem.setColors(clrs)
+        self.kk=0
+        #clrs=np.ones((self.cond,3))
+        #clrs[0,:]=self.rewardColor1
+        #clrs[1,:]=self.rewardColor1
+        #if BabyExperiment.reward and self.phases[self.pi]< 2: self.elem.setColors(clrs)
+        
     def turnOffReward(self):
         self.etController.sendMessage('Reward Off')
+        if self.eeg!=None: self.eeg.setData(80)
         self.rewardIter=0
-        #self.elem.setColors(np.ones((self.cond,3)))
+        self.kk= -1
+        self.elem.setColors(np.ones((self.cond,3)))
         self.nrRewards+=1
+        
     def reward(self):
         ''' Present reward '''
+        if not BabyExperiment.doReward: return
         clrs=np.ones((self.cond,3))
         if self.elem.colors.shape[0]!=self.cond: self.elem.setColors(clrs)
-        nc=self.elem.colors[0,:]-self.clrOscil*(self.rewardColor1-self.rewardColor2)
-        #print '1 ',nc
-        if (np.linalg.norm(self.rewardColor1-nc)>np.linalg.norm(self.rewardColor1-self.rewardColor2)
-            or np.linalg.norm(self.rewardColor2-nc)>np.linalg.norm(self.rewardColor2-self.rewardColor1)): 
-                self.clrOscil *= -1
-                nc=self.elem.colors[0,:]-self.clrOscil*(self.rewardColor1-self.rewardColor2)
-        #print '2 ',nc
+        nc=self.clrs[self.kk%len(self.clrs)]
+        self.kk+=1
         clrs[0,:]=nc
         clrs[1,:]=nc
-        #self.elem.setColors(clrs)
-        #print nc,pa, self.elem.colors[pa,:]
+        self.elem.setColors(clrs)
         
     def omission(self):
         self.etController.sendMessage('Omission')
+        if self.eeg!=None: self.eeg.setData(90)
     
 class BehavioralExperiment(Experiment):
             
@@ -459,7 +459,7 @@ class BehavioralExperiment(Experiment):
             self.output.close()
             self.wind.close()
 
-
+    
 class AdultExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
         BehavioralExperiment.__init__(self)
@@ -512,7 +512,7 @@ if __name__ == '__main__':
     #E=BehavioralExperiment()
     #E=TobiiExperiment()
     #E=Gao09Experiment()
-    E=BehavioralExperiment()
+    E=BabyExperiment()
     E.run()
 
 

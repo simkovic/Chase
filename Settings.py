@@ -36,8 +36,9 @@ class Settings():
         self.nrframes=self.trialDur*self.refreshRate+1
         self.fullscr=fullscr
   
-    def initDisplay(self,sz=1000):
-        if type(sz)==int: sz=(sz,sz)
+    def initDisplay(self,sz=None):
+        if sz==None: sz=(1280,1060)
+        elif type(sz)==int: sz=(sz,sz)
         wind=visual.Window(monitor=self.monitor,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
             winType='pyglet')
@@ -83,7 +84,7 @@ laptop={'monitor' :     dell,
         'fullscr':      False}
 
 eyelinklab ={'monitor' :sonycrt,
-        'refreshRate':  100,                # [hz]
+        'refreshRate':  85,                # [hz]
         'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
@@ -130,10 +131,10 @@ tobiilab ={'monitor' :  t60,
         'aSpeed':       9,                  # in degrees of visual angle per second
         'guiPos':       (-800,400),         # in pixels
         'winPos':       (1280,0),           # in pixels
-        'fullscr':      True}
+        'fullscr':      False}
 
 
-Q=Settings(**laptop)
+Q=Settings(**tobiilab)
 #Q2=Settings(**smilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
 #print fpath

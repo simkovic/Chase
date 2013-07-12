@@ -5,15 +5,15 @@
 
 import os, datetime, time
 try:
-    import tobii.sdk.mainloop
-    import tobii.sdk.browsing
-    import tobii.sdk.eyetracker
-    import tobii.sdk.time.clock
-    import tobii.sdk.time.sync
-    from tobii.sdk.types import Point2D, Blob
-    from tobii.sdk.basic import EyetrackerException
+    import tobii.eye_tracking_io.mainloop
+    import tobii.eye_tracking_io.browsing
+    import tobii.eye_tracking_io.eyetracker
+    import tobii.eye_tracking_io.time.clock
+    import tobii.eye_tracking_io.time.sync
+    from tobii.eye_tracking_io.types import Point2D, Blob
+    from tobii.eye_tracking_io.basic import EyetrackerException
 except ImportError:
-    print 'Warning: Tobii Sdk import Failed'
+    print 'Warning: Tobii import Failed'
     pass
 from psychopy.sound import SoundPygame as Sound
 from psychopy.core import Clock
@@ -100,11 +100,11 @@ class TobiiController:
         self.dcorrstim=visual.ImageStim(self.win,
             image=Settings.dcorrStimPath,size=(200,200),units='pix')
         # lets start, initialize, find and activate the eyetracker
-        tobii.sdk.init()
-        self.clock = tobii.sdk.time.clock.Clock()
-        self.mainloop_thread = tobii.sdk.mainloop.MainloopThread()
+        tobii.eye_tracking_io.init()
+        self.clock = tobii.eye_tracking_io.time.clock.Clock()
+        self.mainloop_thread = tobii.eye_tracking_io.mainloop.MainloopThread()
         self.mainloop_thread.start()
-        self.browser = tobii.sdk.browsing.EyetrackerBrowser(self.mainloop_thread, 
+        self.browser = tobii.eye_tracking_io.browsing.EyetrackerBrowser(self.mainloop_thread, 
             self.on_eyetracker_browser_event)
         while not self.etstatus==ETSTATUS.FOUND:
             time.sleep(0.01)
@@ -119,7 +119,7 @@ class TobiiController:
     def on_eyetracker_browser_event(self, event_type, event_name, eyetracker_info):
         # When a new eyetracker is found we add it to the treeview and to the 
         # internal list of eyetracker_info objects
-        if event_type == tobii.sdk.browsing.EyetrackerBrowser.FOUND:
+        if event_type == tobii.eye_tracking_io.browsing.EyetrackerBrowser.FOUND:
             self.etstatus=ETSTATUS.FOUND
             self.eyetrackers[eyetracker_info.product_id] = eyetracker_info
             return False
@@ -129,7 +129,7 @@ class TobiiController:
         if len(self.eyetrackers)==0: self.etstatus=ETSTATUS.OFF
         
         # ...and add it again if it is an update message
-        if event_type == tobii.sdk.browsing.EyetrackerBrowser.UPDATED:
+        if event_type == tobii.eye_tracking_io.browsing.EyetrackerBrowser.UPDATED:
             self.eyetrackers[eyetracker_info.product_id] = eyetracker_info
         return False
         
@@ -145,12 +145,12 @@ class TobiiController:
     def activate(self,eyetracker):
         eyetracker_info = self.eyetrackers[eyetracker]
         print "Connecting to:", eyetracker_info
-        tobii.sdk.eyetracker.Eyetracker.create_async(self.mainloop_thread,
+        tobii.eye_tracking_io.eyetracker.Eyetracker.create_async(self.mainloop_thread,
             eyetracker_info,lambda a,b: self.on_eyetracker_created(a,b,eyetracker_info))
         
         while not self.etstatus==ETSTATUS.CREATED:
             time.sleep(0.01)
-        self.syncmanager = tobii.sdk.time.sync.SyncManager(self.clock,eyetracker_info,self.mainloop_thread)
+        self.syncmanager = tobii.eye_tracking_io.time.sync.SyncManager(self.clock,eyetracker_info,self.mainloop_thread)
         
     def on_eyetracker_created(self, error, eyetracker, eyetracker_info):
         if error:
@@ -268,7 +268,7 @@ class TobiiController:
     def initSetupGraphics(self):
         # we need to obtain the head movement box data
         self.hmb=None
-        self.eyetracker.GetHeadMovementBox(self.onHeadMovementBox)
+        self.eyetracker.GetTrackBox(self.onHeadMovementBox)
         while self.hmb==None: time.sleep(0.01)
         hmbStim=[]
         offset=self.offset=0.5 # in norm display units [-1,1]
@@ -466,11 +466,11 @@ class TobiiController:
                         self.datafile.write('Point, x=%.4f, y=%.4f\t'%(p.x,p.y))
                         self.datafile.write('Left '+str(d['left'])+'\t')
                         self.datafile.write('Right '+str(d['right'])+'\n')
-                        if d['left'].validity == 1:
+                        if d['left'].status == 1:
                             stimuli.append(visual.Line(self.win2,lineColor='red',
                                 start= (2*p.x-1,1-2*p.y), units='norm',
                                 end= (d['left'].map_point.x*2-1,1- d['left'].map_point.y*2)))
-                        if d['right'].validity == 1:
+                        if d['right'].status == 1:
                             stimuli.append(visual.Line(self.win2,lineColor='green',
                                 start= (2*p.x-1,1-2*p.y), units='norm',
                                 end= (d['right'].map_point.x*2-1,1- d['right'].map_point.y*2)))
@@ -532,7 +532,7 @@ class TobiiController:
             self.etstatus=ETSTATUS.CALFAILED
             return False
         else:
-            print ""
+            print "CalibCompute Success"
             self.etstatus=ETSTATUS.CALSUCCEEDED
         
     def on_calib_response(self, error, calib):
