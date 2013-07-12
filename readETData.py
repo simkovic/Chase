@@ -296,8 +296,8 @@ def readTobii(vp,block,lagged=False):
                 et.fs[:,1]=interpRange(fs[:,0],fs[:,1],et.fs[:,0])
                 data.append(et)
                 t+=1;trial=[];msgs=[]
-            elif on and len(words)==6: msgs.append([float(words[0]),words[2]+' '+words[5]])
-            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0]),int(words[1]),words[2]])
+            elif on and len(words)==6: msgs.append([float(words[0])-t0[1],words[2]+' '+words[5]])
+            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0])-t0[1],int(words[1]),words[2]])
     except: f.close(); print words; raise
     f.close()
     print 'Finished Reading Data'
@@ -509,7 +509,7 @@ def eyelinkScript():
            
 
 if __name__ == '__main__':
-    #data=readTobii(150,0)
-    data=readEyelink(1,1)
-    data[1].driftCorrection()
-    data[1].extractTracking()
+    data=readTobii(150,0)
+    #data=readEyelink(1,1)
+    #data[1].driftCorrection()
+    #data[1].extractTracking()
