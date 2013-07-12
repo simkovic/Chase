@@ -32,7 +32,7 @@ def _reformat(trial,tstart,Qexp):
         trial[:,5]=-Qexp.pix2deg(trial[:,5]-ms[1])
     return trial
 
-def readEdf(vp,block):
+def readEyelink(vp,block):
     cent=(0,0)
     path = getcwd()
     path = path.rstrip('code')
@@ -40,6 +40,7 @@ def readEdf(vp,block):
         f=open(path+'eyelinkOutput/VP%03dB%d.asc'%(vp,block),'r')
     except:
         f=open(path+'eyelinkOutput/VP%03dB%d.ASC'%(vp,block),'r')
+    Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
     LBLINK=False; RBLINK=False
     ende=False
     try:
@@ -49,15 +50,11 @@ def readEdf(vp,block):
         etdat=[]
         t0=[0,0,0]
         calib=[]
-        i=0
-        t=0
-        size=7
+        i=0;t=0;size=7;fr=0;ftriggers=[]
         while True:   
             words=f.readline().split()
             i+=1            
             #if i%100==0: print i
-            #if i<200: print i, words
-            #if i>1300: break
             if len(words)>2 and words[0]=='EVENTS':
                 for w in range(len(words)):
                     if words[w]=='RATE':
@@ -73,6 +70,9 @@ def readEdf(vp,block):
                     ende=True
                     continue
                 break
+            if len(words)>2 and words[2]=='FRAME':
+                ftriggers.append([fr,float(words[1]),float(words[4])])
+                fr=int(words[3])+1
             if len(words)>2 and words[2]=='!CAL':
                 if len(words)==3: PHASE=4
                 elif words[3]=='VALIDATION' and not (words[5]=='ABORTED'):
@@ -82,22 +82,29 @@ def readEdf(vp,block):
                     else:
                         calib.append([])
                         calib[-1].append([t,float(words[9]),float(words[11]),LEFTEYE])
-           
             if len(words)>2 and words[2]=='PRETRIAL':
                 eye=words[5]
+                etdat=[];t0=[0,0,0];ftriggers=[];fr=0
+                LBLINK=False; RBLINK=False
                 PHASE=0;t0[0]=float(words[1])
             if len(words)>2 and words[2]=='START':
                 PHASE=1;t0[1]=float(words[1])
             if len(words)>2 and (words[2]=='DETECTION'):
                 PHASE=2; t0[2]= float(words[1])
+            if len(words)>2 and words[2]=='OMISSION':
+                PHASE=2; t0[2]= float(words[1])
             #if len(words)>2 and words[2]=='POSTTRIAL':
-            if len(words)>2 and (words[2]=='POSTTRIAL' or words[2]=='OMISSION'):
-                etdat = _reformat(etdat,cent,t0[0],distance)
+            if len(words)>2 and (words[2]=='POSTTRIAL' and PHASE==2):
+                etdat = _reformat(etdat,t0[0],Qexp)
+                ftriggers=np.array(ftriggers)
+                #print 'ftriggers.shape ',ftriggers.shape
+                if ftriggers.size>0: ftriggers[:,1] -= t0[1]
                 if etdat.size>0:
-                    et=ETTrialData(etdat,calib,t0,[vp,block,t,hz,eye])
+                    et=ETTrialData(etdat,calib,t0,
+                        [vp,block,t,hz,eye],fs=ftriggers)
                     data.append(et)
                 
-                etdat=[];t0=[0,0,0]
+                etdat=[];t0=[0,0,0];ftriggers=[];fr=0
                 calib=[];PHASE= -1
                 LBLINK=False; RBLINK=False
             if PHASE== -1 or PHASE==4: continue
@@ -138,6 +145,7 @@ def readEdf(vp,block):
     data= _discardInvalidTrials(data)
     return data
 
+    
 def readSMI(vp,block):
     # blinks?
     # latency during the transport of messages?
@@ -181,7 +189,6 @@ def readSMI(vp,block):
 ##                        calib[-1].append([t,float(words[9]),float(words[11]),LEFTEYE])         
             if len(words)>5 and words[5]=='FRAME':
                 ftriggers.append([fr,float(words[0])/1000.0,float(words[7])])
-
                 fr=int(words[6])+1
             if len(words)>5 and words[5]=='TRIALID':
                 eye='BOTH';t=int(words[6])
@@ -226,10 +233,6 @@ def readSMI(vp,block):
     except: f.close(); raise
     data=_discardInvalidTrials(data)
     return data
-
-
-
-
   
 def readTobii(vp,block,lagged=False):
     ''' function for reading the tobii controller outputs list of ETDataTrial instances
@@ -293,15 +296,13 @@ def readTobii(vp,block,lagged=False):
                 et.fs[:,1]=interpRange(fs[:,0],fs[:,1],et.fs[:,0])
                 data.append(et)
                 t+=1;trial=[];msgs=[]
-            elif on and len(words)==6: msgs.append([float(words[0]),words[2]+' '+words[5]])
-            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0]),int(words[1]),words[2]])
+            elif on and len(words)==6: msgs.append([float(words[0])-t0[1],words[2]+' '+words[5]])
+            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0])-t0[1],int(words[1]),words[2]])
     except: f.close(); print words; raise
     f.close()
     print 'Finished Reading Data'
     return data
-if __name__ == '__main__':
-    data=readTobii(150,0)
-    print data[0].fs.shape
+
 
 # some raw scripts
 
@@ -507,4 +508,8 @@ def eyelinkScript():
         np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
            
 
-
+if __name__ == '__main__':
+    data=readTobii(150,0)
+    #data=readEyelink(1,1)
+    #data[1].driftCorrection()
+    #data[1].extractTracking()
