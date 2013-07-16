@@ -247,10 +247,11 @@ def readTobii(vp,block,lagged=False):
     path = path.rstrip('/code')
     f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
+    
     #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     ms= Qexp.monitor.getSizePix()
     try:
-        data=[];trial=[]; theta=[];t=0;msgs=[]; t0=[0,0,0]
+        data=[];trial=[]; theta=[];t=0;msgs=[]; t0=[0,0,0];reward=[]
         on=False
         while True:
             words=f.readline()
@@ -264,6 +265,8 @@ def readTobii(vp,block,lagged=False):
                     hz=float(words[1])
             elif len(words)==4 and words[2]=='Trial':
                 t0[1]=trial[-1][0] # perturb
+            elif len(words)==4 and words[2]=='Phase':
+                phase=int(words[3])
             elif len(words)>=11 and on: # record data
                 # we check whether the data gaze position is on the screen
                 xleft=float(words[2]); yleft=float(words[3])
@@ -294,10 +297,16 @@ def readTobii(vp,block,lagged=False):
                 et.fs=np.zeros((fs[-1,0],2))
                 et.fs[:,0]=range(int(fs[-1,0]))
                 et.fs[:,1]=interpRange(fs[:,0],fs[:,1],et.fs[:,0])
+                et.extractBasicEvents(trial[:,:-1]);
+                et.phase=phase;et.reward=reward
                 data.append(et)
-                t+=1;trial=[];msgs=[]
-            elif on and len(words)==6: msgs.append([float(words[0])-t0[1],words[2]+' '+words[5]])
-            elif on and len(words)>2 and words[2]!='Phase': msgs.append([float(words[0])-t0[1],int(words[1]),words[2]])
+                t+=1;trial=[];msgs=[];reward=[]
+            elif on and len(words)==6:
+                msgs.append([float(words[0])-t0[1],words[2]+' '+words[5]]) 
+            elif on and len(words)>2:
+                msgs.append([float(words[0])-t0[1],int(words[1]),words[2]])
+                if words[2]=='Reward On': reward=[float(words[0])-t0[1]]
+                if words[2]=='Reward Off': reward.append(float(words[0])-t0[1])
     except: f.close(); print words; raise
     f.close()
     print 'Finished Reading Data'
@@ -509,7 +518,8 @@ def eyelinkScript():
            
 
 if __name__ == '__main__':
-    data=readTobii(150,0)
+    data=readTobii(153,0)
+        
     #data=readEyelink(1,1)
     #data[1].driftCorrection()
     #data[1].extractTracking()
