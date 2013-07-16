@@ -29,8 +29,10 @@ class Diagnosis:
                     print '\trejdist',rd
                     for r in range(replications):
                         print 'r', r
-                        pos,phi,crashes,bts=generateTrial(nragents[na],maze,
-                                STATISTICS=True,rejectionDistance=rejDists[rd])
+                        pos=None
+                        while pos==None:
+                            pos,phi,crashes,bts=generateTrial(nragents[na],maze,
+                                    STATISTICS=True,rejectionDistance=rejDists[rd])
                         #np.save('phi.npy',phi)
                         self.ndirchange[d,na,rd,:]+=(phi!=np.roll(phi,1,axis=0)).sum(axis=0)
                         self.ncrashes[d,na,rd,:]+=crashes
@@ -200,8 +202,8 @@ class RandomAgent():
             random.random()*self.ds[Y]-self.ds[Y]/2.0,random.random()*360))
         
     def backtrack(self):
-        self.f-=31
-        return self.f<0 or self.i>10000
+        self.f-=51#31
+        return self.f<0 or self.i>100000#10000
     def getPosition(self,dec=0):
         return self.traj[self.f+dec,[X,Y]]
     def getTrajectory(self):
@@ -291,8 +293,9 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
             deadend=chaser.backtrack()
             chasee.backtrack()
             if deadend:
-                #print 'dead end', chasee.f
-                return generateTrial(nragents,maze,rejectionDistance,STATISTICS)
+                print 'dead end', chasee.f
+                if STATISTICS: return None, None, None, None
+                else: return None
             (dx,dy)=chasee.getPosition() - chaser.getPosition()
         # move chaser and avoid walls
         chaser.move((dx,dy))
@@ -361,9 +364,11 @@ def generateExperiment(vpn,nrtrials,conditions=None,dispSizes=None,maze=None,rej
         os.chdir(vpname)
         order=np.random.permutation(conditions.size)
         for trial in range(conditions.size):
-            trajectories=generateTrial(conditions[order[trial]],
-                maze=mazes[order[trial]],
-                rejectionDistance=rejectionDistance)
+            trajectories=None
+            while trajctories ==None:
+                trajectories=generateTrial(conditions[order[trial]],
+                    maze=mazes[order[trial]],
+                    rejectionDistance=rejectionDistance)
             #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
             fn = 'trial%03d' % trial
             print fn
@@ -391,8 +396,10 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
             for trial in range(nrtrials):
                 if trial >= nrtrials*0.9: rd=0.0
                 else: rd=3.0
-                trajectories=generateTrial(condition, 
-                    maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=rd)
+                trajectories=None
+                while trajctories ==None:
+                    trajectories=generateTrial(condition, 
+                        maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=rd)
                 #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
                 #fn = 'trial%03d' % trial
                 fn='%sb%dtrial%03d'% (vpname,block,trial)
@@ -432,8 +439,10 @@ def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],
                     if condition==conditions[0]: 
                         if np.random.rand()>0.5: r.extend([trial, trial+nrtrials])
                         else: r.extend([trial+nrtrials,trial])
-                    trajectories=generateTrial(condition, 
-                        maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=0)
+                    trajectories=None
+                    while trajectories ==None:
+                        trajectories=generateTrial(condition, 
+                            maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=3.0)
                     #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
                     #fn = 'trial%03d' % trial
                     trajectories=trajectories[(Q.refreshRate*5):]
@@ -551,7 +560,7 @@ if __name__ == '__main__':
     #random.seed(3)
     maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    generateMixedExperiment([84],40,blocks=1,condition=14,dispSize=26,probeTrials=True)
+    #generateMixedExperiment([84],40,blocks=1,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
@@ -564,7 +573,7 @@ if __name__ == '__main__':
     #generateExperiment([92],2,[6],[22])
     #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
     
-    #generateBabyExperiment([129])
+    generateBabyExperiment([201])
     
     #t=generateShortTrial(maze)
     #print t.shape
