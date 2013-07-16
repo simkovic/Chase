@@ -109,7 +109,7 @@ class Trajectory():
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
-                if playing: self.f+=1
+                if playing: self.f+=2
             self.wind.flip()
             #print core.getTime() - t0
             self.wind.close()
@@ -144,11 +144,7 @@ class GazePoint(Trajectory):
         except:
             self.wind.close()
             raise
-    
-    
 
-        
-        
 class ETReplay(Trajectory):
     def __init__(self,gazeData,**kwargs):
         wind = kwargs.get('wind',None)
@@ -256,10 +252,15 @@ class ETReplay(Trajectory):
         self.tmsg.setText('Time %d:%02d:%06.3f' % (rct.hour,
                 rct.minute+ (rct.second+int(self.t[self.f]/1000.0))/60,
                 np.mod(rct.second+ self.t[self.f]/1000.0,60)))
+        for m in self.gazeData.msgs:
+            if m[0]>self.t[self.f] and m[0]<self.t[self.f]+100:
+                m.append(True)
+                self.msg.setText(m[2])
+                self.msg.draw()
         self.frame.draw()
         self.tmsg.draw()
         Trajectory.showFrame(self,positions)
-    #def highlightedAgents(self): return self.gazeData.getAgent(self.t[self.f])
+    def highlightedAgents(self): return self.gazeData.getAgent(self.t[self.f])
     
 class Coder(ETReplay):
     def showFrame(self,positions):
@@ -477,9 +478,7 @@ if __name__ == '__main__':
 
             
     from readETData import readTobii
-    data=readTobii(150,0)
-    trl=data[3]
-    trl.loadTrajectories()
-
-    R=ETReplay(gazeData=trl,phase=1,eyes=2)
-    R.play(tlag=0)
+    data=readTobii(172,0)
+    for trl in data:
+        R=ETReplay(gazeData=trl,phase=1,eyes=1)
+        R.play(tlag=0)
