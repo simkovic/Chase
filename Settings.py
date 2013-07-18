@@ -16,7 +16,8 @@ class Settings():
         self.agentSize=agentSize
         self.phiRange=phiRange
         self.pDirChange=[pDirChange[CHASEE]/self.refreshRate,
-                         pDirChange[CHASER]/self.refreshRate]
+                         pDirChange[CHASER]/self.refreshRate,
+                         pDirChange[DISTRACTOR]/self.refreshRate]
         self.initDistCC=initDistCC
         self.bckgCLR=bckgCLR
         self.agentCLR=agentCLR
@@ -72,7 +73,7 @@ laptop={'monitor' :     dell,
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],          # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4,4.8],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -89,7 +90,7 @@ eyelinklab ={'monitor' :sonycrt,
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],          # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4,4.8],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -106,7 +107,7 @@ smilab ={'monitor' :     smidell,
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],  # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4,4.8],  # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -118,11 +119,11 @@ smilab ={'monitor' :     smidell,
         'fullscr':      True}
 tobiilab ={'monitor' :  t60,
         'refreshRate':  75,                # [hz]
-        'os':           WINDOWS,            # Linux or Windows
+        'os':           LINUX,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.4],          # avg number of direction changes per second
+        'pDirChange':   [5.8,6.2,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]

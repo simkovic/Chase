@@ -22,7 +22,7 @@ class Diagnosis:
         self.nndists=np.zeros((len(dispSizes),len(nragents),len(rejDists),3))
         edges=range(0,370,10)
         for d in range(len(dispSizes)):
-            maze=EmptyMaze(1,dispSize=dispSizes[d])
+            maze=EmptyMaze((1,1),dispSize=(dispSizes[d],dispSizes[d]))
             print 'disp',d
             for na in range(len(nragents)):
                 for rd in range(len(rejDists)):
@@ -42,7 +42,7 @@ class Diagnosis:
                         self.dists[d,na,rd,2]+=dist(pos[:,2,:],pos[:,1,:]).mean()
                         self.dists[d,na,rd,3]+=dist(pos[:,2,:],pos[:,3,:]).mean()
                         for a1 in range(3):
-                            mindist=np.inf*np.ones((nrframes))
+                            mindist=np.inf*np.ones((Q.nrframes))
                             for a2 in range(nragents[na]):
                                 if a1!=a2:
                                     aadist=dist(pos[:,a1,:],pos[:,a2,:])
@@ -59,15 +59,15 @@ class Diagnosis:
                             df[df>180]=360-df[df>180]
                             self.adirs[d,na,rd,a1,:]+= np.histogram(df,bins=edges)[0]
         # nr dir changes per second
-        self.ndirchange=self.ndirchange/float(replications)/float(trialDur)
+        self.ndirchange=self.ndirchange/float(replications)/float(Q.trialDur)
         # nr crashes per second
-        self.ncrashes=self.ncrashes/float(replications)/float(trialDur)
+        self.ncrashes=self.ncrashes/float(replications)/float(Q.trialDur)
         # nr backtracks per trial
         self.nbacktracks=self.nbacktracks/float(replications)
         # average distance during a trial
         self.dists=self.dists/float(replications)
-        self.adens=self.adens/float(replications)/float(nrframes)
-        self.acrashes= self.acrashes/float(replications)/float(trialDur)
+        self.adens=self.adens/float(replications)/float(Q.nrframes)
+        self.acrashes= self.acrashes/float(replications)/float(Q.trialDur)
     def plot(self):
         plt.close('all')
         print self.rejDists
@@ -274,7 +274,7 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
     # init distractors
     for d in range(nragents-2):
         distractor=RandomAgent(Q.nrframes,maze.dispSize,
-            Q.pDirChange[CHASEE],Q.aSpeed,Q.phiRange[CHASEE])
+            Q.pDirChange[DISTRACTOR],Q.aSpeed,Q.phiRange[CHASEE])
         agents.append(distractor)
     # check for wall collisions
     for a in range(nragents):
@@ -556,9 +556,9 @@ def exportSvmGao09(nrtrials=10000):
 
 if __name__ == '__main__':
     
-    d=28
+    #d=28
     #random.seed(3)
-    maze=EmptyMaze((1,1),dispSize=(32,24))
+    #maze=EmptyMaze((1,1),dispSize=(32,24))
     
     #generateMixedExperiment([84],40,blocks=1,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
@@ -571,19 +571,21 @@ if __name__ == '__main__':
     #generateExperiment([0],1,conditions=[8,11,14,17,20],
     #                   dispSizes=[18,22,26,29,32],rejectionDistance=3.0)
     #generateExperiment([92],2,[6],[22])
-    #d=Diagnosis(replications=1,nragents=[8],dispSizes=[18], rejDists=[0.0])
-    
-    generateBabyExperiment([201])
+        
+    #generateBabyExperiment([201])
     
     #t=generateShortTrial(maze)
     #print t.shape
     #np.save('t.npy',t)
     #exportSvmGao09()
     #generateGao09e1([23])
-    
-##    f=open('diag2.pkl')
+    d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3])
+    f=open('diagBaby3.pkl','w')
+    pickle.dump(d,f)
+    f.close()
+##    f=open('diagBaby.pkl')
 ##    diag=pickle.load(f)
 ##    f.close()
-##    diag.plotDirs()
+##    diag.plot()
     
     
