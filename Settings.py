@@ -1,5 +1,5 @@
 from psychopy import visual,monitors
-from psychopy.misc import pix2deg
+from psychopy.misc import pix2deg,deg2pix
 from Constants import *
 from os import getcwd
 import pickle
@@ -51,6 +51,8 @@ class Settings():
         return pix2deg(xy,self.monitor)
     def pix2deg(self,pix):
         return pix2deg(pix,self.monitor)
+    def deg2pix(self,deg):
+        return deg2pix(deg,self.monitor)
     def save(self,filepath):
         f=open(filepath,'wb')
         try: pickle.dump(self,f);f.close()
@@ -119,11 +121,11 @@ smilab ={'monitor' :     smidell,
         'fullscr':      True}
 tobiilab ={'monitor' :  t60,
         'refreshRate':  75,                # [hz]
-        'os':           LINUX,            # Linux or Windows
+        'os':           WINDOWS,            # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [5.8,6.2,5.4],          # avg number of direction changes per second
+        'pDirChange':   [5.4,5.4,5.4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -135,7 +137,7 @@ tobiilab ={'monitor' :  t60,
         'fullscr':      False}
 
 
-Q=Settings(**tobiilab)
+Q=Settings(**laptop)
 #Q2=Settings(**smilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
 #print fpath

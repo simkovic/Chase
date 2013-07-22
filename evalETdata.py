@@ -3,7 +3,8 @@ import pylab as plt
 import matplotlib as mpl
 from Settings import *
 from Constants import *
-from EvalSettingsBaby import *
+#from EvalSettingsBaby import *
+from EvalSettingsAdult import *
 from psychopy import core,event,visual
 from scipy import signal
 from scipy.interpolate import interp1d
@@ -240,6 +241,12 @@ def computeSaccades(tser,vel,acc,hz):
     isFix=np.logical_or(np.isnan(vel),
         np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
     discard, b = computeState(np.logical_or(vel>SACVTH,np.abs(acc)>SACATH),[SACMINDUR*hz,np.inf])
+    #compute info statistics: length, duration
+    for sac in b:
+        length=((tser[sac[0],7]-tser[sac[1],7])**2 +
+                (tser[sac[0],8]-tser[sac[1],8])**2)**0.5
+        dur=(tser[sac[1],0]-tser[sac[0],0])
+        sac.extend([length,dur])
     a,discard= computeState(isFix,[SACMINDUR*hz,np.inf])
     return a,b
 
@@ -250,38 +257,12 @@ def computeLongSaccades(tser,vel,acc,hz):
 def computeBlinks(tser,hz):
     isFix=np.isnan(tser[:,7])
     return computeState(isFix,[BLKMINDUR*hz*0,np.inf])
-        
-class ETBlockData():
-    def __init__(self,etdata):
-        self.etdata=etdata
-        self.vp=self.etdata[0].vp
-        self.block=self.etdata[0].block
-        
-    def getTrial(self,trialid):
-        return self.etdata[trialid]
-
-    def loadBehavioralData(self):
-        path = getcwd()
-        path = path.rstrip('code')
-        dat=np.loadtxt(path+'behavioralOutput/vp%03d.res'%self.vp)
-        self.behdata=dat[dat[:,1]==self.block,:]
-
-        print 'Checking consistence with behavioral data'
-        dev=np.zeros(40)
-
-        for t in range(40):
-            self.etdata[t].behdata=self.behdata[t,:]
-            a=self.behdata[t,6]*1000
-            b=self.etdata[t].gaze[1][-1,0]
-            dev[t]=abs(a-b)
-            if dev[t]>5: print '\tt=%d deviation %.3f'%(t,dev[t])
-        if np.all(dev<5): print '\tdetection times ok (abs error <5 msec)' 
-
-            
+                   
 class ETTrialData():
     def __init__(self,dat,calib,t0,info,recTime="0:0:0",fs=None,
                  INTERPBLINKS=False,fcutoff=70,focus=BINOCULAR,msgs=[]):
         self.calib=calib
+        self.gaze=dat
         self.vp=int(info[0])
         self.block=int(info[1])
         self.trial=int(info[2])
@@ -338,7 +319,6 @@ class ETTrialData():
     def loadTrajectories(self):
         path = getcwd()
         path = path.rstrip('/code')
-        print self.trial
         order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
         s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%(self.vp,self.vp,self.block,order) 
         traj=np.load(s)
@@ -403,11 +383,9 @@ class ETTrialData():
                 self.gaze[:,j]-=dif
         else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
         # recompute events
-        self.extractBasicEvents(self.gaze[:,:7])
+        self.gaze=self.gaze[:,:7]
+        self.extractBasicEvents()
         self.extractPursuitEvents()
-        
-    def extractTracking(self):
-        """ extracts high-level events - search and tracking"""
 ##        # reclassify some blinks as saccades
 ##        g=self.getGaze()
 ##        bsac=[]
@@ -416,7 +394,6 @@ class ETTrialData():
 ##            if norm(g[e,1:]-g[s-1,1:])>BLINK2SAC:
 ##                bsac.append([e-int(BLKMINDUR*self.hz), e])
 ##            if e-s>1000: print 't= %d, LONG SEQ OF MISSING DATA'% self.trial
-
         # merge events into single stream
         self.events=[]
         ind=[0,0,0,0,0]
@@ -428,6 +405,27 @@ class ETTrialData():
                     ev=copy(d[k][ind[k]]);
                     ev.append(k);ind[k]+=1;
                     self.events.append(ev)
+                    
+    def extractSearch(self):
+        # build search events
+        from copy import copy
+        self.search=[]
+        for k in range(0,len(self.events)-1):
+            if (self.events[k+1][-1] in [FIX,OLPUR,CLPUR] and
+                self.events[k][-1] in [SAC]):
+                tracked=False
+                for tr in self.track:
+                    if (tr[0]<=self.events[k][0] and tr[1]>=self.events[k][1] or 
+                        tr[0]<=self.events[k+1][0] and tr[1]>=self.events[k+1][1]):
+                        tracked=True
+                if not tracked:
+                    temp=copy(self.events[k][:-1])
+                    temp.extend([self.events[k+1][-1]])
+                    self.search.append(temp)
+                
+        
+    def extractComplexEvents(self):
+        """ extracts high-level events -  search,tracking"""
         # build high-level events
         hev=[]
         A=[]; lastA=[]
@@ -496,7 +494,21 @@ class ETTrialData():
                         self.track[i-1][1],self.events))
                     self.track.pop(i)
             else: i+=1
-            
+        self.extractSearch()
+    def importComplexEvents(self,coderid=1):
+        from ReplayData import Coder
+        try:
+            dat=Coder.loadSelection(self.vp,self.block,self.trial,prefix='track/coder%d/'%coderid)
+            self.track=[]
+            for tr in dat:
+                self.track.append([tr[2],tr[5],tr[-2]])
+            self.extractSearch()
+        except IOError:
+            self.track=None;self.search=None # avoid unknown attribute error
+            print 'coding file not available'
+        
+        
+        
     def computeTrackedAgents(self):
         for tr in self.track:
             if len(tr)==2:tr.append(selectAgentTRACKING(tr[0],tr[1],self.events))
@@ -587,12 +599,12 @@ class ETTrialData():
                 out.append(temp)
         return out
         
-    def extractBasicEvents(self,dat):
+    def extractBasicEvents(self):
         """ extract and filter gaze location,
             compute velocity, acceleration
             and find fixations
         """
-        
+        dat=self.gaze
         # add two columns with binocular gaze point
         if self.focus==BINOCULAR:
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
@@ -654,6 +666,7 @@ class ETTrialData():
             s=self.opev[i][0];e=self.opev[i][1]-1
             a=selectAgentOL(self.dist[s:e,:])
             self.opev[i].extend(a)
+        
     
     @staticmethod
     def resample(g,hz):
@@ -810,3 +823,30 @@ def plotMD():
         plt.show()
         plt.savefig(os.getcwd()+'/pic/missingdata/fb%02d'%(d.block))
             
+##class ETBlockData():
+##    def __init__(self,etdata):
+##        self.etdata=etdata
+##        self.vp=self.etdata[0].vp
+##        self.block=self.etdata[0].block
+##        
+##    def getTrial(self,trialid):
+##        return self.etdata[trialid]
+##
+##    def loadBehavioralData(self):
+##        path = getcwd()
+##        path = path.rstrip('code')
+##        dat=np.loadtxt(path+'behavioralOutput/vp%03d.res'%self.vp)
+##        self.behdata=dat[dat[:,1]==self.block,:]
+##
+##        print 'Checking consistence with behavioral data'
+##        dev=np.zeros(40)
+##
+##        for t in range(40):
+##            self.etdata[t].behdata=self.behdata[t,:]
+##            a=self.behdata[t,6]*1000
+##            b=self.etdata[t].gaze[1][-1,0]
+##            dev[t]=abs(a-b)
+##            if dev[t]>5: print '\tt=%d deviation %.3f'%(t,dev[t])
+##        if np.all(dev<5): print '\tdetection times ok (abs error <5 msec)' 
+##
+## 

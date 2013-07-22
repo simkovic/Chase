@@ -1,4 +1,4 @@
-from Settings import *
+from Settings import Q
 from Constants import *
 from psychopy import visual, core, event,gui
 from psychopy.misc import pix2deg
@@ -153,7 +153,7 @@ class ETReplay(Trajectory):
         self.gazeData=gazeData
         self.mouse = event.Mouse(True,None,self.wind)
         try:
-            indic=['Velocity','Acceleration','Saccade','Fixation']#,'OL Pursuit','CL Pursuit','HEV','Tracking']
+            indic=['Velocity','Acceleration','Saccade','Fixation','OL Pursuit','CL Pursuit','HEV','Tracking']
             self.lim=([0,450],[-42000,42000],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1])# limit of y axis
             self.span=(0.9,0.9,0.6,0.6,0.6,0.6,0.6,0.6)# height of the window taken by graph
             self.offset=(0.1,0.1,0.2,0.2,0.2,0.2,0.2,0.2)
@@ -178,12 +178,13 @@ class ETReplay(Trajectory):
                 ]
             self.seltoolrect=frame[6]
             self.graphs=[]
-            self.sacrects=[]
-            for i in range(15): self.sacrects.append(visual.Rect(self.wind,
-                height=self.spar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
             self.selrects=[]
             for i in range(15): self.selrects.append(visual.Rect(self.wind,
                 height=self.spar[2],width=1,fillColor='red',opacity=0.5,lineColor='red'))
+            self.sacrects=[]
+            for i in range(15): self.sacrects.append(visual.Rect(self.wind,
+                height=self.spar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
+            
             for f in range(len(indic)):      
                 frame.append(visual.Line(self.wind,(ga[0],ga[3]-(f+1)*inc),
                     (ga[1],ga[3]-(f+1)*inc),lineWidth=4.0))
@@ -252,11 +253,11 @@ class ETReplay(Trajectory):
         self.tmsg.setText('Time %d:%02d:%06.3f' % (rct.hour,
                 rct.minute+ (rct.second+int(self.t[self.f]/1000.0))/60,
                 np.mod(rct.second+ self.t[self.f]/1000.0,60)))
-        for m in self.gazeData.msgs:
-            if m[0]>self.t[self.f] and m[0]<self.t[self.f]+100:
-                m.append(True)
-                self.msg.setText(m[2])
-                self.msg.draw()
+#        for m in self.gazeData.msgs:
+#            if m[0]>self.t[self.f] and m[0]<self.t[self.f]+100:
+#                m.append(True)
+#                self.msg.setText(m[2])
+#                self.msg.draw()
         self.frame.draw()
         self.tmsg.draw()
         Trajectory.showFrame(self,positions)
@@ -265,9 +266,10 @@ class ETReplay(Trajectory):
 class Coder(ETReplay):
     def showFrame(self,positions):
         # draw saccades and blinks in the selection tool
-        sws=np.float(self.sws); i=0; 
+        sws=np.float(self.sws); 
         s=max(self.f-sws/2.0,0);
         e= min(self.f+sws/2.0,self.gData[0].shape[0]-1)
+        i=0; 
         for k in range(len(self.sev)):
             sac=self.sev[k]
             if (sac[1]<=e and sac[1]>=s) or (sac[0]<=e and sac[0]>=s):
@@ -281,24 +283,23 @@ class Coder(ETReplay):
         while i<len(self.sacrects):
             self.sacrects[i].setAutoDraw(False);
             self.sacrects[i].ad=-1;i+=1;
-            
-        i=0;h=-1;clrs=['red','green','black']
         # draw selected blocks
-        tot=float(len(self.selected))
+        i=0;h=-1;clrs=['red','green','black'];
+        tot=float(len(self.selected)); offset=np.linspace(-0.5,0.5,tot+1)[:-1]+0.5/tot
         for selection in self.selected:
             h+=1
             for k in range(len(selection)):
                 sel= selection[k]
                 trigger=False
                 if len(sel)==3 and self.t[int(s)]<=sel[0] and self.t[int(e)]>=sel[0] :
-                    self.selrects[i].setPos(((sel[1]-self.f)/sws*self.ga[1]*2,self.spar[1]+(h-1)*self.spar[2]/tot))
+                    self.selrects[i].setPos(((sel[1]-self.f)/sws*self.ga[1]*2,self.spar[1]+offset[h]*self.spar[2]))
                     self.selrects[i].setWidth(1);trigger=True
                 elif (len(sel)>=6 and( self.t[int(s)]<=sel[3] and self.t[int(e)]>=sel[3]
                     or self.t[int(s)]<=sel[0] and self.t[int(e)]>=sel[0]
                     or self.t[int(s)]>=sel[0] and self.t[int(e)]<=sel[3])):
                     ss=(max(sel[1],s)-self.f)/sws*self.ga[1]*2
                     ee= (min(sel[4],e)-self.f)/sws*self.ga[1]*2
-                    self.selrects[i].setPos(((ee-ss)/2.0 + ss,self.spar[1]+(h-1)*self.spar[2]/tot))
+                    self.selrects[i].setPos(((ee-ss)/2.0 + ss,self.spar[1]+offset[h]*self.spar[2]))
                     self.selrects[i].setWidth(ee-ss);trigger=True
                 if trigger:
                     self.selrects[i].ad=k;self.selrects[i].h=h
@@ -307,6 +308,7 @@ class Coder(ETReplay):
         while i<len(self.selrects):
             self.selrects[i].setAutoDraw(False);
             self.selrects[i].ad=-1;i+=1;
+
         ETReplay.showFrame(self,positions)
         # query mouse
         mkey=self.mouse.getPressed();select=False
@@ -369,11 +371,9 @@ class Coder(ETReplay):
             if len(sel)>3 and sel[1]<=self.f and sel[4]>=self.f:
                 if a in sel[6]: sel[6].remove(a)
                 else: sel[6].append(a)
-        
-    def loadSelection(self,path=None):
-        if path==None: path='track/'
-        fin = open(path+'vp%03db%dtr%02d.trc'%(self.gazeData.vp,
-                self.gazeData.block,self.gazeData.trial),'r')
+    @staticmethod
+    def loadSelection(vp,block,trial,prefix='track/'):
+        fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
         out=[]
         for line in fin:
             line=line.rstrip('\n')
@@ -383,6 +383,8 @@ class Coder(ETReplay):
             out[-1].append(els[6:-1])
             out[-1].append(els[-1])
         return out
+        
+        
     def saveSelection(self,path=None):
         """ take care that refreshrate settings remain the
             same when saving and loading """
@@ -405,18 +407,18 @@ class Master(Coder):
         vp=gazeData.vp; block=gazeData.block;t=gazeData.trial
         for i in range(1,10):
             try:
-                self.selected.append(self.loadSelection( 'track/coder%d/'%i))
+                self.selected.append(Coder.loadSelection(self.gazeData.vp,
+                    self.gazeData.block,self.gazeData.trial,prefix= 'track/coder%d/'%i))
             except: 
                 break
-        print self.selected
         for rect in self.selrects:
-            rect.setHeight(self.spar[2]/3.0 )
+            rect.setHeight(self.spar[2]/float(len(self.selected)))
 
 def replayTrial(vp,block,trial):
     from readETData import readEyelink
     data=readEyelink(vp,block)
     trl=data[trial]
-    trl.loadTrajectories()
+    trl.extractBasicEvents()
     trl.driftCorrection()
     trl.extractTracking()
     R=Coder(gazeData=trl,phase=1,eyes=1)
@@ -427,18 +429,18 @@ def replayBlock(vp,block,trialStart):
     data=readEyelink(vp,block)
     for trial in range(trialStart,len(data)):
         trl=data[trial]
-        trl.loadTrajectories()
+        trl.extractBasicEvents()
         trl.driftCorrection()
         trl.extractTracking()
-        R=Master(gazeData=trl,phase=1,eyes=1)
+        R=Coder(gazeData=trl,phase=1,eyes=1)
         R.play(tlag=0)
-        
+# coding verification routines       
 def codingComparison(vp=1,block=2):
     from readETData import readEyelink
     data=readEyelink(vp,block)
     for trial in range(20):
         trl=data[trial]
-        trl.loadTrajectories()
+        trl.extractBasicEvents()
         trl.driftCorrection()
         trl.extractTracking()
         R=Coder(gazeData=trl,phase=1,eyes=1)
@@ -461,8 +463,48 @@ def codingComparison(vp=1,block=2):
     plt.xlim([0,30000])
     plt.ylim([0,20])
     plt.show()
+
+def compareETnBehData():
+    path = getcwd()
+    path = path.rstrip('code')
+
+    vp=1
+    behdata=np.loadtxt(path+'behavioralOutput/vp%03d.res'%vp)
+    for k in range(behdata.shape[0]):
+        b=int(behdata[k,1])
+        t=int(behdata[k,2])
+        try:      
+            dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
+            maxx=0;ags=[]
+            for d in dat:
+                if d[0]>maxx:
+                    maxx=d[0]
+                    ags=d[-2]
+            if behdata[k,4]==1:
+                if not (int(behdata[k,-3]) in ags and int(behdata[k,-5]) in ags):
+                    print vp,b,t,'inconsistent selection', ags, int(behdata[k,-3]),int(behdata[k,-5]) 
+        except IOError:
+            print vp,b,t,'tracking file not available'
+            pass
+def findOverlappingTrackingEvents():
+    vp=1
+    for b in range(30):
+        for t in range(40):
+            try:      
+                dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
+                for i in range(len(dat)):
+                    if dat[i][0]> dat[i][3]: print 'should never happen'
+                    for j in range(i+1,len(dat)):
+                        if not ((dat[i][0]>dat[j][3] and dat[i][3]>dat[j][3])
+                            or (dat[i][3]<dat[j][3] and dat[i][3]<dat[j][0])):
+                            print vp,b,t,'overlap',i,j
+                
+            except IOError:
+                pass
+            
 if __name__ == '__main__':
-    #replayBlock(1,5,31)
+    replayTrial(1,1,1)
+
     #codingComparison()
 #    from readETData import readEyelink
 #    vp=1;block=5
@@ -477,8 +519,8 @@ if __name__ == '__main__':
 #    R.play()
 
             
-    from readETData import readTobii
-    data=readTobii(172,0)
-    for trl in data:
-        R=ETReplay(gazeData=trl,phase=1,eyes=1)
-        R.play(tlag=0)
+#    from readETData import readTobii
+#    data=readTobii(172,0)
+#    for trl in data:
+#        R=ETReplay(gazeData=trl,phase=1,eyes=1)
+#        R.play(tlag=0)

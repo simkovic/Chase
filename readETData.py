@@ -102,6 +102,7 @@ def readEyelink(vp,block):
                 if etdat.size>0:
                     et=ETTrialData(etdat,calib,t0,
                         [vp,block,t,hz,eye],fs=ftriggers)
+                    #et.extractBasicEvents(etdat)
                     data.append(et)
                 
                 etdat=[];t0=[0,0,0];ftriggers=[];fr=0
@@ -474,51 +475,56 @@ def checkEyelinkDatasets():
                     print '    ok', vp, block, len(data)
             except:
                 print 'missing ', vp, block
-def eyelinkScript():
-    path='/home/matus/Desktop/pylink/evaluation/sacTargets/'
-    for b in range(0,25):
-        data=readEdf(18,b)
+def saveSearchData():
+    vp=1
+    path='/home/matus/Desktop/pylink/evaluation/searchTargets/'
+    for b in range(1,22):
+        data=readEyelink(vp,b)
         sactot=0
         #evs=[]
         for i in range(len(data)):
             if data[i].ts>=0:
-                print i
+                print 'block ',b,'trial',i
+                data[i].extractBasicEvents()
                 data[i].driftCorrection()
-                for ev in data[i].sev: sactot+=1# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
-                #data[i].extractTracking()
-                #data[i].exportEvents()
-                #data[i].plotEvents()
-                #data[i].exportTracking()
-                #evs.extend(data[i].track)
-                #data[i].plotTracking()
-        
-        sevall=[]
-        D=np.zeros((sactot,200,15,2))*np.nan
-        k=0
+                data[i].importComplexEvents()
+                try:sactot+=len(data[i].search)# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
+                except: pass
         print 'sactot=',sactot
-        
+        sevall=[]
+        fws=100 # size of the time window in frames
+        D=np.zeros((sactot,150,15,2))*np.nan
+        k=0
         for i in range(len(data)):
             if data[i].ts>=0:
                 g=data[i].getGaze()
-                for ev in data[i].sev:
-                    si=max(ev[0]-100,0)
-                    ei=min(ev[0]+100,data[i].traj.shape[0]-1)
-                    ssi= si-ev[0]+100
-                    eei= 100+ei -ev[0]
-                    #print si,ei,ssi, eei
-                    D[k,ssi:eei,:14,:]=data[i].traj[si:ei,:,:]
-                    D[k,ssi:eei,-1,:]=g[si:ei,[7,8]]
+                try:
+                    data[i].search
+                except AttributeError: continue
+                for ev in data[i].search:
+                    sf=ev[0]-100
+                    ef=ev[0]+50
+                    if sf<0 or ef >= g.shape[0]:
+                        print 'warning',b,i
+                        continue
+                    D[k,:,:14,:]=data[i].traj[sf:ef,:,:2]
+                    D[k,:,-1,:]=g[sf:ef,[7,8]]
                     k+=1
-                    sevall.append([[ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8]],
-                                    [ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8]]])
-                    #if ev[0]-50<0 or ev[0]+50>=data[i].traj.shape[0]:stop
-                    #else: print 'warn ', i
+                    sevall.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
+                        ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],
+                        ev[2],ev[3],ev[4],i])
+                    
         np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
         np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
            
 
-if __name__ == '__main__':
-    data=readTobii(153,0)
+##if __name__ == '__main__':
+##    data=readEyelink(1,1)
+##    data[1].extractBasicEvents()
+##    data[1].driftCorrection()
+##    data[1].importTrackingFromCoder()
+##    print data[1].sev
+##    print data[1].search
         
     #data=readEyelink(1,1)
     #data[1].driftCorrection()

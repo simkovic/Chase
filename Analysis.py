@@ -2,66 +2,67 @@ import numpy as np
 import pylab as plt
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
-
-path='/home/matus/Desktop/pylink/evaluation/sacTargets/'
-
-def sacInfo(bs):
+plt.ion()
+path='/home/matus/Desktop/pylink/evaluation/searchTargets/'
+vp=1
+bs=range(1,22)
+def plotSearchInfo(plot=True):
     D=[]
     for b in bs:
-        D.append(np.load(path+'SIvp018b%d.npy'%b))
+        D.append(np.load(path+'SIvp%03db%d.npy'%(vp,b)))
     D=np.concatenate(D,axis=0)
-##    plt.close('all')
-##    plt.plot(D[:,1,2],D[:,1,3],'.k')
-##    ax=plt.gca()
-##    ax.set_aspect(1)
-##    plt.show()
-##
-##    plt.figure()
-##    plt.plot(D[:,0,2],D[:,0,3],'.k')
-##    ax=plt.gca()
-##    ax.set_aspect(1)
-##    plt.show()
-##
-##    plt.figure()
-##    reloc=np.sqrt(np.sum(np.power(D[:,1,[2,3]]-D[:,0,[2,3]],2),axis=1))
-##    plt.hist(reloc,50)
-##
-##    plt.figure()
-##    dur = D[:,1,1]-D[:,0,1]
-##    plt.hist(dur,50)
-##
-##    plt.figure()
-##    vel=reloc/dur
-##    plt.hist(vel[~np.isnan(vel)]*1000,50)
+    if plot:
+        plt.close('all')
+        plt.plot(D[:,6],D[:,7],'.k')
+        plt.title('Target positions')
+        ax=plt.gca()
+        ax.set_aspect(1)
+
+        plt.figure()
+        plt.plot(D[:,2],D[:,3],'.k')
+        plt.title('Disengagement positions')
+        ax=plt.gca()
+        ax.set_aspect(1)
+
+        plt.figure()
+        reloc=np.sqrt(np.sum(np.power(D[:,[6,7]]-D[:,[2,3]],2),axis=1))
+        plt.title('Distance')
+        plt.hist(reloc,50)
+
+        plt.figure()
+        dur = D[:,5]-D[:,1]
+        plt.hist(dur,50)
+        plt.title('Duration')
+
+        plt.figure()
+        vel=reloc/dur
+        plt.hist(vel[~np.isnan(vel)]*1000,50)
+    plt.title('Velocity')
     return D
-def computeD():
-    bs=range(3,25)
-    bs.remove(22)
-    bs.remove(23)
-    plt.ion()
-    #plt.set_cmap('hot')
-    si=sacInfo(bs)
+def loadData():
+    si=plotSearchInfo(plot=False)
     D=[]
     for b in bs:
-        D.append(np.load(path+'vp018b%d.npy'%b))
+        D.append(np.load(path+'vp%03db%d.npy'%(vp,b)))
     D=np.concatenate(D,axis=0)
-    sel=np.sqrt(np.power(si[:,1,2:]-si[:,0,2:],2).sum(axis=1))>5
+    
+    sel=np.logical_not(np.all(np.all(np.all(np.isnan(D[:,:14]),3),2),1))
     D=D[sel,:,:,:]
-    si=si[sel,:,:]
-    return D,si
-def computeE():
-    D,si=computeD()
-    #D=D[:D.shape[0]/2,:,:,:]
+    print D.shape, si.shape
+    sel=si[:,8]>0
+    D=D[sel,:,:,:]
+    si=si[sel,:]
+
     E=D[:,:,:14,:]
     r=np.random.permutation(D.shape[0])
     for a in range(14):
         for f in range(D.shape[1]):
-            E[:,f,a,0]-= si[r,1,2]
-            E[:,f,a,1]-= si[r,1,3]
-    E=E[:,range(0,200,5),:,:]
-    return E
+            E[:,f,a,0]-= si[:,6]
+            E[:,f,a,1]-= si[:,7]
+    #E=E[:,range(0,200,5),:,:]
+    return E,D,si
 
-plt.close('all')
+
 ###ax = plt.gca(projection='3d')
 ##for g in [0]:#range(0,1000,100):
 ##    plt.figure()
@@ -84,25 +85,22 @@ plt.close('all')
 ##    #ax.legend()
 
 def dirChanges(D,si):
-    J=np.zeros((14*D.shape[0],98))
+    plt.close('all')
+    J=np.zeros((14*D.shape[0],D.shape[1]-2))
     H=np.zeros((14*D.shape[0],2))
     C=np.zeros((14*D.shape[0],2))
     n=D.shape[0]
     f=90
     r=np.random.permutation(D.shape[0])
     for a in range(14):
-        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,1,2]
-        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,1,3]
-        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,1,2]
-        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,1,3]
+        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,7]
+        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,8]
+        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,7]
+        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,8]
         J[a*n:(a+1)*n,:]= np.logical_or(np.abs(np.diff(D[:,:,a,1],2))>0.0001,
                     np.abs(np.diff(D[:,:,a,0],2))>0.0001)
     bn=np.arange(0,20,0.5)
 
-
-
-
-    
     d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
     c=np.diff(np.pi*bn**2)
     dH=np.sqrt((H*H).sum(axis=1))
@@ -114,75 +112,105 @@ def dirChanges(D,si):
     for i in range(len(bn)-1):
         sel=np.logical_and(dH>bn[i],dH<bn[i+1])
         sel2=np.logical_and(dC>bn[i],dC<bn[i+1])
-        KH[i,:]=J[sel,:].mean(0)*500
-        KC[i,:]=J[sel2,:].mean(0)*500
-
+        KH[i,:]=J[sel,:].mean(0)*500/14.0
+        KC[i,:]=J[sel2,:].mean(0)*500/14.0
+    from scipy.ndimage.filters import gaussian_filter
+    sig=[0.5,2.5]
+    KH=gaussian_filter(KH,sig)
+    KC=gaussian_filter(KC,sig)
     #sel=H<5
     #ot=J[sel,:].sum(0)
-    plt.imshow(KC,origin='lower',extent=[-200,0,0,20],aspect=6)
+    
+    plt.imshow(KH,origin='lower',extent=[-200,100,0,20],aspect=12,cmap='hot')   
+        
+    plt.colorbar()
     plt.figure()
-    plt.plot(d,KH[:,50])
-    plt.plot(d,KC[:,50])
+    plt.imshow(KC,origin='lower',extent=[-200,100,0,20],aspect=12,cmap='hot')
+    plt.colorbar()
+    plt.figure()
+    plt.plot(d,KH[:,5])
+    plt.plot(d,KC[:,5])
     plt.legend(['gaze','rand'])
     plt.figure()
-    plt.plot(KH[0,:])
-    plt.plot(KC[0,:])
+    x=np.linspace(-200,100,KH.shape[1])
+    plt.plot(x,KH.mean(0))
+    plt.plot(x,KC.mean(0))
     plt.legend(['gaze','rand'])
-#dirChanges(D,si)
-#def agentDensity(D,si):
-D,si=computeD()
-plt.close('all')
-np.random.seed(1234)
-I=[]; I2=[]
-for f in range(0,200,5):
-    H=np.zeros((14*D.shape[0],2))
-    C=np.zeros((14*D.shape[0],2))
-    G=np.zeros((14*D.shape[0],2))
-    r=np.random.permutation(D.shape[0])
-    n=D.shape[0]
-    #f=-1
-    for a in range(14):
-        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,1,2]
-        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,1,3]
-        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,1,2]
-        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,1,3]
-        G[a*n:(a+1)*n,0]= D[:,f,a,0]-D[:,f,2,0]
-        G[a*n:(a+1)*n,1]= D[:,f,a,1]-D[:,f,2,1]
-    H=H[~np.isnan(H[:,0]),:]
-    C=C[~np.isnan(C[:,0]),:]
-##    plt.figure()
-##    bn=np.linspace(-20,20,41)
-##    b1,c,d=np.histogram2d(H[:,0],H[:,1],bins=[bn,bn])
-##    b2,c,d=np.histogram2d(C[:,0],C[:,1],bins=[bn,bn])
-##    plt.imshow(b1-b2, extent=[-20,20,-20,20],origin='lower',
-##               interpolation='nearest')
-##    plt.set_cmap('hot')
-##    plt.colorbar()
-##    plt.figure()
-    
-    bn=np.arange(0,26,0.5)
-    d= bn+(bn[1]-bn[0])/2.0
-    d=d[:-1]
-    a,b=np.histogram(np.sqrt((C*C).sum(axis=1)),bins=bn)
-    c=np.diff(np.pi*bn**2)
-    I2.append(a[0]/c[0]/n*(bn.size-1))
-    #plt.plot(d,a/c/n*(bn.size-1))
-    a,b=np.histogram(np.sqrt((H*H).sum(axis=1)),bins=bn)
-    #plt.plot(d,a/c/n*(bn.size-1))
-    I.append(a[0]/c[0]/n*(bn.size-1))
-    a,b=np.histogram(np.sqrt((G*G).sum(axis=1)),bins=bn)
-    c[0]=0
-##    plt.plot(d,a/c/n*(bn.size-1))
-##    plt.ylim([0,7])
-##    plt.xlabel('Distance from Saccade Target Location')
-##    plt.ylabel('Agent Density') #[# agents per deg^2]
-##    plt.legend(['rand pos','gaze','rand ag'])
-plt.figure()
-plt.plot(np.linspace(-100,100,len(I)),I)
-plt.plot(np.linspace(-100,100,len(I)),I2)
-#plt.legend(['gaze','rand pos'])
-    
-#agentDensity(D,si)
+##    ci=np.zeros((J.shape[1],2))
+##    for f in range(J.shape[1]):
+##        print f
+##        R=np.zeros(1000)
+##        for rep in range(1000):
+##            rnd=np.random.randint(0,J.shape[0],J.shape[0])
+##            R[rep]=J[rnd,f].mean()
+##        R.sort()
+##        ci[f,0]=R[50]
+##        ci[f,1]=R[950]
+##    ci=ci*500/14.0
+    plt.figure()
+    x=np.linspace(-200,100,J.shape[1])
+    plt.plot(x,gaussian_filter(J.mean(0)*500/14.0,2.5),'-k')
+    ci=np.load('ci.npy')
+    plt.plot(x,gaussian_filter(ci[:,0],2.5),'--k')
+    plt.plot(np.linspace(-200,100,J.shape[1]),gaussian_filter(ci[:,1],2.5),'--k')
+    return J
+#E,D,si=loadData()
+J=dirChanges(D,si)
+
+###def agentDensity(D,si):
+##D,si=computeD()
+##plt.close('all')
+##np.random.seed(1234)
+##I=[]; I2=[]
+##for f in range(0,200,5):
+##    H=np.zeros((14*D.shape[0],2))
+##    C=np.zeros((14*D.shape[0],2))
+##    G=np.zeros((14*D.shape[0],2))
+##    r=np.random.permutation(D.shape[0])
+##    n=D.shape[0]
+##    #f=-1
+##    for a in range(14):
+##        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,1,2]
+##        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,1,3]
+##        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,1,2]
+##        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,1,3]
+##        G[a*n:(a+1)*n,0]= D[:,f,a,0]-D[:,f,2,0]
+##        G[a*n:(a+1)*n,1]= D[:,f,a,1]-D[:,f,2,1]
+##    H=H[~np.isnan(H[:,0]),:]
+##    C=C[~np.isnan(C[:,0]),:]
+####    plt.figure()
+####    bn=np.linspace(-20,20,41)
+####    b1,c,d=np.histogram2d(H[:,0],H[:,1],bins=[bn,bn])
+####    b2,c,d=np.histogram2d(C[:,0],C[:,1],bins=[bn,bn])
+####    plt.imshow(b1-b2, extent=[-20,20,-20,20],origin='lower',
+####               interpolation='nearest')
+####    plt.set_cmap('hot')
+####    plt.colorbar()
+####    plt.figure()
+##    
+##    bn=np.arange(0,26,0.5)
+##    d= bn+(bn[1]-bn[0])/2.0
+##    d=d[:-1]
+##    a,b=np.histogram(np.sqrt((C*C).sum(axis=1)),bins=bn)
+##    c=np.diff(np.pi*bn**2)
+##    I2.append(a[0]/c[0]/n*(bn.size-1))
+##    #plt.plot(d,a/c/n*(bn.size-1))
+##    a,b=np.histogram(np.sqrt((H*H).sum(axis=1)),bins=bn)
+##    #plt.plot(d,a/c/n*(bn.size-1))
+##    I.append(a[0]/c[0]/n*(bn.size-1))
+##    a,b=np.histogram(np.sqrt((G*G).sum(axis=1)),bins=bn)
+##    c[0]=0
+####    plt.plot(d,a/c/n*(bn.size-1))
+####    plt.ylim([0,7])
+####    plt.xlabel('Distance from Saccade Target Location')
+####    plt.ylabel('Agent Density') #[# agents per deg^2]
+####    plt.legend(['rand pos','gaze','rand ag'])
+##plt.figure()
+##plt.plot(np.linspace(-100,100,len(I)),I)
+##plt.plot(np.linspace(-100,100,len(I)),I2)
+###plt.legend(['gaze','rand pos'])
+##    
+###agentDensity(D,si)
 
 ##def radialHist(M,bn,nn):
 ##    b,c,d=np.histogram2d(M[:,0],M[:,1],bins=[bn,bn])
