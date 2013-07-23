@@ -95,7 +95,7 @@ class TobiiController:
         self.calout=visual.ImageStim(self.win,image=Settings.calStimPath,size=(200,200),units='pix')
         self.calGrid=np.array([[1,0,1],[0,1,0],[1,0,1]])
         self.soundStim=Sound(value=Settings.soundStimPath)
-        self.soundStim.setVolume(0.2)
+        self.soundStim.setVolume(1)
         # drift correction vars
         self.dcorrstim=visual.ImageStim(self.win,
             image=Settings.dcorrStimPath,size=(200,200),units='pix')
