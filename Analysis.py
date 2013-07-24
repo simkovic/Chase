@@ -50,10 +50,10 @@ def loadData():
         D.append(np.load(path+'vp%03db%d.npy'%(vp,b)))
     D=np.concatenate(D,axis=0)
     
-    sel=np.logical_not(np.all(np.all(np.all(np.isnan(D[:,:14]),3),2),1))
+    sel=si[:,8]>0#np.logical_not(np.all(np.all(np.all(np.isnan(D[:,:14]),3),2),1))
     D=D[sel,:,:,:]
     #print D.shape, si.shape
-    sel=si[:,10]==0
+    #sel=si[:,10]==0
     D=D[sel,:,:,:]
     si=si[sel,:]
 
@@ -226,9 +226,7 @@ def agentDensity(D,si):
     plt.show()
     #return H,C,G,bn
     
-E,D,si=loadData()
-##J=dirChanges(D,si)
-agentDensity(D,si)
+
 
 ### different method for extracting radial density, gives similar results
 ##H,C,G,bn=agentDensity(D,si)
@@ -257,6 +255,9 @@ agentDensity(D,si)
 ##radialHist(C,bn,range(1,26))
 ##radialHist(G,bn,range(1,26))
 ##plt.legend(['gaze','rand pos','rand ag'])
-
-plt.show()
+if __name__ == '__main__':  
+    E,D,si=loadData()
+    ##J=dirChanges(D,si)
+    agentDensity(D,si)
+    plt.show()
 

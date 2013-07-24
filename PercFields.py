@@ -8,6 +8,9 @@ import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve
 from ImageOps import grayscale
 
+from Analysis import loadData
+E,D,si=loadData()
+
 
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
@@ -65,24 +68,30 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2):
     except:
         if close: wind.close()
         raise
-def vp18script():
-    E=np.load('E.npy')
-    start=0
-    ende=10#E.shape[0]
-    os=128
+def extractPF(part=[]):
+    inc=E.shape[0]/part[1]
+    start=part[0]*inc
+    ende=min((part[0]+1)*inc,E.shape[0])
+    print start,ende,E.shape
+    os=64
     rot=30
-    D=np.zeros((ende-start,E.shape[1],os,os,30),dtype=np.uint8)
-    wind=Q.initDisplay()
-    elem=visual.ElementArrayStim(wind,fieldShape='sqr',
-            nElements=E.shape[1], sizes=Q.agentSize,
-            elementMask=RING,elementTex=None,colors='white')
-    for i in range(ende-start):
-        print i
-        D[i,:,:,:,:]=traj2movie(E[i+start,:,:,:],outsize=os,
-                    elem=elem,wind=wind,rot=rot)
-    wind.close()
-    D=np.rollaxis(D,1,5)
-    np.save('PF.npy',D)
+    D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
+    try:
+        wind=Q.initDisplay()
+        elem=visual.ElementArrayStim(wind,fieldShape='sqr',
+                nElements=E.shape[1], sizes=Q.agentSize,
+                elementMask=RING,elementTex=None,colors='white')
+        for i in range(ende-start):
+            #print i
+            D[i,:,:,:,:]=traj2movie(E[i+start,:,:,:],outsize=os,
+                        elem=elem,wind=wind,rot=rot)
+        wind.close()
+        PF=np.rollaxis(D,1,5)
+        if len(part)==2: np.save('cxx/similPix/data/PF%d.npy'%part[0],PF)
+        else: np.save('PF.npy',PF)
+    except:
+        wind.close()
+        raise    
 #def mov2svmInp():
 ##fout=open('traj.out','w')
 ##def writeMov(mov,fout)
@@ -105,7 +114,7 @@ def computeSimilarity():
     #vp18script()
     ##D1=np.load('cxx/similPix/PF.npy')
     D1=np.load('PF.npy')
-    D1=D1[:10,:,:,:,:]
+    #D1=D1[:10,:,:,:,:]
     n1=0
     #n2=D2.shape[1]
     from time import time
@@ -132,7 +141,18 @@ def computeSimilarity():
                         b=np.float32(D1[n2,:,:,r2,f2:(F/2+f2)])*mask
                         S[n2,r1+R*ori,f1,0]=np.linalg.norm(np.rot90(a,ori)*mask-b)
                         S[n2,r1+R*ori,f1,1]=np.linalg.norm(np.fliplr(np.rot90(a,ori))*mask-b)
-        
+
+       
+stack=np.load('stack.npy').tolist()
+
+while len(stack):
+    jobid=stack.pop(0)
+    np.save('stack.npy',stack)
+    extractPF([jobid,600])
+    stack=np.load('stack.npy').tolist()
+
+
+
 def checkSimWideGrid():
     from Analysis import E
     wind=Q.initDisplay()
@@ -215,7 +235,6 @@ def iRingSmoothed():
     np.save('F.npy',F)
 
 def comparePixXyRepresentation():
-    from Analysis import E
     bi=8
     a=np.float32(traj2movie(E[3,:,:,:],outsize=256,rot=1)[50,:,:,0])
     a[a<140]=0; a[a>=140]=1
