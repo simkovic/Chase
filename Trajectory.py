@@ -12,6 +12,7 @@ class Diagnosis:
         self.rejDists=rejDists
         self.dispSizes=dispSizes
         self.nragents=nragents
+        self.dirchs=[]
         self.ndirchange=np.zeros((len(dispSizes),len(nragents),len(rejDists),3))
         self.ncrashes= np.zeros((len(dispSizes),len(nragents),len(rejDists),3))
         self.nbacktracks=np.zeros((len(dispSizes),len(nragents),len(rejDists)))
@@ -31,10 +32,11 @@ class Diagnosis:
                         print 'r', r
                         pos=None
                         while pos==None:
-                            pos,phi,crashes,bts=generateTrial(nragents[na],maze,
+                            pos,phi,crashes,bts,ndc=generateTrial(nragents[na],maze,
                                     STATISTICS=True,rejectionDistance=rejDists[rd])
                         #np.save('phi.npy',phi)
-                        self.ndirchange[d,na,rd,:]+=(phi!=np.roll(phi,1,axis=0)).sum(axis=0)
+                        self.ndirchange[d,na,rd,:]+=np.array(ndc)
+                        self.dirchs.append(ndc)
                         self.ncrashes[d,na,rd,:]+=crashes
                         self.nbacktracks[d,na,rd]+=bts
                         self.dists[d,na,rd,0]+=dist(pos[:,0,:],pos[:,1,:]).mean()
@@ -182,6 +184,29 @@ class Diagnosis:
                 else: plt.gca().set_xticklabels([])
                 if na==0 and ds==0: plt.legend(ags,loc=0)
         plt.subplots_adjust(wspace=0.1)
+    @staticmethod
+    def save(d,fname):
+        f=open(fname,'w')
+        pickle.dump(d,f)
+        f.close()
+    @staticmethod
+    def load(fname):
+        f=open(fname)
+        d=pickle.load(f)
+        f.close()
+        return d
+    @staticmethod
+    def multiload(N,prefix='diagBaby'):
+        D=[]
+        for i in range(N):
+            f=open(prefix+'%d.pkl'%(i+1))
+            diag=pickle.load(f)
+            f.close()
+            D.extend(diag.dirchs)
+        D=np.array(D)/float(Q.trialDur)
+        print D.mean(0)
+        print D.std(0)
+        return D
         
 class RandomAgent():
     def __init__(self,nrframes,dispSize,pdc,sd,moveRange):
@@ -192,10 +217,13 @@ class RandomAgent():
         self.pdc=pdc
         self.sd=sd
         self.nrcrashes=np.zeros((nrframes))
+        self.ndc=np.zeros((self.nrframes))
         self.moveRange=moveRange/2.0
     
     def reset(self):
         """ choose Random position within arena """
+        self.ndc=np.zeros((self.nrframes))
+        self.nrcrashes=np.zeros((self.nrframes))
         self.f=0
         self.i=0
         self.traj[self.f,:]=np.array((random.random()*self.ds[X]-self.ds[X]/2.0,
@@ -214,6 +242,7 @@ class RandomAgent():
         f=self.f
         self.nrcrashes[f]=0
         rnd = random.random()<self.pdc
+        self.ndc[f]=float(rnd)
         if rnd: # change direction chasee
             self.traj[f,PHI]=(self.traj[f-1,PHI]
                     +random.uniform(-self.moveRange,self.moveRange))%360
@@ -239,6 +268,7 @@ class HeatSeekingChaser(RandomAgent):
             self.i+=1
         f=self.f
         rnd = random.random()<self.pdc
+        self.ndc[f]=int(rnd)
         if rnd or crash:
             self.traj[f,PHI]=np.arctan2(targetPos[Y],
                             targetPos[X])/np.pi * 180
@@ -256,6 +286,7 @@ class HeatSeekingChaser(RandomAgent):
         else:
             #print 'before', self.getPosition(), targetPos
             self.move(targetPos,crash=True)
+            self.nrcrashes[self.f]=1
             #print 'after', self.getPosition()
 
             
@@ -294,7 +325,7 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
             chasee.backtrack()
             if deadend:
                 print 'dead end', chasee.f
-                if STATISTICS: return None, None, None, None
+                if STATISTICS: return None, None, None, None,None
                 else: return None
             (dx,dy)=chasee.getPosition() - chaser.getPosition()
         # move chaser and avoid walls
@@ -329,11 +360,10 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
         trajectories[:,a,X]=tt[:,X]
         trajectories[:,a,Y]=tt[:,Y]
         trajectories[:,a,PHI]=tt[:,PHI]
-        
     if STATISTICS:
         #statistics=np.zeros((nrframes,nragents,3))
         statistics=[trajectories,np.zeros((Q.nrframes,3)),
-                    np.zeros((3)),nrbacktracks]
+                    np.zeros((3)),nrbacktracks,[chasee.ndc.sum(),chaser.ndc.sum(),agents[2].ndc.sum()]]
         for a in range(3):
             statistics[1][:,a]=agents[a].getTrajectory()[:,PHI]
             statistics[2][a]=agents[a].nrcrashes.sum()
@@ -579,11 +609,11 @@ if __name__ == '__main__':
     #np.save('t.npy',t)
     #exportSvmGao09()
     #generateGao09e1([23])
-##    d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3])
-##    f=open('diagBaby4.pkl','w')
-##    pickle.dump(d,f)
-##    f.close()
-    f=open('diagBaby4.pkl')
-    diag=pickle.load(f)
-    f.close()
+    
+    #d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3.0])
+    #Diagnosis.save(d,'diagBaby6.pkl')
+    #D=Diagnosis.multiload(6,prefix='diagBaby')
+
+        
+
     
