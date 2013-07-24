@@ -42,7 +42,7 @@ class Settings():
         elif type(sz)==int: sz=(sz,sz)
         wind=visual.Window(monitor=self.monitor,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
-            winType='pyglet')
+            winType='pyglet',screen=1)
         return wind
     def norm2pix(self,xy):
         return (np.array(xy)) * np.array(self.monitor.getSizePix())/2.0
@@ -125,7 +125,7 @@ tobiilab ={'monitor' :  t60,
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [5.4,5.4,5.4],          # avg number of direction changes per second
+        'pDirChange':   [4.8,5.5,4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]

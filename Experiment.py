@@ -243,7 +243,7 @@ class BabyExperiment(Experiment):
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     finished=2 # abort after consecutive nr of attention catchers
     expDur=6 # total experiment duration in minutes
-    doReward=False # show colored reward?
+    doReward=True # show colored reward?
     
     def __init__(self):
         Experiment.__init__(self)
