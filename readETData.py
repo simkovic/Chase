@@ -476,9 +476,10 @@ def checkEyelinkDatasets():
             except:
                 print 'missing ', vp, block
 def saveSearchData():
+    from os import getcwd
     vp=1
-    path='/home/matus/Desktop/pylink/evaluation/searchTargets/'
-    for b in range(1,22):
+    path=getcwd().rstrip('code')+'evaluation/searchTargetsE/'
+    for b in range(17,22):
         data=readEyelink(vp,b)
         sactot=0
         #evs=[]
@@ -488,8 +489,7 @@ def saveSearchData():
                 data[i].extractBasicEvents()
                 data[i].driftCorrection()
                 data[i].importComplexEvents()
-                try:sactot+=len(data[i].search)# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
-                except: pass
+                if data[i].search!=None: sactot+=len(data[i].search)# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
         print 'sactot=',sactot
         sevall=[]
         fws=100 # size of the time window in frames
@@ -498,10 +498,9 @@ def saveSearchData():
         for i in range(len(data)):
             if data[i].ts>=0:
                 g=data[i].getGaze()
-                try:
-                    data[i].search
-                except AttributeError: continue
+                if data[i].search==None: continue
                 for ev in data[i].search:
+                    # center window on saccade onset
                     sf=ev[0]-100
                     ef=ev[0]+50
                     if sf<0 or ef >= g.shape[0]:
@@ -517,15 +516,15 @@ def saveSearchData():
         np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
         np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
            
-
-##if __name__ == '__main__':
+if __name__ == '__main__':
 ##    data=readEyelink(1,1)
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importTrackingFromCoder()
 ##    print data[1].sev
 ##    print data[1].search
-        
-    #data=readEyelink(1,1)
-    #data[1].driftCorrection()
-    #data[1].extractTracking()
+      saveSearchData()
+##    data=readEyelink(1,1)
+##    data[1].extractBasicEvents()
+##    data[1].driftCorrection()
+##    data[1].importComplexEvents()

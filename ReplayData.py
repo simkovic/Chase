@@ -373,6 +373,7 @@ class Coder(ETReplay):
                 else: sel[6].append(a)
     @staticmethod
     def loadSelection(vp,block,trial,prefix='track/'):
+        #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
         fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
         out=[]
         for line in fin:
@@ -420,7 +421,7 @@ def replayTrial(vp,block,trial):
     trl=data[trial]
     trl.extractBasicEvents()
     trl.driftCorrection()
-    trl.extractTracking()
+    trl.extractComplexEvents()
     R=Coder(gazeData=trl,phase=1,eyes=1)
     R.play(tlag=0)
     
@@ -431,7 +432,7 @@ def replayBlock(vp,block,trialStart):
         trl=data[trial]
         trl.extractBasicEvents()
         trl.driftCorrection()
-        trl.extractTracking()
+        trl.extractComplexEvents()
         R=Coder(gazeData=trl,phase=1,eyes=1)
         R.play(tlag=0)
 # coding verification routines       

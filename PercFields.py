@@ -68,7 +68,7 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2):
     except:
         if close: wind.close()
         raise
-def extractPF(part=[]):
+def PFextract(part=[]):
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
@@ -91,22 +91,26 @@ def extractPF(part=[]):
         else: np.save('PF.npy',PF)
     except:
         wind.close()
-        raise    
-#def mov2svmInp():
-##fout=open('traj.out','w')
-##def writeMov(mov,fout)
-##    sample=5
-##    fout.write('%d '%label)
-##    i=1
-##    for f in range(mov.shape[0]/sample):
-##        for x in range(16):
-##            for y in range(16):
-##                fout.write('%d:%.4f '%(i,mov[f,x,y]/256.0));i+=1
-##    fout.write('\n')
-##
-##fout.close()
+        raise
+def PFsubsampleF():
+    ''' subsample PF files from 500 hz to 100hz
+        to make computeSimilarity run faster'''
+    for i in range(400,601):
+        print i
+        PF=np.load('cxx/similPix/data/PF%d.npy'%i)
+        PF=PF[:,:,:,:,range(2,152,5)]
+        PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
+def PFparallel():
+    ''' you can setup stack by np.save('stack.npy',range(601))'''
+    stack=np.load('stack.npy').tolist()
 
-def computeSimilarity():
+    while len(stack):
+        jobid=stack.pop(0)
+        np.save('stack.npy',stack)
+        extractPF([jobid,600])
+        stack=np.load('stack.npy').tolist()
+
+def Scompute():
     '''also available as c++ code
     g++ -o simil simil.cpp -L/usr/local -lcnpy
     '''
@@ -141,15 +145,17 @@ def computeSimilarity():
                         b=np.float32(D1[n2,:,:,r2,f2:(F/2+f2)])*mask
                         S[n2,r1+R*ori,f1,0]=np.linalg.norm(np.rot90(a,ori)*mask-b)
                         S[n2,r1+R*ori,f1,1]=np.linalg.norm(np.fliplr(np.rot90(a,ori))*mask-b)
+    
+def Sparallel():
+    ''' parallel similarity computation'''
 
-       
-stack=np.load('stack.npy').tolist()
-
-while len(stack):
-    jobid=stack.pop(0)
-    np.save('stack.npy',stack)
-    extractPF([jobid,600])
     stack=np.load('stack.npy').tolist()
+
+    while len(stack):
+        jobinfo=stack.pop(0)
+        np.save('stack.npy',stack)
+        
+        stack=np.load('stack.npy').tolist()
 
 
 
@@ -435,6 +441,20 @@ def compareP(P1,P2):
 #plt.figure();
 #plt.figure();plt.imshow(D[:,:,0].T); plt.colorbar()
 #plt.figure();plt.imshow(D[:,:,1].T); plt.colorbar()
+
+#def mov2svmInp():
+##fout=open('traj.out','w')
+##def writeMov(mov,fout)
+##    sample=5
+##    fout.write('%d '%label)
+##    i=1
+##    for f in range(mov.shape[0]/sample):
+##        for x in range(16):
+##            for y in range(16):
+##                fout.write('%d:%.4f '%(i,mov[f,x,y]/256.0));i+=1
+##    fout.write('\n')
+##
+##fout.close()
 
 def PtoS(P):
     P=np.load('Ptop.npy')

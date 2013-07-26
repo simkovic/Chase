@@ -97,10 +97,10 @@ def dirChanges(D,si):
     f=90
     r=np.random.permutation(D.shape[0])
     for a in range(14):
-        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,7]
-        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,8]
-        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,7]
-        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,8]
+        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,2]
+        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,3]
+        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,2]
+        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,3]
         J[a*n:(a+1)*n,:]= np.logical_or(np.abs(np.diff(D[:,:,a,1],2))>0.0001,
                     np.abs(np.diff(D[:,:,a,0],2))>0.0001)
     bn=np.arange(0,20,0.5)
@@ -154,10 +154,11 @@ def dirChanges(D,si):
     plt.figure()
     x=np.linspace(-200,100,J.shape[1])
     plt.plot(x,gaussian_filter(J.mean(0)*500/14.0,2.5),'-k')
-    ci=np.load('ci.npy')
-    plt.plot(x,gaussian_filter(ci[:,0],2.5),'--k')
-    plt.plot(np.linspace(-200,100,J.shape[1]),gaussian_filter(ci[:,1],2.5),'--k')
+    #ci=np.load('ci.npy')
+    #plt.plot(x,gaussian_filter(ci[:,0],2.5),'--k')
+    #plt.plot(np.linspace(-200,100,J.shape[1]),gaussian_filter(ci[:,1],2.5),'--k')
     return J
+
 def agentDensity(D,si):
     np.random.seed(1234)
     I=[]; I2=[]
@@ -257,7 +258,7 @@ def agentDensity(D,si):
 ##plt.legend(['gaze','rand pos','rand ag'])
 if __name__ == '__main__':  
     E,D,si=loadData()
-    ##J=dirChanges(D,si)
-    agentDensity(D,si)
+    J=dirChanges(D,si)
+    #agentDensity(D,si)
     plt.show()
 

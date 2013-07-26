@@ -318,7 +318,7 @@ class ETTrialData():
         return []
     def loadTrajectories(self):
         path = getcwd()
-        path = path.rstrip('/code')
+        path = path.rstrip('code')
         order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
         s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%(self.vp,self.vp,self.block,order) 
         traj=np.load(s)
