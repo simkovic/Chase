@@ -2,14 +2,18 @@ import numpy as np
 import pylab as plt
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.ndimage.filters import gaussian_filter
+
+
 plt.close('all')
 #plt.ion()
 from os import getcwd
 path=getcwd()
 path=path.rstrip('code')
-path+='/evaluation/searchTargets/'
+path+='/evaluation/searchTargetsLONG/'
 vp=1
 bs=range(1,22)
+
 def plotSearchInfo(plot=True):
     D=[]
     for b in bs:
@@ -88,58 +92,61 @@ def loadData():
 ##    ax.set_aspect('equal')
 ##    #ax.legend()
 
-def dirChanges(D,si):
-    plt.close('all')
-    J=np.zeros((14*D.shape[0],D.shape[1]-2))
-    H=np.zeros((14*D.shape[0],2))
-    C=np.zeros((14*D.shape[0],2))
-    n=D.shape[0]
-    f=90
-    r=np.random.permutation(D.shape[0])
-    for a in range(14):
-        H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,2]
-        H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,3]
-        C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,2]
-        C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,3]
-        J[a*n:(a+1)*n,:]= np.logical_or(np.abs(np.diff(D[:,:,a,1],2))>0.0001,
-                    np.abs(np.diff(D[:,:,a,0],2))>0.0001)
-    bn=np.arange(0,20,0.5)
+#def dirChanges(D,si):
+plt.close('all')
+fw=np.load(path+'info.npy')
+J=np.zeros((14*D.shape[0],D.shape[1]-2))
+H=np.zeros((14*D.shape[0],2))
+C=np.zeros((14*D.shape[0],2))
+n=D.shape[0]
+f=48
+r=np.random.permutation(D.shape[0])
+tol=0#0.0001
+for a in range(14):
+    #for f in range(D.shape[1]):
+    H[a*n:(a+1)*n,0]= D[:,f,a,0]-si[:,6]
+    H[a*n:(a+1)*n,1]= D[:,f,a,1]-si[:,7]
+    C[a*n:(a+1)*n,0]= D[:,f,a,0]-si[r,6]
+    C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,7]
+    J[a*n:(a+1)*n,:]= np.logical_or(np.abs(np.diff(D[:,:,a,1],2))>tol,
+                np.abs(np.diff(D[:,:,a,0],2))>tol)
+bn=np.arange(0,20,0.5)
 
-    d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
-    c=np.diff(np.pi*bn**2)
-    dH=np.sqrt((H*H).sum(axis=1))
-    dC=np.sqrt((C*C).sum(axis=1))
-    #a,b=np.histogram(dH,bins=bn)
+d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
+c=np.diff(np.pi*bn**2)
+dH=np.sqrt((H*H).sum(axis=1))
+dC=np.sqrt((C*C).sum(axis=1))
+#a,b=np.histogram(dH,bins=bn)
 
-    KH=np.zeros((len(bn)-1,J.shape[1]))
-    KC=np.zeros((len(bn)-1,J.shape[1]))
-    for i in range(len(bn)-1):
-        sel=np.logical_and(dH>bn[i],dH<bn[i+1])
-        sel2=np.logical_and(dC>bn[i],dC<bn[i+1])
-        KH[i,:]=J[sel,:].mean(0)*500/14.0
-        KC[i,:]=J[sel2,:].mean(0)*500/14.0
-    from scipy.ndimage.filters import gaussian_filter
-    sig=[0.5,2.5]
-    KH=gaussian_filter(KH,sig)
-    KC=gaussian_filter(KC,sig)
-    #sel=H<5
-    #ot=J[sel,:].sum(0)
+KH=np.zeros((len(bn)-1,J.shape[1]))
+KC=np.zeros((len(bn)-1,J.shape[1]))
+for i in range(len(bn)-1):
+    sel=np.logical_and(dH>bn[i],dH<bn[i+1])
+    sel2=np.logical_and(dC>bn[i],dC<bn[i+1])
+    KH[i,:]=J[sel,:].mean(0)*fw[2]
+    KC[i,:]=J[sel2,:].mean(0)*fw[2]
+bla
+sig=[0.5,0.5]
+#KH=gaussian_filter(KH,sig)
+#KC=gaussian_filter(KC,sig)
+#sel=H<5
+#ot=J[sel,:].sum(0)
+
+plt.imshow(KH,origin='lower',extent=[fw[0],fw[1],0,20],aspect=20,cmap='hot')   
     
-    plt.imshow(KH,origin='lower',extent=[-200,100,0,20],aspect=12,cmap='hot')   
-        
-    plt.colorbar()
-    plt.figure()
-    plt.imshow(KC,origin='lower',extent=[-200,100,0,20],aspect=12,cmap='hot')
-    plt.colorbar()
-    plt.figure()
-    plt.plot(d,KH[:,5])
-    plt.plot(d,KC[:,5])
-    plt.legend(['gaze','rand'])
-    plt.figure()
-    x=np.linspace(-200,100,KH.shape[1])
-    plt.plot(x,KH.mean(0))
-    plt.plot(x,KC.mean(0))
-    plt.legend(['gaze','rand'])
+plt.colorbar()
+plt.figure()
+plt.imshow(KC,origin='lower',extent=[fw[0],fw[1],0,20],aspect=20,cmap='hot')
+plt.colorbar()
+plt.figure()
+plt.plot(d,KH[:,0])
+plt.plot(d,KC[:,0])
+plt.legend(['gaze','rand'])
+plt.figure()
+x=np.linspace(fw[0],fw[1],KH.shape[1])
+plt.plot(x,KH.mean(0))
+plt.plot(x,KC.mean(0))
+plt.legend(['gaze','rand'])
 ##    ci=np.zeros((J.shape[1],2))
 ##    for f in range(J.shape[1]):
 ##        print f
@@ -151,24 +158,31 @@ def dirChanges(D,si):
 ##        ci[f,0]=R[50]
 ##        ci[f,1]=R[950]
 ##    ci=ci*500/14.0
-    plt.figure()
-    x=np.linspace(-200,100,J.shape[1])
-    plt.plot(x,gaussian_filter(J.mean(0)*500/14.0,2.5),'-k')
+    #plt.figure()
+    #x=np.linspace(fw[0],fw[1],J.shape[1])
+    #plt.plot(x,gaussian_filter(J.mean(0)*fw[2]/14.0,sig[1]),'-k')
     #ci=np.load('ci.npy')
     #plt.plot(x,gaussian_filter(ci[:,0],2.5),'--k')
     #plt.plot(np.linspace(-200,100,J.shape[1]),gaussian_filter(ci[:,1],2.5),'--k')
-    return J
+    #return J
 
-def agentDensity(D,si):
-    np.random.seed(1234)
-    I=[]; I2=[]
+def agentDensity():
+    #np.random.seed(1234)
+    plt.close('all')
+    bnR=np.arange(0,26,0.5)
+    bnS=np.diff(np.pi*bnR**2)
+    #print bnS.shape
+    bnd= bnR+(bnR[1]-bnR[0])/2.0
+    bnd=bnd[:-1]
+    IC=np.zeros((bnS.size,D.shape[1]))
+    IH=np.zeros((bnS.size,D.shape[1]))
     plot=True
     g=1
-    flim=[-200,100]
+    flim=np.load(path+'info.npy')
     figs=range(1,100)
     fig1=figs.pop(0)
     fig2=figs.pop(0)
-    for f in range(0,D.shape[1],5):
+    for f in range(0,D.shape[1]):
         H=np.zeros((14*D.shape[0],2))
         C=np.zeros((14*D.shape[0],2))
         G=np.zeros((14*D.shape[0],2))
@@ -182,50 +196,54 @@ def agentDensity(D,si):
             C[a*n:(a+1)*n,1]= D[:,f,a,1]-si[r,7]
             G[a*n:(a+1)*n,0]= D[:,f,a,0]-D[:,f,2,0]
             G[a*n:(a+1)*n,1]= D[:,f,a,1]-D[:,f,2,1]
-        H=H[~np.isnan(H[:,0]),:]
-        C=C[~np.isnan(C[:,0]),:]
+        #H=H[~np.isnan(H[:,0]),:]
+        #C=C[~np.isnan(C[:,0]),:]
         if plot:
             if g>12: fig1=figs.pop(0); fig2=figs.pop(0); g=1
             plt.figure(fig1)
             plt.subplot(3,4,g)
-            plt.title('Frame '+str(f*2+flim[0]))
+            plt.title('Frame %.1f'%(f*1000/85.0+flim[0]))
             bn=np.linspace(-20,20,41)
             b1,c,d=np.histogram2d(H[:,0],H[:,1],bins=[bn,bn])
             b2,c,d=np.histogram2d(C[:,0],C[:,1],bins=[bn,bn])
             plt.imshow(b1-b2, extent=[-20,20,-20,20],origin='lower',
-                       interpolation='nearest',vmin=-140,vmax=40)
+                       interpolation='nearest')#,vmin=-140,vmax=40)
             plt.set_cmap('hot')
             plt.colorbar()
             plt.figure(fig2)
             plt.subplot(3,4,g)
-            plt.title('Frame '+str(f*2+flim[0]))
+            plt.title('Frame %.1f'%(f*1000/85.0+flim[0]))
             g+=1
         
-        bn=np.arange(0,26,0.5)
-        d= bn+(bn[1]-bn[0])/2.0
-        d=d[:-1]
-        a,b=np.histogram(np.sqrt((C*C).sum(axis=1)),bins=bn)
-        c=np.diff(np.pi*bn**2)
-        bbb=0
-        I2.append(a[bbb]/c[bbb]/n*(bn.size-1))
-        if plot: plt.plot(d,a/c/n*(bn.size-1))
-        a,b=np.histogram(np.sqrt((H*H).sum(axis=1)),bins=bn)
-        if plot: plt.plot(d,a/c/n*(bn.size-1))
-        I.append(a[bbb]/c[bbb]/n*(bn.size-1))
-        a,b=np.histogram(np.sqrt((G*G).sum(axis=1)),bins=bn)
-        c[0]=0
+        
+        a,b=np.histogram(np.sqrt((C*C).sum(axis=1)),bins=bnR)
+        #print IC.shape, bnS.shape, a.shape, n
+        IC[:,f]=a/bnS/n*(bnR.size-1)
+        if plot: plt.plot(bnd,IC[:,f])
+        a,b=np.histogram(np.sqrt((H*H).sum(axis=1)),bins=bnR)
+        
+        IH[:,f]=a/bnS/n*(bnR.size-1)
+        if plot: plt.plot(bnd,IH[:,f])
+        a,b=np.histogram(np.sqrt((G*G).sum(axis=1)),bins=bnR)
+        blb=np.copy(bnS);blb[0]=0
+        
         if plot:
-            plt.plot(d,a/c/n*(bn.size-1))
+            plt.plot(bnd,a/blb/n*(bnR.size-1))
             plt.ylim([0,2])
             plt.xlabel('Distance from Saccade Target Location')
-            plt.ylabel('Agent Density') #[# agents per deg^2]
+            plt.ylabel('Agent Density [a per deg^2]') #[# agents per deg^2]
             if g==2:plt.legend(['rand pos','gaze','rand ag'])
     plt.figure()
-    plt.plot(np.linspace(flim[0],flim[1],len(I)),I)
-    plt.plot(np.linspace(flim[0],flim[1],len(I)),I2)
-    plt.legend(['gaze','rand'])
-    plt.show()
-    #return H,C,G,bn
+    plt.imshow((IH-IC),extent=[flim[0],flim[1],bnR[0],bnR[-1]],aspect=100,origin='lower')
+    plt.ylabel('radial distance from sac target')
+    plt.xlabel('time from sac onset')
+    plt.colorbar()
+    #plt.plot(np.linspace(flim[0],flim[1],len(I)),I)
+    #plt.plot(np.linspace(flim[0],flim[1],len(I)),I2)
+    #plt.legend(['gaze','rand'])
+    #plt.title('density at distance %f'+bn[bbb])
+    #plt.show()
+    return out
     
 
 
@@ -256,9 +274,11 @@ def agentDensity(D,si):
 ##radialHist(C,bn,range(1,26))
 ##radialHist(G,bn,range(1,26))
 ##plt.legend(['gaze','rand pos','rand ag'])
-if __name__ == '__main__':  
-    E,D,si=loadData()
-    J=dirChanges(D,si)
-    #agentDensity(D,si)
-    plt.show()
+if __name__ == '__main__':
+    from matplotlib.mlab import PCA
+    #E,D,si=loadData()
+    #J=dirChanges(D,si)
+    #pcs=PCA(J)
+    #dens=agentDensity()
+    #plt.show()
 

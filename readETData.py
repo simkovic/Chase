@@ -478,7 +478,10 @@ def checkEyelinkDatasets():
 def saveSearchData():
     from os import getcwd
     vp=1
-    path=getcwd().rstrip('code')+'evaluation/searchTargetsE/'
+    sw=-300; ew=300;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
+    fw=int(np.round((abs(sw)+ew)/1000.0*hz))
+    print fw
+    path=getcwd().rstrip('code')+'evaluation/searchTargetsLONG/'
     for b in range(17,22):
         data=readEyelink(vp,b)
         sactot=0
@@ -492,8 +495,7 @@ def saveSearchData():
                 if data[i].search!=None: sactot+=len(data[i].search)# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
         print 'sactot=',sactot
         sevall=[]
-        fws=100 # size of the time window in frames
-        D=np.zeros((sactot,150,15,2))*np.nan
+        D=np.zeros((sactot,fw,14,2))*np.nan
         k=0
         for i in range(len(data)):
             if data[i].ts>=0:
@@ -501,30 +503,48 @@ def saveSearchData():
                 if data[i].search==None: continue
                 for ev in data[i].search:
                     # center window on saccade onset
-                    sf=ev[0]-100
-                    ef=ev[0]+50
-                    if sf<0 or ef >= g.shape[0]:
+                    sf=int(np.round((ev[0]*1000/data[i].hz+sw)/1000.0*hz))
+                    ef=sf+fw
+                    if sf<0 or ef >= data[i].oldtraj.shape[0]:
                         print 'warning',b,i
                         continue
-                    D[k,:,:14,:]=data[i].traj[sf:ef,:,:2]
-                    D[k,:,-1,:]=g[sf:ef,[7,8]]
+                    D[k,:,:14,:]=data[i].oldtraj[sf:ef,:,:2]
+                    #D[k,:,-1,:]=g[sf:ef,[7,8]]
                     k+=1
                     sevall.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                         ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],
                         ev[2],ev[3],ev[4],i])
-                    
+                
         np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
         np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
-           
+    np.save(path+'info.npy',[sw,ew,fw,hz])
+    
 if __name__ == '__main__':
-##    data=readEyelink(1,1)
-##    data[1].extractBasicEvents()
+    #data=readEyelink(1,1)
+    #data[1].extractBasicEvents()
+    #data[1].loadTrajectories()
 ##    data[1].driftCorrection()
 ##    data[1].importTrackingFromCoder()
 ##    print data[1].sev
 ##    print data[1].search
-      saveSearchData()
-##    data=readEyelink(1,1)
+
+    saveSearchData()
+    
+            
+##    res=np.zeros(2549)
+##    for b in range(1,22):
+##        data=readEyelink(1,b)
+##        for i in range(40):
+##            data[i].extractBasicEvents()
+##            data[i].loadTrajectories()
+##            D=data[i].oldtraj
+##            print i, D.shape
+##            for a in range(14):
+##                res+=np.logical_or(np.abs(np.diff(D[:,a,1],2))>0.0001,
+##                        np.abs(np.diff(D[:,a,0],2))>0.0001)
+##            
+
+        
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()

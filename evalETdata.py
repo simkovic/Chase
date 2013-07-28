@@ -324,7 +324,7 @@ class ETTrialData():
         traj=np.load(s)
         self.oldtraj=traj
         
-    def computeAgentDistances(self):
+    def computeAgentDistances(self,gaze=True):
         self.loadTrajectories()
         #self.traj=traj
         g=self.getGaze()
