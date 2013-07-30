@@ -475,49 +475,28 @@ def checkEyelinkDatasets():
                     print '    ok', vp, block, len(data)
             except:
                 print 'missing ', vp, block
-def saveSearchData():
-    from os import getcwd
+
+
+
+def saveSearchSacInfo():
     vp=1
-    sw=-300; ew=300;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
-    fw=int(np.round((abs(sw)+ew)/1000.0*hz))
-    print fw
-    path=getcwd().rstrip('code')+'evaluation/searchTargetsLONG/'
-    for b in range(17,22):
+    path=getcwd().rstrip('code')+'evaluation/searchSaccades/'
+    si=[]
+    for b in range(1,22):
         data=readEyelink(vp,b)
-        sactot=0
-        #evs=[]
         for i in range(len(data)):
             if data[i].ts>=0:
                 print 'block ',b,'trial',i
                 data[i].extractBasicEvents()
                 data[i].driftCorrection()
                 data[i].importComplexEvents()
-                if data[i].search!=None: sactot+=len(data[i].search)# int(ev[0]-50>=0 and ev[0]+50<data[i].traj.shape[0])
-        print 'sactot=',sactot
-        sevall=[]
-        D=np.zeros((sactot,fw,14,2))*np.nan
-        k=0
-        for i in range(len(data)):
-            if data[i].ts>=0:
-                g=data[i].getGaze()
-                if data[i].search==None: continue
-                for ev in data[i].search:
-                    # center window on saccade onset
-                    sf=int(np.round((ev[0]*1000/data[i].hz+sw)/1000.0*hz))
-                    ef=sf+fw
-                    if sf<0 or ef >= data[i].oldtraj.shape[0]:
-                        print 'warning',b,i
-                        continue
-                    D[k,:,:14,:]=data[i].oldtraj[sf:ef,:,:2]
-                    #D[k,:,-1,:]=g[sf:ef,[7,8]]
-                    k+=1
-                    sevall.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
-                        ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],
-                        ev[2],ev[3],ev[4],i])
-                
-        np.save(path+'vp%03db%d.npy'%(data[0].vp,data[0].block),D)
-        np.save(path+'SIvp%03db%d.npy'%(data[0].vp,data[0].block),sevall)                    
-    np.save(path+'info.npy',[sw,ew,fw,hz])
+                if  data[i].search!=None:
+                    g=data[i].getGaze()
+                    for ev in data[i].search:
+                        si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
+                            ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
+                            ev[4],data[i].t0[1]-data[i].t0[0],b,i])
+    np.save(path+'SIvp%03d.npy'%vp,si)  
     
 if __name__ == '__main__':
     #data=readEyelink(1,1)
@@ -528,7 +507,7 @@ if __name__ == '__main__':
 ##    print data[1].sev
 ##    print data[1].search
 
-    saveSearchData()
+    saveSearchSacInfo()
     
             
 ##    res=np.zeros(2549)
