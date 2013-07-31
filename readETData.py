@@ -480,9 +480,9 @@ def checkEyelinkDatasets():
 
 def saveSearchSacInfo():
     vp=1
-    path=getcwd().rstrip('code')+'evaluation/searchSaccades/'
+    path=getcwd().rstrip('code')+'evaluation/'
     si=[]
-    for b in range(1,22):
+    for b in range(19,22):
         data=readEyelink(vp,b)
         for i in range(len(data)):
             if data[i].ts>=0:
@@ -496,7 +496,7 @@ def saveSearchSacInfo():
                         si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                             ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
                             ev[4],data[i].t0[1]-data[i].t0[0],b,i])
-    np.save(path+'SIvp%03d.npy'%vp,si)  
+        np.save(path+'SIvp%03db%d.npy'%(vp,b),si)  
     
 if __name__ == '__main__':
     #data=readEyelink(1,1)
@@ -507,7 +507,9 @@ if __name__ == '__main__':
 ##    print data[1].sev
 ##    print data[1].search
 
-    saveSearchSacInfo()
+    #saveSearchSacInfo()
+
+        
     
             
 ##    res=np.zeros(2549)
