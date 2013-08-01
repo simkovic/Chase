@@ -82,16 +82,16 @@ int main(int argc, char** argv){
 	//	cnpy::npy_save(buffer,S,shape,5,"w");}
 	for (int n2=0;n2<10;n2++){
 		printf("n2=%d\n",n2);
-	for (int r1=0;r1<R;r1++){
-	for (int f1=0;f1<F-Fws;f1++){
+	for (int r1=0;r1<R;r1=r1+1){
+	for (int f1=0;f1<F-Fws;f1=f1+1){
 	for (int m1=0;m1<2;m1++){
 	for (int ori=0;ori<4;ori++){
-	//for (int f2=0;f2<F-Fws;f2++){
+	for (int f2=0;f2<F-Fws;f2=f2+1){
 		//res1=0;res2=0;
 		index1= n1*Sdim[0]+n2*Sdim[1]+(ori*5+r1)*Sdim[2]+f1*Sdim[3]+f2*Sdim[4]+m1;
 		S[index1]=0;
-	for (int x=0;x<P;x++){
-	for (int y=0;y<P;y++){
+	for (int x=0;x<P;x=x+1){
+	for (int y=0;y<P;y=y+1){
 	for (int f=0;f<Fws;f++){
 		// index rotation
 		if (m1==1) ym=P-y-1; else ym=y;
@@ -115,7 +115,7 @@ int main(int argc, char** argv){
 	//	if (res2<S[a*N+b]) {S[a*N+b]=res2;S[a+b*N]=r+4;}
 	//}
 	//printf("res1= %f\n", sqrt(res1));
-	}}}}}}//}
+	}}}}}}}
 	//printf("S[0]= %f\n", S[0*N*N+0*N+3]);
 	sprintf(buffer,"S%03dx%03d.npy",atoi(argv[1]),atoi(argv[2]));
     cnpy::npy_save(buffer,S,shape,6,"w");

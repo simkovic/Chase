@@ -320,6 +320,8 @@ def plotTraj(traj):
     #plt.xlim([-20,20])
     #plt.ylim([-20,20])
     ax.set_aspect('equal')
+
+
    
 
 if __name__ == '__main__':
@@ -338,8 +340,12 @@ if __name__ == '__main__':
             B=np.copy(E[k,:,:,:])
             F[q][k,:]= B.reshape([F[q].shape[1],1]).squeeze()
     x=np.concatenate(F,axis=0)
-    y=np.zeros(F[q].shape[0]*2)
+    x=np.concatenate([-np.ones((x.shape[0],1)), x],axis=1)
+    y=np.zeros((F[q].shape[0]*2))
     y[:F[q].shape[0]]=1
+    del D, E, F
+
+    #lr.checkCorrectness(x,y)
     #pcaMotionMultiAgent(D)
     #pcaMotionSingleAgent(D)
     #agentDensity(D)
