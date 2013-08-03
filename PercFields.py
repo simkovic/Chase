@@ -5,11 +5,9 @@ from psychopy.misc import deg2pix
 from Constants import *
 from Settings import Q
 import random, Image,ImageFilter, os
-from scipy.ndimage.filters import convolve
+from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 
-from Analysis import loadData
-E,D,si=loadData()
 
 
 def position2image(positions,elem=None,wind=None):
@@ -36,9 +34,14 @@ def position2image(positions,elem=None,wind=None):
     except:
         if close: wind.close()
         raise
-def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2):
+def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
+               hz=85.0,SX=0.5,SY=0.5,ST=50):
     ''' extracts window at position 0,0 of width WIDTH deg
-        from trajectories and subsamples to OUTSIZE 
+        from trajectories and subsamples to OUTSIZExOUTSIZE pixels
+        HZ - trajectory sampling frequency
+        ROT - number of rotations to output
+        SX,SY,ST - standard deviation of gaussian filter in deg,deg,ms
+        
     '''
     if type(wind)==type(None):
         close=True; wind=Q.initDisplay()
@@ -48,14 +51,27 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2):
             nElements=traj.shape[1], sizes=Q.agentSize,
             elementMask=RING,elementTex=None,colors='white')
     try:
+        sig=[ST/1000.0*hz]
+        sig.append(deg2pix(SX,wind.monitor))
+        sig.append(deg2pix(SY,wind.monitor))
         w=int(np.round(deg2pix(width,wind.monitor)/2.0))
         D=np.zeros((traj.shape[0],outsize,outsize,rot),dtype=np.uint8)
+        Ims=[]
         for f in range(0,traj.shape[0]):
             Im=position2image(traj[f,:,:],wind=wind)
             bb=int(Im.size[0]/2.0)
-            
+            Im=Im.crop(np.int32((bb-1.5*w,bb-1.5*w,bb+1.5*w,bb+1.5*w)))
+            Im=np.asarray(Im,dtype=np.float32)
+            Ims.append(Im)
+        Ims=np.array(Ims)
+        Ims=gaussian_filter(Ims,sig)
+        if np.any(Ims>255): print 'warning, too large'
+        if np.any(Ims<0): print 'warning, too small'
+        Ims=np.uint8(np.round(Ims))
+        for f in range(Ims.shape[0]):
+            Im=Image.fromarray(np.array(Ims[f,:,:]))
+            bb=int(Im.size[0]/2.0)
             I=Im.crop((bb-w,bb-w,bb+w,bb+w))
-            
             I=np.asarray(I.resize((outsize,outsize),Image.ANTIALIAS))
             D[f,:,:,0]=I
             for r in range(1,rot):
@@ -68,13 +84,14 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2):
     except:
         if close: wind.close()
         raise
+
 def PFextract(part=[]):
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
     print start,ende,E.shape
     os=64
-    rot=30
+    rot=15
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
         wind=Q.initDisplay()
@@ -92,6 +109,8 @@ def PFextract(part=[]):
     except:
         wind.close()
         raise
+
+
 def PFsubsampleF():
     ''' subsample PF files from 500 hz to 100hz
         to make computeSimilarity run faster'''
@@ -107,8 +126,10 @@ def PFparallel():
     while len(stack):
         jobid=stack.pop(0)
         np.save('stack.npy',stack)
-        extractPF([jobid,600])
+        PFextract([jobid,600])
         stack=np.load('stack.npy').tolist()
+E=np.load('D0.npy')
+PFparallel()
 
 def Scompute():
     '''also available as c++ code
