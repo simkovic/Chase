@@ -42,14 +42,14 @@ int main(int argc, char** argv){
 	//for (int i=0;i<argc;i++){printf("ta %s\n",argv[i]);}
 	char buffer [50];
 	
-	sprintf(buffer,"PF%d.npy",atoi(argv[1]));
+	sprintf(buffer,"data/PF%d.npy",atoi(argv[1]));
 	cnpy::NpyArray arr = cnpy::npy_load(buffer);
 	//printf("dim = %d %u\n",arr1.shape.size(),arr1.word_size);
 	//for (int a=0;a<arr.shape.size();a++){printf("pfsize, %u\n",arr.shape[a]);}
 	const unsigned int N1= arr.shape[0];
 	unsigned char* D1 = reinterpret_cast<unsigned char*>(arr.data);
 	
-	sprintf(buffer,"PF%s.npy",argv[2]);
+	sprintf(buffer,"data/PF%s.npy",argv[2]);
 	cnpy::NpyArray arr2 = cnpy::npy_load(buffer);
 	const unsigned int N2= arr.shape[0];
 	unsigned char* D2 = reinterpret_cast<unsigned char*>(arr.data);
@@ -57,11 +57,14 @@ int main(int argc, char** argv){
 	//double res1,res2,temp;
 	int i=-1; int j=-1;
 	const unsigned int P=arr.shape[1];
-	const unsigned int R=arr.shape[3];
+	const unsigned int RSUBSAMPLE = 3;
+	const unsigned int R=arr.shape[3]/ RSUBSAMPLE ;
 	const unsigned int F=arr.shape[4];
-	const unsigned int Fws=F/2; // F window size
+	//const unsigned int Fws=F/2; // F window size
+	const unsigned int FSTART=8;
+	const unsigned int FEND=59;
 	
-	int Ddim[]={P*P*R*F,P*R*F,R*F,F};
+	int Ddim[]={P*P*arr.shape[3]*F,P*arr.shape[3]*F,arr.shape[3]*F,F};
 	double* S = new double[N1*N2*4*R*2];
 	const unsigned int shape[] = {N1,N2,R*4,2};
 	
@@ -73,16 +76,18 @@ int main(int argc, char** argv){
 	
 	double res1,res2,temp;
 	double test=0;
+	int n2start;
 	
 	int index1,ym;
-	int r2=0; int f2=F/2;
-	for (int n1=0;n1<1;n1++){
-	printf("n1=%d\n",n1);
+	int r2=0; //int f2=F/2;
+	for (int n1=0;n1<N1;n1++){
+	//printf("n1=%d\n",n1);
 	//if (n1 % 100==0 && n1>0) { sprintf(buffer,"S%02d.npy",n1/100);
 	//	cnpy::npy_save(buffer,S,shape,5,"w");}
+	
 	for (int n2=0;n2<N2;n2++){
-		printf("n2=%d\n",n2);
-	for (int r1=0;r1<R;r1=r1+1){
+		//printf("n2=%d\n",n2);
+	for (int r1=0;r1<R;r1++){
 	//for (int f1=0;f1<F-Fws;f1=f1+1){
 	for (int m1=0;m1<2;m1++){
 	for (int ori=0;ori<4;ori++){
@@ -90,17 +95,19 @@ int main(int argc, char** argv){
 		//res1=0;res2=0;
 		index1= n1*Sdim[0]+n2*Sdim[1]+(ori*R+r1)*Sdim[2]+m1;
 		S[index1]=0;
-	for (int x=0;x<P;x=x+1){
-	for (int y=0;y<P;y=y+1){
-	for (int f=F/4;f<3*F/4;f++){
+	if (atoi(argv[1])==atoi(argv[2]) && n1>=n2) continue;
+	for (int x=0;x<P;x++){
+	for (int y=0;y<P;y++){
+		if (sqrt(pow(x-(P-1)/2.0,2)+pow(y-(P-1)/2.0,2))>P/2) continue;
 		// index rotation
 		if (m1==1) ym=P-y-1; else ym=y;
 		if (ori==0) {i=x;j=ym;}
 		if (ori==1){i=ym;j=P-x-1;}
 		if (ori==2){i=P-x-1;j=P-ym-1;}
 		if (ori==3){i=P-ym-1;j=x;}
-		temp= D1[n1*Ddim[0]+i*Ddim[1]+j*Ddim[2]+r1*Ddim[3]+f]
-			-D2[n2*Ddim[0]+x*Ddim[1]+y*Ddim[2]+r2*Ddim[3]+f];
+	for (int f=0;f<FEND-FSTART;f++){
+		temp= D1[n1*Ddim[0]+i*Ddim[1]+j*Ddim[2]+RSUBSAMPLE*r1*Ddim[3]+f+FSTART]
+			-D2[n2*Ddim[0]+x*Ddim[1]+y*Ddim[2]+RSUBSAMPLE*r2*Ddim[3]+f+FSTART];
 		//res1=res1+temp*temp;
 		S[index1]=S[index1]+temp*temp;
 	}}}
@@ -117,7 +124,7 @@ int main(int argc, char** argv){
 	//printf("res1= %f\n", sqrt(res1));
 	}}}}}//}}
 	//printf("S[0]= %f\n", S[0*N*N+0*N+3]);
-	sprintf(buffer,"S%03dx%03d.npy",atoi(argv[1]),atoi(argv[2]));
+	sprintf(buffer,"S/S%03dx%03d.npy",atoi(argv[1]),atoi(argv[2]));
     cnpy::npy_save(buffer,S,shape,4,"w");
 	//printf("finished\n");
 }	

@@ -128,8 +128,8 @@ def PFparallel():
         np.save('stack.npy',stack)
         PFextract([jobid,600])
         stack=np.load('stack.npy').tolist()
-E=np.load('D0.npy')
-PFparallel()
+#E=np.load('D0.npy')
+
 
 def Scompute():
     '''also available as c++ code
@@ -138,46 +138,58 @@ def Scompute():
     plt.ion()
     #vp18script()
     ##D1=np.load('cxx/similPix/PF.npy')
-    D1=np.load('PF.npy')
+    D1=np.load('cxx/similPix/data/PF0.npy')
+    D2=np.load('cxx/similPix/data/PF0.npy')
     #D1=D1[:10,:,:,:,:]
     n1=0
+    n2=1
     #n2=D2.shape[1]
     from time import time
     P=D1.shape[1]
-    R=D1.shape[3]
+    R=D1.shape[3]/3
     F=D1.shape[4]
     r2=0
     f2=10
-    S=np.zeros((D1.shape[0],R*4,F/2,2))*np.nan
+    S=np.zeros((D1.shape[0],D2.shape[0],R*4,2))*np.nan
     ori=np.zeros(8)
-
-    mask=np.zeros((P,P,F/2),dtype=np.bool8)
+    mid=(P-1)/2.0
+    mask=np.zeros((P,P,51),dtype=np.bool8)
     for i in range(P):
         for j in range(P):
-            if np.sqrt((i-P/2.0)**2+(j-P/2.0)**2)<P/2.0: mask[i,j,:]=True
-    # orientations=[0,90,180,270,45,135,225,315]
+            if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
     t0=time()
-    for n2 in range(10):
-        if n1!=n2:
+    for n1 in range(D1.shape[0]):
+        print n1
+        for n2 in range(D2.shape[0]):
             for r1 in range(R):
                 for ori in range(4):
-                    for f1 in range(F/2):
-                        a=np.float32(D1[n1,:,:,r1,f1:(F/2+f1)])
-                        b=np.float32(D1[n2,:,:,r2,f2:(F/2+f2)])*mask
-                        S[n2,r1+R*ori,f1,0]=np.linalg.norm(np.rot90(a,ori)*mask-b)
-                        S[n2,r1+R*ori,f1,1]=np.linalg.norm(np.fliplr(np.rot90(a,ori))*mask-b)
-    
+                    a=np.float32(D1[n1,:,:,r1*3,8:59])
+                    b=np.float32(D2[n2,:,:,r2*3,8:59])#*mask
+                    S[n1,n2,r1+R*ori,0]=np.linalg.norm((np.rot90(a,ori)-b)*mask)
+                    S[n1,n2,r1+R*ori,1]=np.linalg.norm((np.fliplr(np.rot90(a,ori))-b)*mask)
+    print 'time', time()-t0
+    # check the correctness of both programs
+    S2=np.load('cxx/similPix/S/S000x001.npy')
+    print (S-S2).mean()
+
+
+def SinitParallel(N=601):
+    out=[]
+    for i in range(N):
+        for j in range(i,N):
+            out.append([i,j])
+    np.save('cxx/similPix/stack',out)
 def Sparallel():
     ''' parallel similarity computation'''
-
+    os.chdir('cxx/similPix')
     stack=np.load('stack.npy').tolist()
-
+    
     while len(stack):
+        stack=np.load('stack.npy').tolist()
         jobinfo=stack.pop(0)
         np.save('stack.npy',stack)
-        
-        stack=np.load('stack.npy').tolist()
-
+        print jobinfo
+        os.system('./simil %d %d'%tuple(jobinfo))
 
 
 def checkSimWideGrid():
