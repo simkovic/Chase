@@ -35,15 +35,15 @@ def exportFrame(positions,fn,maze=None,wind=None):
     
 def exportTrial(outname,trajectories,wind=None):
     if type(wind)==type(None):
-        wind=initDisplay()
+        wind=Q.initDisplay()
     try:
         nrframes=trajectories.shape[0]
         cond=trajectories.shape[1]
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',nElements=cond,
-            sizes=agentRadius*scale,elementMask='circle',elementTex=None)
+            sizes=Q.agentRadius*scale,elementMask='circle',elementTex=None)
         for f in range(nrframes):
             t0=core.getTime()
-            elem.setXYs(trajectories[f,:,[X,Y]].transpose()*scale)
+            elem.setXYs(trajectories[f,:,[X,Y]].transpose())
             elem.draw()
             #print core.getTime()-t0
             wind.update()
@@ -181,7 +181,7 @@ def showTrial(trajectories,maze=None,wind=None,highlightChase=False,
 
 if __name__ == '__main__':
     #t=np.load('test.npy')
-    from Settings import *
+    from Settings import Q
     from Constants import *
     from Maze import *
     from evalETdata import *
@@ -190,5 +190,5 @@ if __name__ == '__main__':
     #traj=np.load('input/vp001/trial019.npy')
     #showTrial(traj,highlightChase=True,gazeData=data[18][:,[1,2]])
     #r=traj2image(t[113,:,:].squeeze())
-    t=np.load('t.npy')
-    showTrial(t)
+    t=np.load('saliency/input/vp001b2trial013.npy')
+    exportTrial('test.mpeg',t)
