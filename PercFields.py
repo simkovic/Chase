@@ -7,6 +7,7 @@ from Settings import Q
 import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
+from psychopy import core
 
 
 
@@ -127,7 +128,15 @@ def PFparallel():
         jobid=stack.pop(0)
         np.save('stack.npy',stack)
         PFextract([jobid,600])
-        stack=np.load('stack.npy').tolist()
+        loaded=False
+        while not loaded:
+            try:
+                stack=np.load('stack.npy').tolist()
+                loaded=True
+            except IOError:
+                print 'IOError'
+                core.wait(1)
+                
 #E=np.load('D0.npy')
 
 
@@ -185,12 +194,19 @@ def Sparallel():
     stack=np.load('stack.npy').tolist()
     
     while len(stack):
-        stack=np.load('stack.npy').tolist()
+        loaded=False
+        while not loaded:
+            try:
+                stack=np.load('stack.npy').tolist()
+                loaded=True
+            except IOError:
+                print 'IOError'
+                core.wait(1)
         jobinfo=stack.pop(0)
         np.save('stack.npy',stack)
         print jobinfo
         os.system('./simil %d %d'%tuple(jobinfo))
-
+Sparallel()
 
 def checkSimWideGrid():
     from Analysis import E
