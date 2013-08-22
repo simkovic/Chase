@@ -499,6 +499,7 @@ def saveSearchSacInfo():
         np.save(path+'SIvp%03db%d.npy'%(vp,b),si)  
     
 if __name__ == '__main__':
+    pass
     #data=readEyelink(1,1)
     #data[1].extractBasicEvents()
     #data[1].loadTrajectories()

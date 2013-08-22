@@ -330,20 +330,21 @@ if __name__ == '__main__':
     #D=loadData()
     D=[]
     for i in range(4): D.append(np.load('D%d.npy'%i))
-
-    q=1
-    E=D[q]
-    F=[]
-    for q in range(2):
-        F.append(np.zeros((E.shape[0],E.shape[3]*E.shape[1]*E.shape[2])))
-        for k in range(E.shape[0]):
-            B=np.copy(E[k,:,:,:])
-            F[q][k,:]= B.reshape([F[q].shape[1],1]).squeeze()
-    x=np.concatenate(F,axis=0)
-    x=np.concatenate([-np.ones((x.shape[0],1)), x],axis=1)
-    y=np.zeros((F[q].shape[0]*2))
-    y[:F[q].shape[0]]=1
-    del D, E, F
+    si=plotSearchInfo(False)
+##
+##    q=1
+##    E=D[q]
+##    F=[]
+##    for q in range(2):
+##        F.append(np.zeros((E.shape[0],E.shape[3]*E.shape[1]*E.shape[2])))
+##        for k in range(E.shape[0]):
+##            B=np.copy(E[k,:,:,:])
+##            F[q][k,:]= B.reshape([F[q].shape[1],1]).squeeze()
+##    x=np.concatenate(F,axis=0)
+##    x=np.concatenate([-np.ones((x.shape[0],1)), x],axis=1)
+##    y=np.zeros((F[q].shape[0]*2))
+##    y[:F[q].shape[0]]=1
+##    del D, E, F
 
     #lr.checkCorrectness(x,y)
     #pcaMotionMultiAgent(D)
