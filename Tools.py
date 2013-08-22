@@ -33,14 +33,14 @@ def exportFrame(positions,fn,maze=None,wind=None):
         wind.close()
         raise
     
-def exportTrial(outname,trajectories,wind=None):
+def exportTrial(outname,trajectories,wind=None,hz=60):
     if type(wind)==type(None):
         wind=Q.initDisplay()
     try:
         nrframes=trajectories.shape[0]
         cond=trajectories.shape[1]
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',nElements=cond,
-            sizes=Q.agentRadius*scale,elementMask='circle',elementTex=None)
+            sizes=Q.agentRadius,elementMask='circle',elementTex=None)
         for f in range(nrframes):
             t0=core.getTime()
             elem.setXYs(trajectories[f,:,[X,Y]].transpose())
@@ -54,7 +54,9 @@ def exportTrial(outname,trajectories,wind=None):
                     wind.close()
                     break;
                     #core.quit()
-        wind.saveMovieFrames('%s.mpeg'%outname,fps=60,mpgCodec='mpeg1video')
+            print f
+            if f in [500,1000,1500,2000,2550]:
+                wind.saveMovieFrames('%s%d.mpeg'%(outname,f/500),fps=hz,mpgCodec='mpeg1video')
     except: 
         wind.close()
         raise
@@ -100,7 +102,7 @@ def showFrame(positions,maze=None,wind=None, elem=None,highlightChase=False):
             clrs[1,[1,2]]=0
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',
             nElements=cond,sizes=agentSize,rgbs=clrs,
-            elementMask='circle',elementTex=None)
+            elementMask=RING,elementTex=None)
     try:
         if type(maze)!=type(None):
             maze.draw(wind)
@@ -133,7 +135,7 @@ def showTrial(trajectories,maze=None,wind=None,highlightChase=False,
             clrs[1,[1,2]]=0
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',
             nElements=cond,sizes=Q.agentSize,rgbs=clrs,
-            elementMask='circle',elementTex=None)
+            elementMask=RING,elementTex=None)
         if type(maze)!=type(None):
             maze.draw(wind)
         wind.flip()
@@ -191,4 +193,4 @@ if __name__ == '__main__':
     #showTrial(traj,highlightChase=True,gazeData=data[18][:,[1,2]])
     #r=traj2image(t[113,:,:].squeeze())
     t=np.load('saliency/input/vp001b2trial013.npy')
-    exportTrial('test.mpeg',t)
+    exportTrial('test.mpeg',t,hz=85)
