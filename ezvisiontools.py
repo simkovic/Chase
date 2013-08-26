@@ -1,6 +1,9 @@
 import os, struct,time
 import numpy as np
 import pylab as plt
+from Tkinter import *
+import tkFileDialog
+
 X=0;Y=1
 def pfm2npy(fpath):
     f=open(fpath)
@@ -28,6 +31,15 @@ def rawvideo2npy(fpath):
         m = np.array(zip(*m))
     f.close()
     return m
+def mraw2npy(fpath):
+    vid=Mraw(fpath)
+    out=np.zeros((5000,vid.rows,vid.cols),dtype=np.uint8)
+    m = vid.nextFrame()
+    i=0
+    while len(m.shape)==2:
+        i+=1
+        m = vid.nextFrame()
+    return out[:i,:,:]
 
 class InputSeries():
     """ A superclass for Movie input files
@@ -127,19 +139,15 @@ class Mraw(InputSeries):
                             self.data))]
                     self.data=self.fid.read(self.rows)
                 #m = np.array(zip(*m))
-                m=np.array(m)
+                m=np.array(m,dtype=np.uint8)
                 return m  
         else:
             self.fid.close()
             return np.array([])
     def close(self):
         self.fid.close()
-        
 
-
-if __name__ == '__main__':
-    from Tkinter import *
-    import tkFileDialog
+def showEzvisionOutput():
     X=0;Y=1
     master = Tk()
     master.withdraw() #hiding tkinter window
@@ -177,24 +185,23 @@ if __name__ == '__main__':
         # unpack the "tremXX" name from filePath
         fn=filePath.rsplit('/')
         fn=fn[-1].rsplit('.')
-        traj =np.load('tremouletTraj//'+fn[0]+'.npy')
-        # transform from deg to pix
-        offset=201
-        traj=offset+traj*400.0 /13.5#11.951193368719736
-        # in addition I have to rotate Y axis
-        traj[:,:,Y]=offset-(traj[:,:,Y]-offset)
         i=0
         tt=0
         while len(m.shape)==2:
             print i
             i+=1
             plt.cla()
-            plt.imshow(m)
-            #tt=m
-            #tt=max(tt,np.max(m))
-            #plt.scatter(traj[i-1,0,X], traj[i-1,0,Y])
+            plt.imshow(m,cmap='gray',aspect='equal',vmax=255,vmin=0)
+            if i==1: plt.colorbar()
             m = vid.nextFrame()
-    #master.quit()
+        
+
+
+if __name__ == '__main__':
+    showEzvisionOutput()
+    fpath='saliency/output/vp001b1trial000COmotion-.64x64.mgrey'
+    
+
 
 
     
