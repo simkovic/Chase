@@ -478,7 +478,37 @@ def checkEyelinkDatasets():
 
 
 
+def saveTrackingSacInfo():
+    ''' output give, sac onset in f, sac onset in sec, sac onset posx, sac onset pos y,
+        sac end in f sac end in sec, sac end posx, sac end pos y, sac speed, sac dur,
+        event type of the consecutive event, trial dur, tracking event id within trial,
+        sac id within tracking event, block, trial
+    '''
+    vp=1
+    path=getcwd().rstrip('code')+'evaluation/'
+    ti=[]
+    for b in range(11,22):
+        data=readEyelink(vp,b)
+        for i in range(len(data)):
+            if data[i].ts>=0:
+                print 'block ',b,'trial',i
+                data[i].extractBasicEvents()
+                data[i].driftCorrection()
+                data[i].importComplexEvents()
+                if  data[i].search!=None:
+                    g=data[i].getGaze()
+                    gg=0
+                    for tr in data[i].track:
+                        print '\tdif', tr[0]-tr[3][1]
+                        kk=0
+                        for ev in tr[3:]:
+                            ti.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
+                                ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
+                                ev[4],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
+                        gg+=1
+        np.save(path+'TIvp%03db%d.npy'%(vp,b),ti)
 def saveSearchSacInfo():
+    'saves info regarding the saccade which started tracking'
     vp=1
     path=getcwd().rstrip('code')+'evaluation/'
     si=[]
@@ -496,19 +526,16 @@ def saveSearchSacInfo():
                         si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                             ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
                             ev[4],data[i].t0[1]-data[i].t0[0],b,i])
-        np.save(path+'SIvp%03db%d.npy'%(vp,b),si)  
+        np.save(path+'SIvp%03db%d.npy'%(vp,b),si)
+    
     
 if __name__ == '__main__':
-    pass
-    #data=readEyelink(1,1)
-    #data[1].extractBasicEvents()
-    #data[1].loadTrajectories()
+##    data=readEyelink(1,1)
+##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
-##    data[1].importTrackingFromCoder()
-##    print data[1].sev
-##    print data[1].search
+##    data[1].importComplexEvents()
 
-    #saveSearchSacInfo()
+    saveTrackingSacInfo()
 
         
     

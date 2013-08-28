@@ -14,6 +14,7 @@ vp=1
 bs=range(1,22)
 sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
 fw=int(np.round((abs(sw)+ew)/1000.0*hz))
+radbins=np.arange(1,15)
 
 def plotSearchInfo(plot=True):
     D=np.load(path+'SIvp%03d.npy'%(vp))
@@ -205,6 +206,83 @@ def dirChanges(D):
     plt.title('Radius = 10 deg')
     #return K,nK
 
+def extractSaliency():
+    from ezvisiontools import Mraw
+    si=plotSearchInfo(plot=False)
+    inpath=getcwd().rstrip('code')+'input/'
+    sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
+    ef=sf+fw
+    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    si=si[valid,:]
+    sf=sf[valid]
+    ef=ef[valid]
+    lastt=-1;dim=64;k=0
+    gridG=np.zeros((fw,dim,dim));radG=np.zeros((fw,radbins.size))
+    gridT=np.zeros((fw,dim,dim));radT=np.zeros((fw,radbins.size))
+    gridA=np.zeros((fw,dim,dim));radA=np.zeros((fw,radbins.size))
+    gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
+    rt=np.random.permutation(si.shape[0])
+    rp=np.random.permutation(si.shape[0])
+    for h in range(si.shape[0]):
+        if si[h,-1]!=lastt:
+            order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
+            traj=np.load(inpath+'vp%03d/vp%03db%dtrial%03d.npy'%(vp,vp,si[h,-2],order[si[h,-1]]))
+            try: vid=Mraw(getcwd()+'/saliency/output/vp%03d/vp%03db%dtrial%03dCOmotion-.%dx%d.mgrey'%(vp,vp,int(si[h,-2]),order[si[h,-1]],dim,dim))
+            except:
+                continue
+        temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
+        gridG+=temp1; radG+=temp2.T; lastt=si[h,-2];
+        temp1,temp2=vid.computeSaliency(si[rt[h],[6,7]],[sf[rt[h]],ef[rt[h]]],rdb=radbins)
+        gridT+=temp1; radT+=temp2.T;
+        temp1,temp2=vid.computeSaliency(traj[sf[h]+fw/2,2,:2],[sf[h],ef[h]],rdb=radbins)
+        gridA+=temp1; radA+=temp2.T;
+        temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
+        gridP+=temp1; radP+=temp2.T;k+=1
+        print k
+        
+
+    gridG/=float(k);radG/=float(k);gridT/=float(k);radT/=float(k)
+    gridP/=float(k);radP/=float(k);gridA/=float(k);radA/=float(k)
+    np.save(getcwd()+'/saliency/vp%03dMgridG.npy'%vp,gridG)
+    np.save(getcwd()+'/saliency/vp%03dMradG.npy'%vp,radG)
+    np.save(getcwd()+'/saliency/vp%03dMgridT.npy'%vp,gridT)
+    np.save(getcwd()+'/saliency/vp%03dMradT.npy'%vp,radT)
+    np.save(getcwd()+'/saliency/vp%03dMgridA.npy'%vp,gridA)
+    np.save(getcwd()+'/saliency/vp%03dMradA.npy'%vp,radA)
+    np.save(getcwd()+'/saliency/vp%03dMgridP.npy'%vp,gridP)
+    np.save(getcwd()+'/saliency/vp%03dMradP.npy'%vp,radP)
+
+def plotSaliency():
+    K=[];I=[]
+    for s in ['G','T','A','P']:
+        K.append(np.load(getcwd()+'/saliency/vp%03dMgrid%s.npy'%(vp,s)))
+        I.append(np.load(getcwd()+'/saliency/vp%03dMrad%s.npy'%(vp,s)).T)
+
+    plt.figure();plot=False
+    if plot:
+        for q in I:
+            plt.imshow(q,extent=[sw,ew,radbins[0],radbins[-1]],
+                aspect=30,origin='lower',vmin=0.008, vmax=0.021)
+            plt.ylabel('radial distance from sac target')
+            plt.xlabel('time from sac onset')
+            plt.title('saliency')
+            plt.colorbar();plt.set_cmap('hot')
+            plt.figure()
+    for q in I: plt.plot(radbins,q.mean(1))
+    plt.xlabel('radial distance')
+    plt.ylabel('Average Saliency [0,1]')
+    plt.legend(['gaze','rand time','rand agent','rand pos'])
+    plt.figure()
+    x=np.linspace(sw,ew,I[0].shape[1])
+    hhh=3
+    for q in I: plt.plot(x,nanmean(q[:hhh,:],0))
+    plt.xlabel('time')
+    plt.title('Radius=%d deg'%hhh)
+    plt.ylabel('Average Saliency [0,1]')
+    plt.xlabel('time to saccade onset')
+    plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)
+
+    plt.show()
 
 ### different method for extracting radial density, gives similar results
 ##H,C,G,bn=agentDensity(D,si)
@@ -352,7 +430,7 @@ if __name__ == '__main__':
     #agentDensity(D)
     #dirChanges(D)
 
-    plt.show()
+
 
 
 
