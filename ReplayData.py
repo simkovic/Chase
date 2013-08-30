@@ -113,7 +113,7 @@ class Trajectory():
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
-                if playing: self.f+=1
+                if playing: self.f+=2
             self.wind.flip()
             #print core.getTime() - t0
             self.wind.close()
@@ -225,7 +225,6 @@ class ETReplay(Trajectory):
             self.selected=[[]]
             try:
                 for tr in self.gazeData.track:
-                    print tr
                     s=int(np.round(scale*tr[0]))
                     e=min(len(self.t)-1,max(s+1, int(np.round(scale*tr[1]))))
                     self.selected[0].append([self.t[s],s,tr[0],self.t[e],e,tr[1],tr[2],[],False])
@@ -234,7 +233,6 @@ class ETReplay(Trajectory):
                         e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
                         self.selected[0][-1][7].append([self.t[s],s,a[0],self.t[e],e,a[1],'black'])
             except AttributeError: print 'Tracking events not available'
-            print self.selected[0]
             #self.selected=[Coder.loadSelection(self.gazeData.vp,
             #        self.gazeData.block,self.gazeData.trial,prefix= 'track/coder1/')]
             self.pos[:,:,0]-=6 # shift agents locations on the screen
@@ -363,7 +361,7 @@ class Coder(ETReplay):
             for sr in self.sacrects:
                 if sr.ad>-1 and sr.contains(mpos):
                     g=self.gazeData.getGaze()
-                    if ((len(self.selected[0])>0 or len(self.selected[0][-1])<6)
+                    if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
                         and self.seltoolrect.contains(mpos) or
                         (self.atoolrect.contains(mpos) and  mkey[0]>0)):
                         ff= self.sev[sr.ad][0]
@@ -409,7 +407,7 @@ class Coder(ETReplay):
                 for sr in self.selrects:
                     if sr.contains(pos):
                         for ar in self.arects:
-                            if ar.ad==sr.ad:
+                            if ar.ad==sr.ad and sr.ad>-1:
                                 if abs(ar.pos[1]-mpos[1])<ar.height/2.0:
                                     assert tar==None
                                     tar=ar
@@ -436,17 +434,13 @@ class Coder(ETReplay):
     def highlightAgent(self,a):
         for sel in self.selected[0]:
             if len(sel)>6 and a in sel[6]:
-                print '3',sel,a
                 sell=sel[7][sel[6].index(a)]
                 if sell[1]<=self.f and sell[4]>=self.f:
                     sel[7].pop(sel[6].index(a))
                     sel[6].remove(a)
-                    print '4',sel
             elif len(sel)>=6 and sel[1]<=self.f and sel[4]>=self.f:
-                print '1',sel, a
                 sel[6].append(a)
                 sel[7].append(sel[:6])
-                print '2',sel
     @staticmethod
     def loadSelection(vp,block,trial,prefix='track/'):
         #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
@@ -475,7 +469,7 @@ class Coder(ETReplay):
             for a in range(len(sel[6])):
                 fout.write(' %d'%sel[6][a])
             for a in range(len(sel[6])):
-                for k in sel[7][a]:
+                for k in sel[7][a][:-1]:
                     fout.write(' %d'%int(k))
                     
             fout.write(' %d'%sel[8])
@@ -588,7 +582,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(1,1,1)
+    replayBlock(1,2,0)
 
     #codingComparison()
 #    from readETData import readEyelink
