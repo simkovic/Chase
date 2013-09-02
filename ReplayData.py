@@ -108,8 +108,8 @@ class Trajectory():
                     if key=='space': playing= not playing
                     if key=='l': self.f=self.f+1
                     if key=='k': self.f=self.f-1
-                    if key=='semicolon': self.f=self.f+10
-                    if key=='j': self.f=self.f-10
+                    if key=='semicolon': self.f=self.f+15
+                    if key=='j': self.f=self.f-15
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
@@ -442,7 +442,7 @@ class Coder(ETReplay):
                 sel[6].append(a)
                 sel[7].append(sel[:6])
     @staticmethod
-    def loadSelection(vp,block,trial,prefix='track/'):
+    def loadSelectionOld(vp,block,trial,prefix='track/'):
         #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
         fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
         out=[]
@@ -453,6 +453,24 @@ class Coder(ETReplay):
             out.append(els[:6])
             out[-1].append(els[6:-1])
             out[-1].append([els[:6]]*len(out[-1][-1]))
+            out[-1].append(els[-1])
+        return out
+    @staticmethod
+    def loadSelection(vp,block,trial,prefix='track/'):
+        #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
+        fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
+        out=[]
+        for line in fin:
+            line=line.rstrip('\n')
+            els= line.rsplit(' ')
+            els=np.int32(els).tolist()
+            out.append(els[:6])
+            out[-1].extend([[],[]])
+            for a in range(len(els[6:-1])/7):
+                out[-1][-2].append(els[6+a])
+            for a in range(len(els[6:-1])/7):
+                i=5+len(els[6:-1])/7+a*6
+                out[-1][-1].append(els[(i+1):(i+7)])
             out[-1].append(els[-1])
         return out
         
@@ -511,7 +529,8 @@ def replayBlock(vp,block,trialStart):
         trl.driftCorrection()
         trl.extractComplexEvents()
         trl.importComplexEvents()
-        R=Coder(gazeData=trl,phase=1,eyes=1)
+    for trial in range(trialStart,len(data)):
+        R=Coder(gazeData=data[trial],phase=1,eyes=1)
         R.play(tlag=0)
 # coding verification routines       
 def codingComparison(vp=1,block=2):
@@ -582,7 +601,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayBlock(1,2,0)
+    replayTrial(1,12,20)
 
     #codingComparison()
 #    from readETData import readEyelink

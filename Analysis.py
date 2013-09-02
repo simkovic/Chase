@@ -8,18 +8,25 @@ from scipy.stats import nanmean
 plt.close('all')
 #plt.ion()
 from os import getcwd
-path=getcwd().rstrip('code')+'evaluation/'
+path=getcwd().rstrip('code')+'/evaluation/'
 vp=1
 
 bs=range(1,22)
 sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
 fw=int(np.round((abs(sw)+ew)/1000.0*hz))
 radbins=np.arange(1,15)
+do=1 # 0 - si; 1- ti
 
 def plotSearchInfo(plot=True):
-    D=np.load(path+'SIvp%03d.npy'%(vp))
+    if do==0: D=np.load(path+'SIvp%03d.npy'%(vp))
+    elif do==1:
+        ti=np.load(path+'TIvp%03d.npy'%vp)
+        ti=ti[ti[:,14]==0,:]
+        ti=ti[ti[:,11]-ti[:,4]>=0,:]
+        D=ti
     if plot:
-        plt.close('all')
+        #plt.close('all')
+        plt.figure()
         plt.plot(D[:,6],D[:,7],'.k')
         plt.title('Target positions')
         ax=plt.gca()
@@ -35,16 +42,19 @@ def plotSearchInfo(plot=True):
         reloc=np.sqrt(np.sum(np.power(D[:,[6,7]]-D[:,[2,3]],2),axis=1))
         plt.title('Distance')
         plt.hist(reloc,50)
+        plt.xlim([0,20])
 
         plt.figure()
         dur = D[:,5]-D[:,1]
         plt.hist(dur,50)
         plt.title('Duration')
+        plt.xlim([0,250])
 
         plt.figure()
         vel=reloc/dur
         plt.hist(vel[~np.isnan(vel)]*1000,50)
         plt.title('Velocity')
+        plt.xlim([0,200])
     return D
 
 
@@ -53,7 +63,8 @@ def loadData():
     inpath=getcwd().rstrip('code')+'input/'
     sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
     ef=sf+fw
-    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    if do==0: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    else: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     print 'proportion of utilized samples is', valid.mean()
     D=np.zeros((valid.sum(),fw,14,2))*np.nan
     DG=np.zeros((valid.sum(),fw,14,2))*np.nan
@@ -87,12 +98,13 @@ def loadData():
 def agentDensity(D):
     #np.random.seed(1234)
     shape=D[0].shape
-    plt.close('all');I=[]
+    #plt.close('all');
+    I=[]
     bnR=np.arange(0,30,0.5)
     bnS=np.diff(np.pi*bnR**2)
     bnd= bnR+(bnR[1]-bnR[0])/2.0;bnd=bnd[:-1]
     for i in range(len(D)): I.append(np.zeros((bnS.size,shape[1])))
-    plot=False
+    plot=True
     g=1;figs=range(1,100);fig1=figs.pop(0);fig2=figs.pop(0)
     r=np.random.permutation(shape[0])
     n=shape[0]*shape[2]
@@ -156,7 +168,8 @@ def agentDensity(D):
     
 
 def dirChanges(D):
-    plt.close('all'); P=[];J=[];K=[];nK=[]
+    #plt.close('all');
+    P=[];J=[];K=[];nK=[]
     shape=D[0].shape
     bn=np.arange(0,20,0.5)
     d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
@@ -374,6 +387,39 @@ def pcaMotionMultiAgent(D):
         plt.subplot(5,6,i+1)
         b=pcs[:,i].reshape([E.shape[1],E.shape[2],E.shape[3]])
         plotTraj(b);
+
+def EMpca(X,p):
+    ''' data is a matrix holding the input data
+        each column of data is one data vector
+        NB: mean will be subtracted and discarded
+        p    is # of principal components to find
+    '''
+    
+    K,N=X.shape
+    for k in range(K): X[k,:]-= X[k,:].mean()
+    X= np.matrix(X)
+    W= np.matrix(np.random.rand(K,p))
+    tol=1e-8;error=np.inf; last=np.inf
+    while not abs(last-error)<error*tol:
+        Z,bla,blaa,blaaa=np.linalg.lstsq(W.T*W, W.T*X)#Z = (W'*W)\(W'*X);
+        b=Z*Z.T;a=X*Z.T
+        try: W=np.linalg.solve(a,b)
+        except: W,bla,blaa,blaaa=np.linalg.lstsq(b.T,a.T);W=W.T
+        last =error
+        E=X-W*Z
+        error= np.power(E,2).sum()/N
+        print abs(last-error)/error
+    W,R=np.linalg.qr(W)
+    Z=W.T*X
+    #for k in range(p): Z[k,:]-= Z[k,:].mean()
+    A,V=np.linalg.eig(Z*Z.T)
+    idx=np.argsort(A)[::-1]
+    V=np.matrix(V[:,idx]).T
+    V=W*V
+    A=A[idx]
+    return V,A
+    
+    
     
 def plotTraj(traj):
     ax=plt.gca()
@@ -403,12 +449,11 @@ def plotTraj(traj):
    
 
 if __name__ == '__main__':
-    from matplotlib.mlab import PCA
-    from test import princomp
-    #D=loadData()
-    D=[]
-    for i in range(4): D.append(np.load('D%d.npy'%i))
-    si=plotSearchInfo(False)
+##    from matplotlib.mlab import PCA
+##    from test import princomp
+##    D=[]
+##    for i in range(4): D.append(np.load('D%d.npy'%i))
+##    si=plotSearchInfo(False)
 ##
 ##    q=1
 ##    E=D[q]
@@ -427,9 +472,22 @@ if __name__ == '__main__':
     #lr.checkCorrectness(x,y)
     #pcaMotionMultiAgent(D)
     #pcaMotionSingleAgent(D)
-    #agentDensity(D)
+    do=0
+    D=loadData()
+    dirChanges(D)
+    do=1
+    D=loadData()
+    dirChanges(D)
+    plt.show()
     #dirChanges(D)
 
+
+    
+    
+    
+    
+
+    
 
 
 
