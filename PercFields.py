@@ -8,6 +8,7 @@ import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
+from images2gif import writeGif
 
 
 
@@ -86,7 +87,7 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
         if close: wind.close()
         raise
 
-def PFextract(part=[]):
+def PFextract(part=[0,1]):
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
@@ -105,7 +106,7 @@ def PFextract(part=[]):
                         elem=elem,wind=wind,rot=rot)
         wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save('cxx/similPix/data/PF%d.npy'%part[0],PF)
+        if len(part)==2: np.save('cxx/similPix/TI/PF%d.npy'%part[0],PF)
         else: np.save('PF.npy',PF)
     except:
         wind.close()
@@ -121,24 +122,81 @@ def PFsubsampleF():
         PF=PF[:,:,:,:,range(2,152,5)]
         PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
 def PFparallel():
-    ''' you can setup stack by np.save('stack.npy',range(601))'''
-    stack=np.load('stack.npy').tolist()
+    ''' you can setup stack by np.save('stackPF.npy',range(601))'''
+    stack=np.load('stackPF.npy').tolist()
 
     while len(stack):
         jobid=stack.pop(0)
-        np.save('stack.npy',stack)
-        PFextract([jobid,600])
+        np.save('stackPF.npy',stack)
+        PFextract([jobid,50])
         loaded=False
         while not loaded:
             try:
-                stack=np.load('stack.npy').tolist()
+                stack=np.load('stackPF.npy').tolist()
                 loaded=True
             except IOError:
                 print 'IOError'
                 core.wait(1)
+#E=np.load('tiD0.npy')
+#PFparallel()
+def Mcompute():
+    ''' mean of the PF data'''
+    inpath='cxx/similPix/TI/'
+    ids=[]
+    N=len(os.listdir(inpath))
+    pf=None
+    for i in range(N):
+        pf1=np.load(inpath+'PF%d.npy'%i)
+        pf1=pf1[:,:,:,0,:].mean(0).squeeze()
+        if pf==None: pf=pf1
+        else: pf+=pf1
+        print i
+    pf/=N
+    pf=pf.flatten()
+    np.save('cxx/similPix/PFmeanTI.npy',pf)
                 
-#E=np.load('D0.npy')
+                
+def Ccompute():
+    ''' covariance of PF data, no rotation'''
+    inpath='cxx/similPix/TI/'
+    ids=[]
+    M=np.load(inpath+'PFmean.npy')
+    N=len(os.listdir(inpath+'PF/'))
+    for i in range(N):
+        pf1=np.load(inpath+'PF/PF%d.npy'%i)
+        pf1=pf1[:,:,:,0,:].squeeze()
+        pf1=pf1.reshape((pf1.shape[0],pf1.size/pf1.shape[0]))-M
+        for j in range(i,N):
+            print i,j
+            pf2=np.load(inpath+'PF/PF%d.npy'%j)
+            pf2=pf2[:,:,:,0,:].squeeze()
+            pf2=pf2.reshape((pf2.shape[0],pf2.size/pf2.shape[0]))-M
+            np.save(inpath+'C/C%03dx%03d.npy'%(i,j),pf1.T.dot(pf2))
+            
+#Ccompute()           
+        
+def Cmerge():
+    inpath='cxx/similPix/TI/'
+    ids=[]
+    M=np.load(inpath+'PFmean.npy')
+    N=len(os.listdir(inpath+'PF/'))
+    C=[[0]*N]*N
+    for i in range(N):
+        for j in range(N):
+            if i<=j: C[i][j]=np.load(inpath+'C/C%03dx%03d.npy'%(i,j))
+            else: C[i][j]=np.load(inpath+'C/C%03dx%03d.npy'%(j,i)).T 
+        C[i]=np.concatenate(C[i],axis=1)
+    C=np.concatenate(tuple(C),axis=0)
+    np.save(inpath+'C.npy',C)
 
+#def Cpca():
+##inpath='cxx/similPix/TI/'
+##C=np.load(inpath+'C.npy')
+##[latent,coeff] = np.linalg.eig(C)
+##idcs=np.argsort(latent)[::-1]
+##latent=latent[idcs]
+##coeff=coeff[:,idcs]
+    
 
 def Scompute():
     '''also available as c++ code
@@ -200,13 +258,15 @@ def Sparallel():
                 stack=np.load('stack.npy').tolist()
                 loaded=True
             except IOError:
-                print 'IOError'
+                print 'IO Error'
+                core.wait(1)
+            except ValueError:
+                print 'Value Error'
                 core.wait(1)
         jobinfo=stack.pop(0)
         np.save('stack.npy',stack)
         print jobinfo
         os.system('./simil %d %d'%tuple(jobinfo))
-Sparallel()
 
 def checkSimWideGrid():
     from Analysis import E
@@ -514,3 +574,205 @@ def PtoS(P):
             r=abs(P[n1,1]-P[n2,1])
             m= abs(P[n1,2]-P[n2,2])
             Sout[n1,n2]=S[n1,n2,P[n1,0],P[n2,0],r,m]
+
+#########################################################
+#                                                       #
+#                       PCA                             #
+#                                                       #
+#########################################################
+
+def PF2X(merge=1):
+    ''' merge - # of pf files to merge into one x file
+                by default 1 and no files are merged
+    '''
+    pfpath=inpath.rstrip('/X/')+'/PF/'
+    fs=os.listdir(pfpath)
+    fs.sort();k=0;x=[];h=0
+    for f in fs:
+        pf=np.load(pfpath+f)
+        pf=pf[:,:,:,0,:].squeeze()
+        x.append(pf.reshape((pf.shape[0],pf.size/pf.shape[0])))
+        if k%merge==merge-1:
+            x=np.concatenate(x,0)
+            np.save(inpath+'X%d'%h,x)
+            x=[];h+=1
+        k+=1
+    if len(x)>0:
+        x=np.concatenate(x,0)
+        np.save(inpath+'X%d'%h,x);h+=1
+    #h=201
+    #x=np.load(inpath+'X0.npy')
+    global X
+    X=h
+    inc=int(np.ceil(x.shape[1]/float(h)))
+    for g in range(h):
+        out=[]
+        print g
+        for j in range(h):
+            x=np.load(inpath+'X%d.npy'%j)
+            out.append(x[:,g*inc:(g+1)*inc].copy())
+            if g==h-1:
+                x=np.float64(x)/255.0
+                np.save(inpath+'X%d.npy'%j,x)
+            del x
+        out =np.concatenate(out,0).T
+        out=np.float64(out)/255.0
+        np.save(inpath+'XT%d'%g,out)
+
+def split(X):
+    inc=int(np.ceil(X.shape[0]/float(N)))
+    for i in range(N):
+        np.save(inpath+'X%d.npy'%i,X[i*inc:(i+1)*inc,:])
+    inc=int(np.ceil(X.shape[1]/float(N)))
+    for i in range(N):
+        np.save(inpath+'XT%d.npy'%i,X[:,i*inc:(i+1)*inc].T)
+        
+def merge(fprefix='X',N=5):
+    out=[]
+    for i in range(N): out.append(np.load(inpath+fprefix+'%d.npy'%i))
+    return np.concatenate(out,0)
+def mergeT(fprefix='X'):
+    out=[]
+    for i in range(N): out.append(np.load(inpath+fprefix+'T%d.npy'%i).T)
+    return np.concatenate(out,1)
+def XgetColumn(k):
+    inc=np.load(inpath+'XT0.npy').shape[0]
+    a=k/inc;b=k%inc
+    return np.matrix(np.load(inpath+'XT%d.npy'%a)[b,:]).T
+    
+    
+def Xleftmult(A,transpose=False):
+    ''' OUT=X*A or OUT=X.T*A '''
+    out=[];A=np.matrix(A)
+    for i in range(N):
+        X=np.load(inpath+'X%d.npy'%i)
+        if transpose: X=np.load(inpath+'XT%d.npy'%i)
+        out.append(X*A)
+    return np.concatenate(out,0)
+def XminusOuterProduct(A,B):
+    ''' X=X-A*B.T '''
+    out=[];A=np.matrix(A);B=np.matrix(B).T
+    s=0
+    for i in range(N):
+        X=np.load(inpath+'X%d.npy'%i)
+        e=s+X.shape[0]
+        X= X- A[s:e,:]*B
+        np.save(inpath+'X%d.npy'%i,X)
+        s=e
+def XcolMeanCenter():
+    #compute mean
+    tot=0
+    for i in range(N):
+        X=np.load(inpath+'XT%d.npy'%i)
+        if i==0: res=X.sum(0)
+        else: res+=X.sum(0)
+        tot+=X.shape[0]
+    res/=tot
+    np.save(inpath+'Xmean.npy',res.squeeze())
+    for i in range(N):
+        X=np.load(inpath+'XT%d.npy'%i)
+        np.save(inpath+'XT%d.npy'%i,X-np.matrix(res))
+    inc=int(np.ceil(X.shape[1]/float(N)))
+    for i in range(N):
+        X=np.load(inpath+'X%d.npy'%i)
+        np.save(inpath+'X%d.npy'%i,X-np.matrix(res[i*inc:(i*inc+X.shape[0])]).T)  
+    
+def pcaNipals(K=5,tol=1e-4):
+    ''' Reference:
+            Section 2.2 in Andrecut, M. (2009).
+            Parallel GPU implementation of iterative PCA algorithms.
+            Journal of Computational Biology, 16(11), 1593-1599.
+            
+    '''
+    print 'Mean centering columns'
+    XcolMeanCenter()
+    latent=[]
+    for k in range(K):
+        lam0=0;lam1=np.inf
+        T=np.matrix(XgetColumn(k))
+        print 'Computing PC ',k
+        h=0
+        while abs(lam1-lam0)>tol and h<100:
+            P=Xleftmult(T,True)
+            P=P/np.linalg.norm(P)
+            T=Xleftmult(P)
+            lam0=lam1
+            lam1=np.linalg.norm(T)
+            print '\t Iteration '+str(h)+', Convergence =', abs(lam1-lam0)
+            h+=1
+        latent.append(lam1)
+        XminusOuterProduct(T,P)
+        #np.save(inpath+'T%02d'%k,T)
+        np.save(inpath+'coeffT%d'%k,P.T)
+    np.save(inpath+'latent',latent)
+
+def testPca():
+    global inpath
+    global N
+    inpath=''
+    N=5;M=21
+    np.random.seed(1)
+    X=np.random.rand(52,M)
+    split(X)
+    assert np.all(np.abs(X-merge())==0)
+    assert np.all(np.abs(np.matrix(X[:,M/2]).T-XgetColumn(M/2))==0)
+    Y1=(X-np.matrix(X.mean(1)).T)
+    XcolMeanCenter()
+    Y2=mergeT()
+    assert np.mean(np.abs(Y1-Y2))<1e-8
+    Y3=merge()
+    assert np.mean(np.abs(Y1-Y3))<1e-8
+    split(X)
+    A=np.matrix(np.random.rand(M,3))
+    Y1=X*A
+    Y2=Xleftmult(A)
+    assert np.all(np.abs(Y1-Y2)==0)
+    A=np.matrix(np.random.rand(52,3))
+    Y1=X.T*A
+    Y2=Xleftmult(A,True)
+    assert np.all(np.abs(Y1-Y2)==0)
+    A=np.matrix(np.random.rand(52,1))
+    B=np.matrix(np.random.rand(M,1))
+    Y1=X-A*B.T
+    XminusOuterProduct(A,B)
+    Y2=merge()
+    assert np.all(np.abs(Y1-Y2)==0)
+
+    X=np.random.rand(52,M)
+    split(X)
+    pcaNipals()
+    a1=mergeT('coeff')
+    c1=np.load(inpath+'latent.npy')
+    from test import princomp
+    a2,b2,c2=princomp(X)
+    for k in range(a1.shape[1]):
+        plt.figure()
+        plt.plot(a2[:,k]);
+        if np.abs((a2[:,k]-a1[:,k])).mean()> np.abs((a2[:,k]+a1[:,k])).mean() : plt.plot(-a1[:,k])
+        else: plt.plot(a1[:,k])
+    plt.show()
+
+inpath='cxx/similPix/TI/X/'
+N=13
+PF2X(merge=4)
+pcaNipals(K=20)
+
+#Sparallel()
+
+##latent=np.load(inpath+'latent.npy')
+##N=5
+##coeff=mergeT('coeff')
+##for h in range(a.shape[1]):
+##    pf=coeff[:,h].reshape((64,64,68))
+##    pf-= np.min(pf)
+##    pf/= np.max(pf)
+##    #pf*=255
+##    #pf=np.uint8(pf)
+##    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
+##    for k in range(len(pf)): pf[k]=pf[k].squeeze()
+##    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
+##    writeGif('pc%d.gif'%h,pf,duration=0.1)
+
+    
+
+

@@ -225,7 +225,7 @@ def extractSaliency():
     inpath=getcwd().rstrip('code')+'input/'
     sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
     ef=sf+fw
-    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     si=si[valid,:]
     sf=sf[valid]
     ef=ef[valid]
@@ -236,6 +236,7 @@ def extractSaliency():
     gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
     rt=np.random.permutation(si.shape[0])
     rp=np.random.permutation(si.shape[0])
+    print si.shape
     for h in range(si.shape[0]):
         if si[h,-1]!=lastt:
             order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
@@ -251,7 +252,7 @@ def extractSaliency():
         gridA+=temp1; radA+=temp2.T;
         temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
         gridP+=temp1; radP+=temp2.T;k+=1
-        print k
+        print si[h,-2],si[h,-1]
         
 
     gridG/=float(k);radG/=float(k);gridT/=float(k);radT/=float(k)
@@ -472,13 +473,8 @@ if __name__ == '__main__':
     #lr.checkCorrectness(x,y)
     #pcaMotionMultiAgent(D)
     #pcaMotionSingleAgent(D)
-    do=0
-    D=loadData()
-    dirChanges(D)
     do=1
-    D=loadData()
-    dirChanges(D)
-    plt.show()
+
     #dirChanges(D)
 
 
