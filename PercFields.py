@@ -740,11 +740,12 @@ def testPca():
 
     X=np.random.rand(52,M)
     split(X)
-    pcaNipals()
+    pcaNipals(K=M)
     a1=mergeT('coeff')
     c1=np.load(inpath+'latent.npy')
     from test import princomp
     a2,b2,c2=princomp(X)
+    print c2/c2.sum(), c2.sum()
     for k in range(a1.shape[1]):
         plt.figure()
         plt.plot(a2[:,k]);
@@ -752,26 +753,32 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-inpath='cxx/similPix/TI/X/'
-N=13
-PF2X(merge=4)
-pcaNipals(K=20)
+testPca()
 
-#Sparallel()
-
-##latent=np.load(inpath+'latent.npy')
+##inpath='cxx/similPix/TI/X/'
+##N=13
+####PF2X(merge=4)
+####pcaNipals(K=20)
+##
+###Sparallel()
+##
+####latent=np.load(inpath+'latent.npy')
 ##N=5
+##fs=os.listdir(inpath)
+##N=0
+##for f in fs: N+= f.startswith('coeff')
 ##coeff=mergeT('coeff')
-##for h in range(a.shape[1]):
+##for h in range(coeff.shape[1]):
 ##    pf=coeff[:,h].reshape((64,64,68))
 ##    pf-= np.min(pf)
 ##    pf/= np.max(pf)
+##    bla
 ##    #pf*=255
 ##    #pf=np.uint8(pf)
 ##    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
 ##    for k in range(len(pf)): pf[k]=pf[k].squeeze()
 ##    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-##    writeGif('pc%d.gif'%h,pf,duration=0.1)
+##    writeGif(inpath+'pc%d.gif'%h,pf,duration=0.1)
 
     
 
