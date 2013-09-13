@@ -125,7 +125,7 @@ def selectAgentTRACKING(fs,fe,evs):
                 tot+=1
     out=(acounter>=min(0.5*float(tot),3)).nonzero()[0].tolist()
     if len(out)==0: print 'NO AGENTS SELECTED !!!'
-    return out
+    return out,[[fs,fe]]*len(out)
 
 def filterGaussian(x,hz):
     #return self.filterCausal(x)
@@ -418,6 +418,9 @@ class ETTrialData():
                     if (tr[0]<=self.events[k][0] and tr[1]>=self.events[k][1] or 
                         tr[0]<=self.events[k+1][0] and tr[1]>=self.events[k+1][1]):
                         tracked=True
+                        temp=copy(self.events[k][:-1])
+                        temp.extend([self.events[k+1][-1]])
+                        tr.append(temp)
                 if not tracked:
                     temp=copy(self.events[k][:-1])
                     temp.extend([self.events[k+1][-1]])
@@ -490,8 +493,8 @@ class ETTrialData():
                 else: # merge 
                     self.track[i-1]= [self.track[i-1][0], self.track[i][1]]
                     #self.track[i-1].append(set(self.track[i][2]) | set(self.track[i-1][2]))
-                    self.track[i-1].append(selectAgentTRACKING(self.track[i-1][0],
-                        self.track[i-1][1],self.events))
+                    ags,fs=selectAgentTRACKING(self.track[i-1][0],self.track[i-1][1],self.events)
+                    self.track[i-1].extend([ags,fs])
                     self.track.pop(i)
             else: i+=1
         self.extractSearch()
@@ -501,7 +504,9 @@ class ETTrialData():
             dat=Coder.loadSelection(self.vp,self.block,self.trial,prefix='track/coder%d/'%coderid)
             self.track=[]
             for tr in dat:
-                self.track.append([tr[2],tr[5],tr[-2]])
+                fs=[]
+                for k in tr[-2]: fs.append([k[2],k[5]])
+                self.track.append([tr[2],tr[5],tr[-3],fs])
             self.extractSearch()
         except IOError:
             self.track=None;self.search=None # avoid unknown attribute error
@@ -511,7 +516,9 @@ class ETTrialData():
         
     def computeTrackedAgents(self):
         for tr in self.track:
-            if len(tr)==2:tr.append(selectAgentTRACKING(tr[0],tr[1],self.events))
+            if len(tr)==2:
+                ags,fs=selectAgentTRACKING(tr[0],tr[1],self.events)
+                tr.extend([ags,fs])
             
     def plotTracking(self):
         ''' plots events '''

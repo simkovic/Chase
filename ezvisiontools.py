@@ -1,6 +1,10 @@
 import os, struct,time
 import numpy as np
 import pylab as plt
+from Tkinter import *
+import tkFileDialog
+from scipy.interpolate import interp2d
+
 X=0;Y=1
 def pfm2npy(fpath):
     f=open(fpath)
@@ -29,54 +33,11 @@ def rawvideo2npy(fpath):
     f.close()
     return m
 
-class InputSeries():
-    """ A superclass for Movie input files
-        contains the computeSaliency method
-    """
-    def computeSaliency(self,traj,method='fast',radius=0.05):
-        """ vid - Mraw object, make sure the frame buffer is at the start
-            traj - FramesXAgentsX2 matrix with the agents' coordinates in pixels
-            radius - radius of the circle within which the saliency at each
-                frame is computed, the value is in percent of the frame height
-        """
-        radius =(radius*min(self.rows,self.cols))**2
-        res=np.zeros((traj.shape[0],traj.shape[1]))
-        if method=='fast':      
-            # pad the edges so that mask doesn't spill across when shifted
-            mask = np.zeros((2*self.rows,2*self.cols))
-            for i in range(2*self.rows):
-                for j in range(2*self.cols):
-                    if ((i-self.rows)**2+(j-self.cols)**2)<radius:
-                        mask[i,j]=1
-            surface = np.sum(mask)
-        else:
-            surface = np.pi*radius
 
-        for f in range(traj.shape[0]):
-            frame=self.nextFrame()
-            if len(frame.shape)!=2:
-                print 'Error: no more frames at f= %d\n'% f
-                break
-            for a in range (traj.shape[1]):      
-                if method=='fast':
-                    maskshifted=np.roll(mask,
-                        int(round(traj[f,a,X]-self.cols/2)),1)
-                    maskshifted=np.roll(maskshifted,
-                        int(round(traj[f,a,Y]-self.rows/2)),0)
-                    maskshifted=maskshifted[(self.rows/2):(3*self.rows/2),
-                        (self.cols/2):(3*self.cols/2)]
-                    r=np.sum(frame*maskshifted)
-                else:
-                    r=0
-                    for i in range(self.rows):
-                        for j in range(self.cols):
-                            if ((j-traj[f,a,X])**2+(i-traj[f,a,Y])**2)<radius:
-                                r+= frame[i,j]
-                res[f,a]=float(r)/surface/self.norm
-        return res
+
     
 
-class PfmSeries(InputSeries):
+class PfmSeries():
     def __init__(self,fpath):
         self.fid=open(fpath,'r')
         self.fpath=fpath
@@ -106,7 +67,7 @@ class PfmSeries(InputSeries):
     
     
 
-class Mraw(InputSeries):
+class Mraw():
     def __init__(self,fpath):
         self.fid=open(fpath,'r')
         self.fpath=fpath
@@ -117,6 +78,7 @@ class Mraw(InputSeries):
         self.data=self.fid.read(self.rows)
         # we normalize uint with 255, that is the unit will be in [0,1]
         self.norm = 255.0
+        self.vals=self.tonpy()
 
     def nextFrame(self):   
         if self.data!='':
@@ -127,19 +89,79 @@ class Mraw(InputSeries):
                             self.data))]
                     self.data=self.fid.read(self.rows)
                 #m = np.array(zip(*m))
-                m=np.array(m)
+                m=np.array(m,dtype=np.uint8)
                 return m  
         else:
             self.fid.close()
             return np.array([])
     def close(self):
         self.fid.close()
+
+    def tonpy(self):
+        out=np.zeros((5000,self.rows,self.cols),dtype=np.uint8)
+        i=0
+        m = self.nextFrame()
+        while True:
+            if len(m.shape)!=2: break
+            else: out[i,:,:]=m
+            i+=1
+            m = self.nextFrame()
+        return out[:i,:,:]
+    def computeSaliency(self,pos,twind,rdb,bins=range(-20,21),inpRes=1024):
+        """ self - Mraw object, make sure the frame buffer is at the start
+            pos - in (deg,deg)
+            radius - radius of the circle within which the saliency at each
+                frame is computed, in deg
+            twindow - time window in ms
+        """
+        from Settings import eyelinklab, Settings
+        Q=Settings(**eyelinklab)
+        assert self.rows==self.cols
+
+        if False:# this is precise but too slow
+            oldbns=np.linspace(inpRes/self.rows/2,inpRes-inpRes/self.rows/2,self.rows)
+            oldbns= Q.pix2deg(oldbns-inpRes/2)
+            newbns=np.array(bins)
+            grid = np.zeros((twind[1]-twind[0]+1,newbns.size,newbns.size))
+            for f in range(twind[0],twind[1]+1):
+                func= interp2d(oldbns,oldbns,self.vals[f,:,:],fill_value=0)
+                grid[f-twind[0],:,:]=func(newbns+pos[X],newbns+pos[Y])
+            return grid
+        # less precise but fast, discards the requested BINS
+        grid=np.zeros((twind[1]-twind[0],self.rows,self.cols))
+        pos=np.array((Q.deg2pix(pos[X]),Q.deg2pix(pos[Y])),dtype=np.float32)
+        pos+=inpRes/2
+        pos/= (inpRes/self.rows)
+        posi=np.int32(np.round(pos))
+        xs=posi[X]-self.cols/2; xe=posi[X]+self.cols/2;
+        ys=posi[Y]-self.rows/2; ye=posi[Y]+self.rows/2;
+        #print xs,xe,ys,ye
+        xxs=max(xs,0)-xs; xxe=self.cols-(xe-min(xe,self.cols))
+        yys=max(ys,0)-ys; yye=self.rows-(ye-min(ye,self.rows))
+        #print xxs,xxe,yys,yye
+        grid[:,xxs:xxe,yys:yye]=self.vals[twind[0]:twind[1],max(xs,0):xe,max(ys,0):ye]
+
+        # compute radial saliency
+        masks=[]
+        temp=[]
+        for r in rdb: temp.append(Q.deg2pix(r)/(inpRes/self.rows))
+        rdb=temp
+        for k in range(len(rdb)):
+            masks.append(np.zeros((1,self.rows,self.cols),dtype=np.int32))
+            for x in range(self.rows):
+                for y in range(self.cols):
+                    masks[k][0,x,y]= (k==0 and (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2 or
+                        k>0 and (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2 and
+                        (x-pos[X])**2+(y-pos[Y])**2>=rdb[k-1]**2)  
+        rad=[]
+        for m in masks:
+            if m.sum()==0: 'warning: mask.sum()==0'
+            rad.append((self.vals[twind[0]:twind[1],:,:]*
+                np.repeat(m,grid.shape[0],axis=0)).sum(2).sum(1)/float(m.sum())/self.norm)
+        return grid, np.array(rad)
         
 
-
-if __name__ == '__main__':
-    from Tkinter import *
-    import tkFileDialog
+def showEzvisionOutput():
     X=0;Y=1
     master = Tk()
     master.withdraw() #hiding tkinter window
@@ -177,24 +199,26 @@ if __name__ == '__main__':
         # unpack the "tremXX" name from filePath
         fn=filePath.rsplit('/')
         fn=fn[-1].rsplit('.')
-        traj =np.load('tremouletTraj//'+fn[0]+'.npy')
-        # transform from deg to pix
-        offset=201
-        traj=offset+traj*400.0 /13.5#11.951193368719736
-        # in addition I have to rotate Y axis
-        traj[:,:,Y]=offset-(traj[:,:,Y]-offset)
         i=0
         tt=0
         while len(m.shape)==2:
             print i
             i+=1
             plt.cla()
-            plt.imshow(m)
-            #tt=m
-            #tt=max(tt,np.max(m))
-            #plt.scatter(traj[i-1,0,X], traj[i-1,0,Y])
+            plt.imshow(m,cmap='gray',aspect='equal',vmax=255,vmin=0)
+            if i==1: plt.colorbar()
             m = vid.nextFrame()
-    #master.quit()
+            plt.show()
+        
+
+
+if __name__ == '__main__':
+    #showEzvisionOutput()
+    fpath='saliency/output/vp001/vp001b10trial002COmotion-.64x64.mgrey'
+    vid=Mraw(fpath)
+    res, rad=vid.computeSaliency([ 5.79374473,  4.79934528],[8,76],rdb=np.arange(1,15))
+    
+
 
 
     

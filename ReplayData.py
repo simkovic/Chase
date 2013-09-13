@@ -6,6 +6,10 @@ import numpy as np
 from scipy.interpolate import interp1d
 from datetime import datetime
 from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING
+from copy import copy
+
+sclrs=['red','green','black'];
+hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 
 class Trajectory():
     def __init__(self,gazeData,maze=None,wind=None,
@@ -78,10 +82,10 @@ class Trajectory():
                 position=self.pos[self.f,:,:]
                 if self.phase==1:
                     clrs=np.copy(self.elem.colors)
-                    ags=self.highlightedAgents()
+                    ags,clrr=self.highlightedAgents()
                     #print self.t[f], ags
                     for a in range(self.cond-self.eyes): 
-                        if a in ags: clrs[a,:]=[0,1,0]
+                        if a in ags: clrs[a,:]=clrr[ags.index(a)]
                         else: clrs[a,:]=[1,1,1]
                     self.elem.setColors(clrs)
 ##                elif self.phase==2:
@@ -104,8 +108,8 @@ class Trajectory():
                     if key=='space': playing= not playing
                     if key=='l': self.f=self.f+1
                     if key=='k': self.f=self.f-1
-                    if key=='semicolon': self.f=self.f+10
-                    if key=='j': self.f=self.f-10
+                    if key=='semicolon': self.f=self.f+15
+                    if key=='j': self.f=self.f-15
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
@@ -116,7 +120,7 @@ class Trajectory():
         except: 
             self.wind.close()
             raise
-    def highlightedAgents(self): return []
+    def highlightedAgents(self): return [],[]
         
 class GazePoint(Trajectory):
     def __init__(self, gazeData,wind=None):
@@ -166,7 +170,8 @@ class ETReplay(Trajectory):
             self.ga=ga
             mid=ga[0]+(ga[1]-ga[0])/2.0
             inc=(ga[3]-ga[2])/float(len(indic));self.inc=inc
-            self.spar=(0,-12,4) #parameters for selection tool, posx, posy, height
+            self.spar=(0,-9.4,2) #parameters for selection tool, posx, posy, height
+            self.apar=(0,-12.7,4.5) # parameters for agent selection tool
             frame=[visual.Line(self.wind,(ga[0],ga[3]),(ga[0],ga[2]),lineWidth=4.0),
                 visual.Line(self.wind,(-ga[1],ga[3]),(ga[1],ga[3]),lineWidth=4.0),
                 visual.Line(self.wind,(mid,ga[3]),(mid,ga[2]),lineWidth=2.0),
@@ -174,16 +179,19 @@ class ETReplay(Trajectory):
                 visual.Line(self.wind, (-ga[1],ga[2]),(ga[1],ga[2]),lineWidth=4.0),
                 visual.Line(self.wind, (-ga[1],ga[2]),(-ga[1],ga[3]),lineWidth=4.0),
                 visual.Rect(self.wind, width=ga[1]*2,height=self.spar[2], pos=(self.spar[0],self.spar[1]),lineWidth=4.0),
-                visual.Line(self.wind,(0,self.spar[1]+self.spar[2]/2.0),(0,self.spar[1]-self.spar[2]/2.0),lineWidth=2.0)
+                visual.Rect(self.wind, width=ga[1]*2,height=self.apar[2], pos=(self.apar[0],self.apar[1]),lineWidth=4.0),
+                visual.Line(self.wind,(0,self.spar[1]+self.spar[2]/2.0),(0,self.apar[1]-self.apar[2]/2.0),lineWidth=2.0)
                 ]
             self.seltoolrect=frame[6]
+            self.atoolrect=frame[7]
             self.graphs=[]
-            self.selrects=[]
+            self.selrects=[];self.sacrects=[]; self.arects=[]
             for i in range(15): self.selrects.append(visual.Rect(self.wind,
                 height=self.spar[2],width=1,fillColor='red',opacity=0.5,lineColor='red'))
-            self.sacrects=[]
             for i in range(15): self.sacrects.append(visual.Rect(self.wind,
-                height=self.spar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
+                height=self.spar[2]+self.apar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
+            for i in range(15): self.arects.append(visual.Rect(self.wind,
+                height=self.apar[2],width=2,fillColor='green',opacity=0.5,lineColor='blue'))
             
             for f in range(len(indic)):      
                 frame.append(visual.Line(self.wind,(ga[0],ga[3]-(f+1)*inc),
@@ -196,9 +204,9 @@ class ETReplay(Trajectory):
                 self.graphs[f].setAutoDraw(True)
                 
             self.frame=visual.BufferImageStim(self.wind,stim=frame)
-            self.tmsg=visual.TextStim(self.wind,color=(0.5,0.5,0.5),pos=(-15,-9))
+            self.tmsg=visual.TextStim(self.wind,color=(0.5,0.5,0.5),pos=(-14,-7.8))
             self.msg= visual.TextStim(self.wind,color=(0.5,0.5,0.5),
-                pos=(0,-9),text=' ',wrapWidth=20)
+                pos=(0,-7.8),text=' ',wrapWidth=20)
             self.msg.setAutoDraw(True)
             self.gData=[]
             for g in range(len(indic)):
@@ -219,8 +227,14 @@ class ETReplay(Trajectory):
                 for tr in self.gazeData.track:
                     s=int(np.round(scale*tr[0]))
                     e=min(len(self.t)-1,max(s+1, int(np.round(scale*tr[1]))))
-                    self.selected[0].append([self.t[s],s,tr[0],self.t[e],e,tr[1],tr[2],False])
-            except: print 'Tracking events not available'
+                    self.selected[0].append([self.t[s],s,tr[0],self.t[e],e,tr[1],tr[2],[],False])
+                    for a in tr[3]:
+                        s=int(np.round(scale*a[0]))
+                        e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
+                        self.selected[0][-1][7].append([self.t[s],s,a[0],self.t[e],e,a[1],'black'])
+            except AttributeError: print 'Tracking events not available'
+            #self.selected=[Coder.loadSelection(self.gazeData.vp,
+            #        self.gazeData.block,self.gazeData.trial,prefix= 'track/coder1/')]
             self.pos[:,:,0]-=6 # shift agents locations on the screen
             self.pos[:,:,1]+=5
             self.wind.flip()
@@ -275,7 +289,8 @@ class Coder(ETReplay):
             if (sac[1]<=e and sac[1]>=s) or (sac[0]<=e and sac[0]>=s):
                 ss=(max(sac[0],s)-self.f)/sws*self.ga[1]*2;
                 ee=(min(sac[1],e)-self.f)/sws*self.ga[1]*2;
-                self.sacrects[i].setPos(( (ee-ss)/2.0+ss,self.spar[1]))
+                posy=self.spar[1]-self.apar[2]/2.0
+                self.sacrects[i].setPos(( (ee-ss)/2.0+ss,posy))
                 self.sacrects[i].setWidth(max(ee-ss,0.5))
                 self.sacrects[i].setAutoDraw(True)
                 self.sacrects[i].ad=k
@@ -284,7 +299,7 @@ class Coder(ETReplay):
             self.sacrects[i].setAutoDraw(False);
             self.sacrects[i].ad=-1;i+=1;
         # draw selected blocks
-        i=0;h=-1;clrs=['red','green','black'];
+        i=0;h=-1;
         tot=float(len(self.selected)); offset=np.linspace(-0.5,0.5,tot+1)[:-1]+0.5/tot
         for selection in self.selected:
             h+=1
@@ -303,56 +318,103 @@ class Coder(ETReplay):
                     self.selrects[i].setWidth(ee-ss);trigger=True
                 if trigger:
                     self.selrects[i].ad=k;self.selrects[i].h=h
-                    self.selrects[i].setFillColor(clrs[h])
+                    self.selrects[i].setFillColor(sclrs[h])
                     self.selrects[i].setAutoDraw(True);i+=1
         while i<len(self.selrects):
             self.selrects[i].setAutoDraw(False);
             self.selrects[i].ad=-1;i+=1;
-
+        i=0;k=0;
+        for sell in self.selected[0]:
+            if len(sell)>6:
+                h=0
+                for sel in sell[7]:
+                    if ( self.t[int(s)]<=sel[3] and self.t[int(e)]>=sel[3]
+                    or self.t[int(s)]<=sel[0] and self.t[int(e)]>=sel[0]
+                    or self.t[int(s)]>=sel[0] and self.t[int(e)]<=sel[3]):
+                        ss=(max(sel[1],s)-self.f)/sws*self.ga[1]*2
+                        ee= (min(sel[4],e)-self.f)/sws*self.ga[1]*2
+                        w=self.apar[2]/float(len(sell[7]))
+                        self.arects[i].setPos(((ee-ss)/2.0 + ss,
+                                self.apar[1]+self.apar[2]/2.0-(h+0.5)*w))
+                        self.arects[i].setWidth(ee-ss);
+                        self.arects[i].setHeight(w);
+                        self.arects[i].setFillColor(hclrs[h],colorSpace='rgb')
+                        self.arects[i].ad=k;self.arects[i].ad2=h
+                        self.arects[i].setAutoDraw(True);i+=1
+                        sel[-1]=hclrs[h]
+                    h+=1
+            k+=1
+        while i<len(self.arects):
+            self.arects[i].setAutoDraw(False);
+            self.arects[i].ad=-1;self.arects[i].ad2=-1;i+=1;
+                        
+                    
         ETReplay.showFrame(self,positions)
         # query mouse
-        mkey=self.mouse.getPressed();select=False
+        mkey=self.mouse.getPressed();select=False; selectA=False
         if 0<sum(mkey) and self.released:
             mpos=self.mouse.getPos();issac=False
-            ppos=(Q.deg2pix(mpos[0]),Q.deg2pix(mpos[1]))
+            #ppos=(Q.deg2pix(mpos[0]),Q.deg2pix(mpos[1]))
             mkey=self.mouse.getPressed()
             #print mpos
+            
+            for sr in self.sacrects:
+                if sr.ad>-1 and sr.contains(mpos):
+                    g=self.gazeData.getGaze()
+                    if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
+                        and self.seltoolrect.contains(mpos) or
+                        (self.atoolrect.contains(mpos) and  mkey[0]>0)):
+                        ff= self.sev[sr.ad][0]
+                        gf=self.sev[sr.ad][2]
+                        tt=g[gf,0]
+                    else:
+                        ff= self.sev[sr.ad][1]
+                        gf=self.sev[sr.ad][3]
+                        tt=g[gf,0]
+                    if self.seltoolrect.contains(mpos) and mkey[0]>0: select=True
+                    else: selectA=True
+            if (not select and self.seltoolrect.contains(mpos) and mkey[0]>0
+                or not selectA and self.atoolrect.contains(mpos)):
+                ff=np.round(mpos[0]/self.ga[1]/2.0*sws)+self.f;
+                tt=self.t[min(ff,self.t.size-1)]
+                gf=np.round(ff/Q.refreshRate*self.gazeData.hz)
             if mkey[0]>0:
-                for sr in self.sacrects:
-                    if sr.ad>-1 and sr.contains(ppos):
-                        g=self.gazeData.getGaze()
-                        if len(self.selected[0])==0 or len(self.selected[0][-1])>=6:
-                            ff= self.sev[sr.ad][1]
-                            gf=self.sev[sr.ad][3]
-                            tt=g[gf,0]
-                        else:
-                            ff= self.sev[sr.ad][0]
-                            gf=self.sev[sr.ad][2]
-                            tt=g[gf,0]
-                            #if tt>self.selected[-1][0]:
-                        select=True
-                if not select and  self.seltoolrect.contains(ppos):
-                    ff=np.round(mpos[0]/self.ga[1]/2.0*sws)+self.f;
-                    tt=self.t[min(ff,self.t.size-1)]
-                    gf=np.round(ff/Q.refreshRate*self.gazeData.hz)
-                    select=True
-                if select:
+                if self.seltoolrect.contains(mpos):
                     if  (len(self.selected[0])==0 or len(self.selected[0][-1])>=6):
                         self.selected[0].append([tt,ff,gf])
                         self.msg.setText('Selection Open: %d'%self.selected[0][-1][0])
                     elif tt>self.selected[0][-1][0]:
                         self.selected[0][-1].extend([tt,ff,gf])
-                        ags=selectAgentTRACKING(self.selected[0][-1][2], self.selected[0][-1][5],self.gazeData.events )
-                        self.selected[0][-1].extend([ags,True])
+                        ags,tms=selectAgentTRACKING(self.selected[0][-1][2], self.selected[0][-1][5],self.gazeData.events )
+                        tmsnew=[];scale=Q.refreshRate/self.gazeData.hz
+                        for a in tms:
+                            s=int(np.round(scale*a[0]))
+                            e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
+                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1]])
+                        self.selected[0][-1].extend([ags,tmsnew,True])
                         self.msg.setText('Selection Closed: %d,%d'%(self.selected[0][-1][0], self.selected[0][-1][3]))
             else:
                 for sr in self.selrects:
-                    if sr.ad>-1 and  sr.contains(ppos):
+                    if sr.ad>-1 and  sr.contains(mpos):
                         if  sr.h==0:
                             self.selected[0].pop(sr.ad)
                             self.msg.setText('Selection Deleted')
                         elif sr.h==1:  self.selected[0].append(self.selected[1][sr.ad])
                         elif sr.h==2:  self.selected[0].append(self.selected[2][sr.ad])
+            if self.atoolrect.contains(mpos):
+                pos=[mpos[0],self.spar[1]]
+                tar=None
+                for sr in self.selrects:
+                    if sr.contains(pos):
+                        for ar in self.arects:
+                            if ar.ad==sr.ad and sr.ad>-1:
+                                if abs(ar.pos[1]-mpos[1])<ar.height/2.0:
+                                    assert tar==None
+                                    tar=ar
+                if tar!=None:
+                    if mkey[0]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+                    else: self.selected[0][tar.ad][7][tar.ad2][:3]=[tt,ff,gf]
+                    self.msg.setText('New Agent Timing: %d'%tt)          
             # agent selection
             for a in range(positions.shape[0]):
                 dist=((positions[a,0]-mpos[0])**2+(positions[a,1]-mpos[1])**2)**0.5
@@ -360,17 +422,39 @@ class Coder(ETReplay):
             self.released=False
         if 0==sum(mkey) and not self.released: self.released=True
         if self.save: self.saveSelection()
-        
-    def highlightedAgents(self): 
+    def highlightedAgents(self):
+        res=[];clr=[]
         for sel in self.selected[0]:
-            if len(sel)>3 and sel[1]<=self.f and sel[4]>=self.f:
-                return sel[6]
-        return []
+            if len(sel)>6:
+                for k in range(len(sel[7])):
+                    if sel[7][k][1]<=self.f and sel[7][k][4]>=self.f:
+                        res.append(sel[6][k])
+                        clr.append(sel[7][k][-1])
+        return res,clr
     def highlightAgent(self,a):
         for sel in self.selected[0]:
-            if len(sel)>3 and sel[1]<=self.f and sel[4]>=self.f:
-                if a in sel[6]: sel[6].remove(a)
-                else: sel[6].append(a)
+            if len(sel)>6 and a in sel[6]:
+                sell=sel[7][sel[6].index(a)]
+                if sell[1]<=self.f and sell[4]>=self.f:
+                    sel[7].pop(sel[6].index(a))
+                    sel[6].remove(a)
+            elif len(sel)>=6 and sel[1]<=self.f and sel[4]>=self.f:
+                sel[6].append(a)
+                sel[7].append(sel[:6])
+    @staticmethod
+    def loadSelectionOld(vp,block,trial,prefix='track/'):
+        #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
+        fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
+        out=[]
+        for line in fin:
+            line=line.rstrip('\n')
+            els= line.rsplit(' ')
+            els=np.int32(els).tolist()
+            out.append(els[:6])
+            out[-1].append(els[6:-1])
+            out[-1].append([els[:6]]*len(out[-1][-1]))
+            out[-1].append(els[-1])
+        return out
     @staticmethod
     def loadSelection(vp,block,trial,prefix='track/'):
         #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
@@ -381,7 +465,12 @@ class Coder(ETReplay):
             els= line.rsplit(' ')
             els=np.int32(els).tolist()
             out.append(els[:6])
-            out[-1].append(els[6:-1])
+            out[-1].extend([[],[]])
+            for a in range(len(els[6:-1])/7):
+                out[-1][-2].append(els[6+a])
+            for a in range(len(els[6:-1])/7):
+                i=5+len(els[6:-1])/7+a*6
+                out[-1][-1].append(els[(i+1):(i+7)])
             out[-1].append(els[-1])
         return out
         
@@ -394,9 +483,14 @@ class Coder(ETReplay):
                 self.gazeData.block,self.gazeData.trial),'w')
         for sel in self.selected[0]:
             fout.write('%d %d %d %d %d %d'%tuple(sel[:6]))
-            for el in sel[6]:
-                fout.write(' %d'%el)
-            fout.write(' %d'%sel[7])
+            assert len(sel[6])==len(sel[7])
+            for a in range(len(sel[6])):
+                fout.write(' %d'%sel[6][a])
+            for a in range(len(sel[6])):
+                for k in sel[7][a][:-1]:
+                    fout.write(' %d'%int(k))
+                    
+            fout.write(' %d'%sel[8])
             fout.write('\n')
         
         self.msg.setText('Selection Saved')
@@ -422,6 +516,7 @@ def replayTrial(vp,block,trial):
     trl.extractBasicEvents()
     trl.driftCorrection()
     trl.extractComplexEvents()
+    trl.importComplexEvents()
     R=Coder(gazeData=trl,phase=1,eyes=1)
     R.play(tlag=0)
     
@@ -433,7 +528,9 @@ def replayBlock(vp,block,trialStart):
         trl.extractBasicEvents()
         trl.driftCorrection()
         trl.extractComplexEvents()
-        R=Coder(gazeData=trl,phase=1,eyes=1)
+        trl.importComplexEvents()
+    for trial in range(trialStart,len(data)):
+        R=Coder(gazeData=data[trial],phase=1,eyes=1)
         R.play(tlag=0)
 # coding verification routines       
 def codingComparison(vp=1,block=2):
@@ -504,7 +601,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(1,1,1)
+    replayTrial(1,12,20)
 
     #codingComparison()
 #    from readETData import readEyelink

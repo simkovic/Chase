@@ -4,26 +4,42 @@ import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.ndimage.filters import gaussian_filter
 from scipy.stats import nanmean
-
+from os import getcwd
 plt.close('all')
 #plt.ion()
-from os import getcwd
-path=getcwd().rstrip('code')+'evaluation/'
+
+
 vp=1
+path=getcwd().rstrip('code')+'/evaluation/vp%03d/'%vp
+figpath=getcwd().rstrip('code')+'/figures/Analysis/'
+
 
 bs=range(1,22)
 sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
 fw=int(np.round((abs(sw)+ew)/1000.0*hz))
+radbins=np.arange(1,15)
+event=1 # 0 - search saccades; 1- 1st tracking saccade, 2-second tracking saccade
+dtos=['G','P','A','T']
 
+def saveFigures(name):
+    for i in range(plt.gcf().number-1):
+        plt.figure(i)
+        plt.savefig(figpath+'E%d'%event+name+'%02dvp%03d.png'%(i,vp))
+        
 def plotSearchInfo(plot=True):
-    D=np.load(path+'SIvp%03d.npy'%(vp))
+    D=np.load(path+'si.npy')
+    D=D[D[:,14]==event,:]
+    sel=np.logical_or(np.isnan(D[:,11]),D[:,11]-D[:,4]>=0)
+    D=D[sel,:]
+
     if plot:
-        plt.close('all')
+        #plt.close('all')
+        plt.figure()
         plt.plot(D[:,6],D[:,7],'.k')
         plt.title('Target positions')
         ax=plt.gca()
         ax.set_aspect(1)
-
+        
         plt.figure()
         plt.plot(D[:,2],D[:,3],'.k')
         plt.title('Disengagement positions')
@@ -34,25 +50,30 @@ def plotSearchInfo(plot=True):
         reloc=np.sqrt(np.sum(np.power(D[:,[6,7]]-D[:,[2,3]],2),axis=1))
         plt.title('Distance')
         plt.hist(reloc,50)
+        plt.xlim([0,20])
 
         plt.figure()
         dur = D[:,5]-D[:,1]
         plt.hist(dur,50)
         plt.title('Duration')
+        plt.xlim([0,250])
 
         plt.figure()
         vel=reloc/dur
         plt.hist(vel[~np.isnan(vel)]*1000,50)
         plt.title('Velocity')
+        plt.xlim([0,200])
+        saveFigures('si')
     return D
 
 
-def loadData():
+def extractTrajectories():
     si=plotSearchInfo(plot=False)
     inpath=getcwd().rstrip('code')+'input/'
     sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
     ef=sf+fw
-    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    if do==0: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
+    else: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     print 'proportion of utilized samples is', valid.mean()
     D=np.zeros((valid.sum(),fw,14,2))*np.nan
     DG=np.zeros((valid.sum(),fw,14,2))*np.nan
@@ -79,19 +100,19 @@ def loadData():
                 DT[:,f,a,q]-= si[rt,6+q]
                 DA[:,f,a,q]= D[:,f,a,q] - D[:,D.shape[1]/2,2,q]
                 DP[:,f,a,q]= D[:,f,a,q] - si[rp,6+q]
-                
-                
-    return [DG,DP,DA,DT]
+    D=[DG,DP,DA,DT]       
+    for d in range(len(D)): np.save(path+'E%d/D%s.npy'%(event,dtos[d]),D[d])
 
-def agentDensity(D):
-    #np.random.seed(1234)
+def agentDensity(plot=False):
+    D=[]
+    for d in range(len(dtos)): D.append(np.load(path+'E%d/D%s.npy'%(event,dtos[d])))
     shape=D[0].shape
-    plt.close('all');I=[]
+    #plt.close('all');
+    I=[]
     bnR=np.arange(0,30,0.5)
     bnS=np.diff(np.pi*bnR**2)
     bnd= bnR+(bnR[1]-bnR[0])/2.0;bnd=bnd[:-1]
     for i in range(len(D)): I.append(np.zeros((bnS.size,shape[1])))
-    plot=False
     g=1;figs=range(1,100);fig1=figs.pop(0);fig2=figs.pop(0)
     r=np.random.permutation(shape[0])
     n=shape[0]*shape[2]
@@ -152,10 +173,14 @@ def agentDensity(D):
     plt.ylabel('Agent Density [a per deg^2]')
     plt.xlabel('time to saccade onset')
     plt.legend(['gaze','rand pos','rand agent','rand time'],loc=2)
+    saveFigures('ad')
     
 
-def dirChanges(D):
-    plt.close('all'); P=[];J=[];K=[];nK=[]
+def dirChanges():
+    D=[]
+    for d in range(len(dtos)): D.append(np.load(path+'E%d/D%s.npy'%(event,dtos[d])))
+    #plt.close('all');
+    P=[];J=[];K=[];nK=[]
     shape=D[0].shape
     bn=np.arange(0,20,0.5)
     d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
@@ -203,39 +228,83 @@ def dirChanges(D):
     plt.ylabel('Direction Changes per Second')
     plt.xlabel('Time, Saccade Onset at t=0')
     plt.title('Radius = 10 deg')
+    saveFigures('dc')
     #return K,nK
 
+def extractSaliency(channel='motion'):
+    from ezvisiontools import Mraw
+    si=plotSearchInfo(plot=False)
+    inpath=getcwd().rstrip('code')+'input/'
+    sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
+    ef=sf+fw
+    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
+    si=si[valid,:]
+    sf=sf[valid]
+    ef=ef[valid]
+    lastt=-1;dim=64;k=0
+    gridG=np.zeros((fw,dim,dim));radG=np.zeros((fw,radbins.size))
+    gridT=np.zeros((fw,dim,dim));radT=np.zeros((fw,radbins.size))
+    gridA=np.zeros((fw,dim,dim));radA=np.zeros((fw,radbins.size))
+    gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
+    rt=np.random.permutation(si.shape[0])
+    rp=np.random.permutation(si.shape[0])
+    print si.shape
+    for h in range(si.shape[0]):
+        if si[h,-1]!=lastt:
+            order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
+            traj=np.load(inpath+'vp%03d/vp%03db%dtrial%03d.npy'%(vp,vp,si[h,-2],order[si[h,-1]]))
+            try: vid=Mraw(path+'/saliency/vp%03db%dtrial%03dCO%s-.%dx%d.mgrey'%(vp,channel,int(si[h,-2]),order[si[h,-1]],dim,dim))
+            except: print 'missing saliency file',vp,int(si[h,-2]),order[si[h,-1]]
+        temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
+        gridG+=temp1; radG+=temp2.T; lastt=si[h,-2];
+        temp1,temp2=vid.computeSaliency(si[rt[h],[6,7]],[sf[rt[h]],ef[rt[h]]],rdb=radbins)
+        gridT+=temp1; radT+=temp2.T;
+        temp1,temp2=vid.computeSaliency(traj[sf[h]+fw/2,2,:2],[sf[h],ef[h]],rdb=radbins)
+        gridA+=temp1; radA+=temp2.T;
+        temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
+        gridP+=temp1; radP+=temp2.T;k+=1
+        print k,si[h,-2],si[h,-1]
+        
 
-### different method for extracting radial density, gives similar results
-##H,C,G,bn=agentDensity(D,si)
-##def radialHist(M,bn,nn):
-##    from scipy.interpolate import interp1d
-##    b,c,d=np.histogram2d(M[:,0],M[:,1],bins=[bn,bn])
-##    # find bin center
-##    d= bn+(bn[1]-bn[0])/2.0
-##    d=d[:-1]
-##    # get unique data points
-##    xa,xb=np.meshgrid(d,d)
-##    x=np.sqrt(xa**2+xb**2)
-##    x=np.reshape(x,x.size)
-##    y=np.reshape(b,b.size)
-##    nx=np.unique(x)
-##    ny=[]
-##    for k in nx.tolist():
-##        ny.append(y[x==k].mean())
-##    ny=np.array(ny)
-##    # interpolate
-##    f=interp1d(nx,ny)
-##    plt.plot(nn,f(nn))
-##
-##plt.figure()
-##radialHist(H,bn,range(1,26))
-##radialHist(C,bn,range(1,26))
-##radialHist(G,bn,range(1,26))
-##plt.legend(['gaze','rand pos','rand ag'])
+    grid=[gridG,gridT,gridP,gridA]
+    rad=[radG,radT,radP,radA]
+    for i in range(len(grid)):
+        grid[i]/=float(k);rad[i]/=float(k)
+        np.save(path+'E%d/grd%s.npy'%(event,dtos[i]),grid[i])
+        np.save(path+'E%d/rad%s.npy'%(event,dtos[i]),rad[i])
 
 
+def plotSaliency():
+    K=[];I=[]
+    for i in range(len(dtos)):
+        K.append(np.load(path+'E%d/grd%s.npy'%(event,dtos[i])))
+        I.append(np.load(path+'E%d/rad%s.npy'%(event,dtos[i])).T)
 
+    plt.figure();plot=False
+    if plot:
+        for q in I:
+            plt.imshow(q,extent=[sw,ew,radbins[0],radbins[-1]],
+                aspect=30,origin='lower',vmin=0.008, vmax=0.021)
+            plt.ylabel('radial distance from sac target')
+            plt.xlabel('time from sac onset')
+            plt.title('saliency')
+            plt.colorbar();plt.set_cmap('hot')
+            plt.figure()
+    for q in I: plt.plot(radbins,q.mean(1))
+    plt.xlabel('radial distance')
+    plt.ylabel('Average Saliency [0,1]')
+    plt.legend(['gaze','rand time','rand agent','rand pos'])
+    plt.figure()
+    x=np.linspace(sw,ew,I[0].shape[1])
+    hhh=3
+    for q in I: plt.plot(x,nanmean(q[:hhh,:],0))
+    plt.xlabel('time')
+    plt.title('Radius=%d deg'%hhh)
+    plt.ylabel('Average Saliency [0,1]')
+    plt.xlabel('time to saccade onset')
+    plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)
+    saveFigures('sa')
+    #plt.show()
 
 def pcaMotionSingleAgent(D,ag=3,plot=False):
     for q in range(len(D)):
@@ -297,6 +366,8 @@ def pcaMotionMultiAgent(D):
         b=pcs[:,i].reshape([E.shape[1],E.shape[2],E.shape[3]])
         plotTraj(b);
     
+    
+    
 def plotTraj(traj):
     ax=plt.gca()
     clr=['g','r','k']
@@ -320,17 +391,9 @@ def plotTraj(traj):
     #plt.xlim([-20,20])
     #plt.ylim([-20,20])
     ax.set_aspect('equal')
-
-
-   
-
-if __name__ == '__main__':
-    from matplotlib.mlab import PCA
-    from test import princomp
-    #D=loadData()
-    D=[]
-    for i in range(4): D.append(np.load('D%d.npy'%i))
-    si=plotSearchInfo(False)
+##def pcaScript():
+##    from matplotlib.mlab import PCA
+##    from test import princomp
 ##
 ##    q=1
 ##    E=D[q]
@@ -346,13 +409,27 @@ if __name__ == '__main__':
 ##    y[:F[q].shape[0]]=1
 ##    del D, E, F
 
-    #lr.checkCorrectness(x,y)
-    #pcaMotionMultiAgent(D)
-    #pcaMotionSingleAgent(D)
-    #agentDensity(D)
-    #dirChanges(D)
 
-    plt.show()
+   
+
+if __name__ == '__main__':
+    for vp in range(1,2):
+        for event in range(4):
+            extractTrajectories()
+            extractSaliency()
+        for event in range(4):
+            agentDensity()
+            dirChanges()
+            plotSaliency()
+
+
+    
+    
+    
+    
+
+    
+
 
 
 
