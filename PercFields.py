@@ -86,7 +86,11 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
     except:
         if close: wind.close()
         raise
-
+def PFlist2gif(pf,fname='pf'):
+    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
+    for k in range(len(pf)): pf[k]=pf[k].squeeze()
+    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
+    writeGif(fname,pf,duration=0.1)
 def PFextract(part=[0,1]):
     inc=E.shape[0]/part[1]
     start=part[0]*inc
@@ -640,7 +644,7 @@ def XgetColumn(k):
     a=k/inc;b=k%inc
     return np.matrix(np.load(inpath+'XT%d.npy'%a)[b,:]).T
     
-    
+
 def Xleftmult(A,transpose=False):
     ''' OUT=X*A or OUT=X.T*A '''
     out=[];A=np.matrix(A)
@@ -650,7 +654,7 @@ def Xleftmult(A,transpose=False):
         out.append(X*A)
     return np.concatenate(out,0)
 def XminusOuterProduct(A,B):
-    ''' X=X-A*B.T '''
+    ''' X=X-A*B.T todo save XT also'''
     out=[];A=np.matrix(A);B=np.matrix(B).T
     s=0
     for i in range(N):
@@ -659,24 +663,46 @@ def XminusOuterProduct(A,B):
         X= X- A[s:e,:]*B
         np.save(inpath+'X%d.npy'%i,X)
         s=e
-def XcolMeanCenter():
-    #compute mean
-    tot=0
+    s=0
     for i in range(N):
         X=np.load(inpath+'XT%d.npy'%i)
+        e=s+X.shape[0]
+        X= X- (A*B[:,s:e]).T
+        np.save(inpath+'XT%d.npy'%i,X)
+        s=e
+def XmeanCenter(axis=1):
+    #compute mean
+    ss=['','T']
+    tot=0
+    for i in range(N):
+        X=np.load(inpath+'X%s%d.npy'%(ss[axis],i))
         if i==0: res=X.sum(0)
         else: res+=X.sum(0)
         tot+=X.shape[0]
     res/=tot
-    np.save(inpath+'Xmean.npy',res.squeeze())
+    np.save(inpath+'X%smean.npy'%ss[axis],res.squeeze())
     for i in range(N):
-        X=np.load(inpath+'XT%d.npy'%i)
-        np.save(inpath+'XT%d.npy'%i,X-np.matrix(res))
+        X=np.load(inpath+'X%s%d.npy'%(ss[axis],i))
+        np.save(inpath+'X%s%d.npy'%(ss[axis],i),X-np.matrix(res))
     inc=int(np.ceil(X.shape[1]/float(N)))
     for i in range(N):
-        X=np.load(inpath+'X%d.npy'%i)
-        np.save(inpath+'X%d.npy'%i,X-np.matrix(res[i*inc:(i*inc+X.shape[0])]).T)  
+        X=np.load(inpath+'X%s%d.npy'%(ss[1-axis],i))
+        np.save(inpath+'X%s%d.npy'%(ss[1-axis],i),X-np.matrix(res[i*inc:(i*inc+X.shape[0])]).T)  
 
+def Xcov(transpose=False):
+    transpose=int(transpose)
+    XmeanCenter(1-transpose)
+    ss=['','T']
+    C=[[0]*N]*N
+    for i in range(N):
+        X1=np.load(inpath+'X%s%d.npy'%(ss[transpose],i))
+        for j in range(N):
+            print i,j, X1.shape
+            X2=np.load(inpath+'X%s%d.npy'%(ss[transpose],j))
+            C[i][j]= X1.dot(X2.T)
+        C[i]=np.concatenate(C[i],1)
+    return np.concatenate(C,0)/float(X1.shape[1]-1)
+    
 def pcaSVD(A,highdim=None):
     """ performs principal components analysis 
      (PCA) on the n-by-p data matrix A
@@ -700,11 +726,11 @@ def pcaSVD(A,highdim=None):
     if highdim==None: highdim=n<m
     M = (A-np.array(A.mean(1),ndmin=2).T) # mean-center data
     if highdim:
-        [latent,coeff] = np.linalg.eig(np.cov(M,bias=1))
+        [latent,coeff] = np.linalg.eig(np.cov(M))
         coeff=M.T.dot(coeff)
     else:
-        [latent,coeff] = np.linalg.eig(np.cov(M.T,bias=1))
-    score = np.dot(coeff.T,M.T)
+        [latent,coeff] = np.linalg.eig(np.cov(M.T))
+    score = M.dot(coeff).T
     latent=np.abs(latent)
     coeff/=np.sqrt(A.shape[int(highdim==False)]*np.array(latent,ndmin=2)) #unit vector length
     latent/=latent.sum()
@@ -715,20 +741,20 @@ def pcaSVD(A,highdim=None):
     score=score[indx,:]
     return coeff,score,latent
   
-def pcaNIPALS(K=5,tol=1e-4):
+def pcaNIPALS(K=5,tol=1e-4,verbose=False):
     ''' Reference:
             Section 2.2 in Andrecut, M. (2009).
             Parallel GPU implementation of iterative PCA algorithms.
             Journal of Computational Biology, 16(11), 1593-1599.
             
     '''
-    print 'Mean centering columns'
-    XcolMeanCenter()
+    if verbose: print 'Mean centering columns'
+    XmeanCenter(1)
     latent=[]
     for k in range(K):
         lam0=0;lam1=np.inf
         T=np.matrix(XgetColumn(k))
-        print 'Computing PC ',k
+        if verbose: print 'Computing PC ',k
         h=0
         while abs(lam1-lam0)>tol and h<100:
             P=Xleftmult(T,True)
@@ -736,7 +762,7 @@ def pcaNIPALS(K=5,tol=1e-4):
             T=Xleftmult(P)
             lam0=lam1
             lam1=np.linalg.norm(T)
-            print '\t Iteration '+str(h)+', Convergence =', abs(lam1-lam0)
+            if verbose: print '\t Iteration '+str(h)+', Convergence =', abs(lam1-lam0)
             h+=1
         latent.append(lam1)
         XminusOuterProduct(T,P)
@@ -755,7 +781,12 @@ def testPca():
     assert np.all(np.abs(X-merge())==0)
     assert np.all(np.abs(np.matrix(X[:,M/2]).T-XgetColumn(M/2))==0)
     Y1=(X-np.matrix(X.mean(1)).T)
-    XcolMeanCenter()
+    XmeanCenter(1)
+    Y2=mergeT()
+    assert np.mean(np.abs(Y1-Y2))<1e-8
+    Y1=(X-np.matrix(X.mean(0)))
+    split(X)
+    XmeanCenter(0)
     Y2=mergeT()
     assert np.mean(np.abs(Y1-Y2))<1e-8
     Y3=merge()
@@ -765,6 +796,7 @@ def testPca():
     Y1=X*A
     Y2=Xleftmult(A)
     assert np.all(np.abs(Y1-Y2)==0)
+    split(X)
     A=np.matrix(np.random.rand(52,3))
     Y1=X.T*A
     Y2=Xleftmult(A,True)
@@ -775,6 +807,12 @@ def testPca():
     XminusOuterProduct(A,B)
     Y2=merge()
     assert np.all(np.abs(Y1-Y2)==0)
+    Y3=mergeT()
+    assert np.all(np.abs(Y1-Y3)==0)
+    C1=np.cov(X.T)
+    split(X)
+    C2=Xcov(True)
+    assert np.abs(C1-C2).mean()<1e-12
     global c1,s1,v1,c2,s2,v2
     c1,s1,v1=pcaSVD(X,True)
     c2,s2,v2=pcaSVD(X,False)
@@ -782,7 +820,7 @@ def testPca():
 
     X=np.random.rand(52,M)
     split(X)
-    pcaNipals(K=M)
+    pcaNIPALS(K=M)
     a1=mergeT('coeff')
     c1=np.load(inpath+'latent.npy')
     a2,b2,c2=pcaSVD(X)
@@ -794,13 +832,20 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
+inpath='cxx/similPix/TI/X/'
+N=13
+##PF2X(merge=4)
+##C=Xcov()
+##np.save('C',C)
+##[latent,coeff]=np.linalg.eig(C)
+##coeff=Xleftmult(coeff[:,:100],True)
+##np.save(inpath+'coeff.npy',coeff)
+##latent/=latent.sum()
+##np.save(inpath+'latent',latent[:100])
 
-##inpath='cxx/similPix/TI/X/'
-##N=13
-####PF2X(merge=4)
 ####pcaNipals(K=20)
 ##
-###Sparallel()
+Sparallel()
 ##
 ####latent=np.load(inpath+'latent.npy')
 ##N=5
@@ -808,48 +853,45 @@ def testPca():
 ##N=0
 ##for f in fs: N+= f.startswith('coeff')
 ##coeff=mergeT('coeff')
+##coeff=np.load(inpath+'coeff.npy')
 ##for h in range(coeff.shape[1]):
 ##    pf=coeff[:,h].reshape((64,64,68))
 ##    pf-= np.min(pf)
 ##    pf/= np.max(pf)
-##    bla
 ##    #pf*=255
 ##    #pf=np.uint8(pf)
 ##    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
 ##    for k in range(len(pf)): pf[k]=pf[k].squeeze()
 ##    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-##    writeGif(inpath+'pc%d.gif'%h,pf,duration=0.1)
-P=32;T=20
-I=np.random.rand(P,P,T)*1e-2
-for t in range(T):
-    I[[t,t+1],P/2,t] = 1
-    I[[t,t+1],P/2+1,t] = 1
-    I[[t+10,t+11],P/2,t] = 1
-    I[[t+10,t+11],P/2+1,t] = 1
+##    writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+    
 
-def showPF(pf,fname='pf'):
-    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-    for k in range(len(pf)): pf[k]=pf[k].squeeze()
-    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-    writeGif(fname,pf,duration=0.1)
-
-it=10
-D=[np.matrix((1-I).flatten())]
-for phi in range(it,360,it):
-    print phi
-    Im=np.copy(I)
+def controlSimulations():
+    P=32;T=20
+    I=np.random.rand(P,P,T)*1e-2
     for t in range(T):
-        M=Image.fromarray(Im[:,:,t])
-        M=M.rotate(float(phi))
-        Im[:,:,t]=np.asarray(M)
-    D.append(np.matrix((1-Im).flatten()))
-D=np.concatenate(D)
+        I[[t,t+1],P/2,t] = 1
+        I[[t,t+1],P/2+1,t] = 1
+        I[[t+10,t+11],P/2,t] = 1
+        I[[t+10,t+11],P/2+1,t] = 1
 
-D=D-np.matrix(D.mean(0))
+    it=10
+    D=[np.matrix((1-I).flatten())]
+    for phi in range(it,360,it):
+        print phi
+        Im=np.copy(I)
+        for t in range(T):
+            M=Image.fromarray(Im[:,:,t])
+            M=M.rotate(float(phi))
+            Im[:,:,t]=np.asarray(M)
+        D.append(np.matrix((1-Im).flatten()))
+    D=np.concatenate(D)
 
-coeff,score,latent=pcaSVD(D)
-for k in range(coeff.shape[1]):
-    showPF(coeff[:,k].reshape((P,P,T)),'pc%02d'%k)
+    D=D-np.matrix(D.mean(0))
+
+    coeff,score,latent=pcaSVD(D)
+    for k in range(coeff.shape[1]):
+        PFlist2gif(coeff[:,k].reshape((P,P,T)),'pc%02d'%k)
 
 
 
