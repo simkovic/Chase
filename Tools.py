@@ -3,6 +3,7 @@ from Constants import *
 from psychopy import visual, core, event,gui
 from psychopy.misc import pix2deg
 import numpy as np
+from subprocess import call
 
 
 def exportFrame(positions,fn,maze=None,wind=None):
@@ -40,12 +41,13 @@ def exportTrial(outname,trajectories,wind=None,hz=60):
         nrframes=trajectories.shape[0]
         cond=trajectories.shape[1]
         elem=visual.ElementArrayStim(wind,fieldShape='sqr',nElements=cond,
-            sizes=Q.agentRadius,elementMask='circle',elementTex=None)
+            sizes=Q.agentSize,elementMask=RING,elementTex=None)
+        t0=core.getTime()
         for f in range(nrframes):
-            t0=core.getTime()
+            
             elem.setXYs(trajectories[f,:,[X,Y]].transpose())
             elem.draw()
-            #print core.getTime()-t0
+            
             wind.update()
             wind.getMovieFrame(buffer='front')
             #wind.clearBuffer()
@@ -54,12 +56,22 @@ def exportTrial(outname,trajectories,wind=None,hz=60):
                     wind.close()
                     break;
                     #core.quit()
-            print f
-            if f in [500,1000,1500,2000,2550]:
-                wind.saveMovieFrames('%s%d.mpeg'%(outname,f/500),fps=hz,mpgCodec='mpeg1video')
+            #print f
+            if f in [250,500,750,1000,1250,1500,1750,2000,2250,2550]:
+                wind.saveMovieFrames('%s%d.mpeg'%(outname,f/250-1),mpgCodec='mpeg1video')
+        s='copy/b '
+        for i in range(10): s+= '%s%d.mpeg+'% (outname,i)
+        s=s[:-1]
+        s+= ' %s.mpeg'%outname
+        #print s
+        call(s,shell=True)
+        for i in range(10): call('DEL %s%d.mpeg'%(outname,i),shell=True)
+        #print core.getTime()-t0
+        wind.close()
     except: 
         wind.close()
         raise
+    
     
 def exportExperiment(vp,wind):
     dn='vp%02d' % vp
@@ -192,5 +204,9 @@ if __name__ == '__main__':
     #traj=np.load('input/vp001/trial019.npy')
     #showTrial(traj,highlightChase=True,gazeData=data[18][:,[1,2]])
     #r=traj2image(t[113,:,:].squeeze())
-    t=np.load('saliency/input/vp001b2trial013.npy')
-    exportTrial('test.mpeg',t,hz=85)
+    vp=1
+    for b in range(4,5):
+        for tr in range(15,40):
+            print vp,b,tr
+            t=np.load(Q.inputPath+'vp%03d'%vp+Q.delim+'vp%03db%dtrial%03d.npy'%(vp,b,tr))
+            exportTrial('saliency'+Q.delim+'mpeg'+Q.delim+'vp%03db%dtrial%03d'%(vp,b,tr),t)
