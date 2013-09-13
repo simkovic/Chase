@@ -412,11 +412,11 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
     os.chdir(Q.inputPath)
     mazes=[]
     if probeTrials: bs=range(0,blocks+1)
-    else: bs=range(1,blocks+1)
+    else: bs=range(22,blocks+1)
     print 'Generating Trajectories'
     for vp in vpn:
         vpname='vp%03d' % vp
-        os.mkdir(vpname)
+        #os.mkdir(vpname)
         os.chdir(vpname)
         Q.save('SettingsTraj.pkl')
         
@@ -424,10 +424,11 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
             if block ==0: nrtrials=10
             else: nrtrials=trialstotal
             for trial in range(nrtrials):
+                if vp>1 and vp<10: continue
                 if trial >= nrtrials*0.9: rd=0.0
                 else: rd=3.0
                 trajectories=None
-                while trajctories ==None:
+                while trajectories ==None:
                     trajectories=generateTrial(condition, 
                         maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=rd)
                 #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
@@ -590,7 +591,7 @@ if __name__ == '__main__':
     #random.seed(3)
     #maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    #generateMixedExperiment([84],40,blocks=1,condition=14,dispSize=26,probeTrials=True)
+    generateMixedExperiment([2],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
@@ -600,7 +601,6 @@ if __name__ == '__main__':
     #generateExperiment([105],1000,conditions=[20],dispSizes=[32],rejectionDistance=3.0)
     #generateExperiment([0],1,conditions=[8,11,14,17,20],
     #                   dispSizes=[18,22,26,29,32],rejectionDistance=3.0)
-    #generateExperiment([92],2,[6],[22])
         
     #generateBabyExperiment([201])
     

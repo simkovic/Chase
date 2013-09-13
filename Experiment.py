@@ -124,7 +124,6 @@ class Experiment():
         if (selected[0]==0 and selected[1]==1
             or selected[0]==1 and selected[1]==0):
             return 1
-            
         else: return 0
     def trialIsFinished(self): return False
     def omission(self): pass
@@ -173,7 +172,7 @@ class Experiment():
         core.wait(1.0)
         self.output.write('\n')
         
-    def run(self,mouse=None,prefix=''):        
+    def run(self,mouse=None,prefix=''): 
         self.output = open(Q.outputPath+prefix+'vp%03d.res'%self.id,'a')
         
         permut=np.load(Q.inputPath+'vp%03d'%self.id+Q.delim
@@ -195,9 +194,12 @@ class Experiment():
             self.t=trial; self.pt=permut[trial]
             #print self.t
             self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(permut[trial])))
-            fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,permut[trial])
-            # print 'showing',fname
-            self.trajectories= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
+            if self.id>1 and self.id<10:
+                fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,permut[trial])
+                self.trajectories= np.load(Q.inputPath+'vp001'+Q.delim+fname)
+            else:
+                fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,permut[trial])
+                self.trajectories= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
             self.runTrial(self.trajectories)
             
         
@@ -463,8 +465,8 @@ class BehavioralExperiment(Experiment):
 class AdultExperiment(BehavioralExperiment):
     def __init__(self,doSetup=True):
         BehavioralExperiment.__init__(self)
-        #self.eyeTracker = TrackerEyeLink(self.getWind(), core.Clock(),sj=self.id,block=self.block,doSetup=doSetup,target=self.fixcross)
-        self.eyeTracker = TrackerSMI(self.getWind(), sj=self.id,block=self.block,target=self.fixcross)
+        self.eyeTracker = TrackerEyeLink(self.getWind(), core.Clock(),sj=self.id,block=self.block,doSetup=doSetup,target=self.fixcross)
+        #self.eyeTracker = TrackerSMI(self.getWind(), sj=self.id,block=self.block,target=self.fixcross)
         self.eyeTracker.sendMessage('MONITORDISTANCE %f'% self.wind.monitor.getDistance())
     def run(self):
         BehavioralExperiment.run(self)
@@ -482,7 +484,7 @@ class AdultExperiment(BehavioralExperiment):
         self.eyeTracker.sendMessage('OMISSION')
         BehavioralExperiment.omission(self)
     def flip(self):
-        self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
+        #self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
         return BehavioralExperiment.flip(self)
         
 class TobiiExperiment(BehavioralExperiment):
@@ -509,10 +511,10 @@ class TobiiExperiment(BehavioralExperiment):
 
 if __name__ == '__main__':
     from Settings import Q
-    #E=BehavioralExperiment()
+    E=AdultExperiment()
     #E=TobiiExperiment()
     #E=Gao09Experiment()
-    E=BabyExperiment()
+    #E=BabyExperiment()
     E.run()
 
 
