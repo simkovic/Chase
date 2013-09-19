@@ -11,7 +11,6 @@ from psychopy import core
 from images2gif import writeGif
 
 
-
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
         output format is HxW matrix of light intensity values (uint8)
@@ -120,7 +119,7 @@ def PFextract(part=[0,1]):
 def PFsubsampleF():
     ''' subsample PF files from 500 hz to 100hz
         to make computeSimilarity run faster'''
-    for i in range(400,601):
+    for i in range(0,601):
         print i
         PF=np.load('cxx/similPix/data/PF%d.npy'%i)
         PF=PF[:,:,:,:,range(2,152,5)]
@@ -241,7 +240,7 @@ def Scompute():
     print 'time', time()-t0
     # check the correctness of both programs
     S2=np.load('cxx/similPix/S/S000x001.npy')
-    print (S-S2).mean()
+    print (S-S2).mean()  
 
 
 def SinitParallel(N=601):

@@ -1,6 +1,6 @@
 import numpy as np
 from Settings import *
-from os import getcwd
+import os
 from evalETdata import ETTrialData, interpRange
 import pylab as plt
 plt.ion()
@@ -34,7 +34,7 @@ def _reformat(trial,tstart,Qexp):
 
 def readEyelink(vp,block):
     cent=(0,0)
-    path = getcwd()
+    path = os.getcwd()
     path = path.rstrip('code')
     try:
         f=open(path+'eyelinkOutput/VP%03dB%d.asc'%(vp,block),'r')
@@ -151,7 +151,7 @@ def readSMI(vp,block):
     # blinks?
     # latency during the transport of messages?
     
-    path = getcwd()
+    path = os.getcwd()
     path = path.rstrip('code')
     f=open(path+'smiOutput/VP%03dB%d Samples.txt'%(vp,block),'r')
     Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
@@ -244,7 +244,7 @@ def readTobii(vp,block,lagged=False):
         lagged - return time stamp when the data was made available (ca. 30 ms time lag)
     '''
     print 'Reading Tobii Data'
-    path = getcwd()
+    path = os.getcwd()
     path = path.rstrip('/code')
     f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
@@ -478,7 +478,7 @@ def checkEyelinkDatasets():
 
 def sacInfoMergeBlocks(vp=1):
     """ puts saveSacInfo output into a single file"""
-    path=getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     N=0
     for f in os.listdir(path): N+=f.startswith('si')
     si=[]
@@ -498,9 +498,9 @@ def saveSacInfo(vp=1):
         sac id within tracking event, block, trial
         doesnt include blinks as saccades
     '''
-    path=getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     si=[]
-    for b in range(1,22):
+    for b in range(16,22):
         data=readEyelink(vp,b)
         for i in range(len(data)):
             if data[i].ts>=0:
@@ -528,8 +528,8 @@ def saveSacInfo(vp=1):
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
                         gg+=1
                     
-        np.save(path+'si%d.npy'%b,ti)
-    sacInfoMergeBlocks()
+        np.save(path+'si%d.npy'%b,si)
+    #sacInfoMergeBlocks()
     
     
 if __name__ == '__main__':
@@ -537,8 +537,7 @@ if __name__ == '__main__':
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()
-    #saveTrackingSacInfo()
-    pass
+    sacInfoMergeBlocks()
 
         
     

@@ -29,9 +29,10 @@ def saveFigures(name):
 def plotSearchInfo(plot=True):
     D=np.load(path+'si.npy')
     D=D[D[:,14]==event,:]
-    sel=np.logical_or(np.isnan(D[:,11]),D[:,11]-D[:,4]>=0)
-    D=D[sel,:]
-
+    if event==1:# discard tracking events initiated by tracking or blink
+        sel=np.logical_or(np.isnan(D[:,11]),D[:,11]-D[:,4]>=0)
+        D=D[sel,:]
+    
     if plot:
         #plt.close('all')
         plt.figure()
@@ -72,8 +73,7 @@ def extractTrajectories():
     inpath=getcwd().rstrip('code')+'input/'
     sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
     ef=sf+fw
-    if do==0: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,-3])
-    else: valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
+    valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     print 'proportion of utilized samples is', valid.mean()
     D=np.zeros((valid.sum(),fw,14,2))*np.nan
     DG=np.zeros((valid.sum(),fw,14,2))*np.nan
@@ -248,12 +248,11 @@ def extractSaliency(channel='motion'):
     gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
     rt=np.random.permutation(si.shape[0])
     rp=np.random.permutation(si.shape[0])
-    print si.shape
     for h in range(si.shape[0]):
         if si[h,-1]!=lastt:
             order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
             traj=np.load(inpath+'vp%03d/vp%03db%dtrial%03d.npy'%(vp,vp,si[h,-2],order[si[h,-1]]))
-            try: vid=Mraw(path+'/saliency/vp%03db%dtrial%03dCO%s-.%dx%d.mgrey'%(vp,channel,int(si[h,-2]),order[si[h,-1]],dim,dim))
+            try: vid=Mraw(path.rstrip('vp001/')+'/saliency/vp001b%dtrial%03dCO%s-.%dx%d.mgrey'%(int(si[h,-2]),order[si[h,-1]],channel,dim,dim))
             except: print 'missing saliency file',vp,int(si[h,-2]),order[si[h,-1]]
         temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
         gridG+=temp1; radG+=temp2.T; lastt=si[h,-2];
@@ -410,17 +409,23 @@ def plotTraj(traj):
 ##    del D, E, F
 
 
+
+
+
    
 
 if __name__ == '__main__':
-    for vp in range(1,2):
-        for event in range(4):
-            extractTrajectories()
-            extractSaliency()
-        for event in range(4):
-            agentDensity()
-            dirChanges()
-            plotSaliency()
+##    for vp in range(1,2):
+##        for event in range(4):
+##            extractTrajectories()
+##            extractSaliency()
+##        for event in range(4):
+##            agentDensity()
+##            dirChanges()
+##            plotSaliency()
+    event=3
+    dirChanges()
+    
 
 
     
