@@ -844,7 +844,7 @@ N=13
 
 ####pcaNipals(K=20)
 ##
-Sparallel()
+#Sparallel()
 ##
 ####latent=np.load(inpath+'latent.npy')
 ##N=5
@@ -892,5 +892,40 @@ def controlSimulations():
     for k in range(coeff.shape[1]):
         PFlist2gif(coeff[:,k].reshape((P,P,T)),'pc%02d'%k)
 
-
+def rotate(x,phi):
+    phi=phi/180.0*np.pi
+    R=np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
+    return R.dot(x)
+def traj2gif(K,T,A,P,fn='pf'):
+    K=np.reshape(np.array(K),(T,A,2))
+    I=[]
+    for t in range(T):
+        Im=np.zeros((P,P,1))
+        for a in range(A):
+            Im[P/2+K[t,a,1],P/2+K[t,a,0],0]=1
+        I.append(Im)
+    I=np.concatenate(I,axis=2)
+    PFlist2gif(I,fname=fn)
+plt.close('all')
+A=2
+T=20; P=50
+I=np.zeros((T,A,2))
+for t in range(T):
+    I[t,0,0] = t
+    I[t,1,0] = t-T
+#I[:,:,1]=10
+it=10
+D=[np.matrix(I.flatten())]
+for phi in range(it,360,it):
+    Im=np.copy(I)
+    for t in range(T):
+        Im[t,:,:]=rotate(Im[t,:,:].T,float(phi)).T
+        Im[t,:,1]+=10
+    D.append(np.matrix(Im.flatten()))
+D=np.concatenate(D)
+   
+coeff,score,latent=pcaSVD(D)
+traj2gif(coeff[:,0]*50,T,A,P,fn='PC0')
+traj2gif(coeff[:,1]*50,T,A,P,fn='PC1')
+plt.plot(score[0,:],score[1,:],'o')
 
