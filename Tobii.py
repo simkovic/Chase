@@ -18,10 +18,11 @@ except ImportError:
 from psychopy.sound import SoundPygame as Sound
 from psychopy.core import Clock
 from psychopy import visual, event
-from evalETdata import myDeg2pix, myDeg2cm, myCm2deg
 from Settings import Q
 import numpy as np
 import sys
+
+def myCm2deg(cm,dist): return cm/(dist*0.017455) 
 
 # here are some constants, settings and helper functions
 class ETSTATUS():
@@ -955,13 +956,6 @@ class TobiiControllerFromOutput(TobiiController):
 
 
 if __name__ == "__main__":
-    win = visual.Window(monitor='dell')
-    tc=TobiiControllerFromOutput(win,119,0)
-    tc.preTrial()
-    win.close()
-    time.sleep(0.1)
-    print tc.getCurrentFixation()
-elif False:
     # following demo shows the performance of the online fixation detection algorithm
     import sys
     win = visual.Window(size=(1280,1024),pos=(1280,0),fullscr=True,units='deg',monitor='hyundai')
