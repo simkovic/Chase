@@ -209,7 +209,8 @@ class Diagnosis:
         return D
         
 class RandomAgent():
-    def __init__(self,nrframes,dispSize,pdc,sd,moveRange):
+    def __init__(self,nrframes,dispSize,pos,pdc,sd,moveRange):
+        self.offset=pos
         self.ds=dispSize
         self.nrframes=nrframes
         self.traj=np.zeros((nrframes,3))
@@ -226,8 +227,8 @@ class RandomAgent():
         self.nrcrashes=np.zeros((self.nrframes))
         self.f=0
         self.i=0
-        self.traj[self.f,:]=np.array((random.random()*self.ds[X]-self.ds[X]/2.0,
-            random.random()*self.ds[Y]-self.ds[Y]/2.0,random.random()*360))
+        self.traj[self.f,:]=np.array((random.random()*self.ds[X]-self.ds[X]/2.0+self.offset[X],
+            random.random()*self.ds[Y]-self.ds[Y]/2.0+self.offset[Y],random.random()*360))
         
     def backtrack(self):
         self.f-=51#31
@@ -293,9 +294,9 @@ class HeatSeekingChaser(RandomAgent):
 def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
     if STATISTICS: nrbacktracks=0
     # init chaser chasee
-    chasee=RandomAgent(Q.nrframes,maze.dispSize,
+    chasee=RandomAgent(Q.nrframes,maze.dispSize,maze.pos,
             Q.pDirChange[CHASEE],Q.aSpeed,Q.phiRange[0])
-    chaser=HeatSeekingChaser(Q.nrframes,maze.dispSize,
+    chaser=HeatSeekingChaser(Q.nrframes,maze.dispSize,maze.pos,
             Q.pDirChange[CHASER],Q.aSpeed,Q.phiRange[CHASER],True)
     while (xydist(chaser.getPosition(),chasee.getPosition())<Q.initDistCC[MIN]
         and xydist(chaser.getPosition(),chasee.getPosition())>Q.initDistCC[MAX]):
@@ -304,7 +305,7 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
     agents=[chasee,chaser]
     # init distractors
     for d in range(nragents-2):
-        distractor=RandomAgent(Q.nrframes,maze.dispSize,
+        distractor=RandomAgent(Q.nrframes,maze.dispSize,maze.pos,
             Q.pDirChange[DISTRACTOR],Q.aSpeed,Q.phiRange[CHASEE])
         agents.append(distractor)
     # check for wall collisions
@@ -507,13 +508,15 @@ def generateTremouletTrial(phi=0, lam=1):
             angle=angle+phi
     return traj
 def generateGao09e1(vpn):
+    # gao09e1 settings
     nrtrials=15
-    maze=EmptyMaze((1,1),dispSize=(32,24))
+    maze=EmptyMaze((1,1),dispSize=(32,24),lw2cwRatio=0)
     chs=[0,60,120,180,240,300]
-    block=1
+    Q.setTrialDur(10);Q.phiRange=(120,120)
+    Q.setpDirChange([5.9,5.9,5.9])
+    block=0
     #os.chdir('..')
-    Q.trialDur=10
-    
+    os.chdir('..')
     os.chdir('input/')
     for vp in vpn:
         vpname='vp%03d' % vp
@@ -524,9 +527,11 @@ def generateGao09e1(vpn):
         r[:,0]=np.random.permutation(2*6*nrtrials)
         for cond in range(6):
             for trial in range(nrtrials):
-                Q.phiRange=(chs[cond],120)
-                trajectories=generateTrial(5,maze=maze,
-                    rejectionDistance=5.0)
+                Q.phiRange=(Q.phiRange[0],chs[cond])
+                trajectories=None
+                while trajectories ==None:
+                    trajectories=generateTrial(5,maze=maze,
+                        rejectionDistance=5.0)
                 #target present trial
                 r[i,1]=cond 
                 fn='gao09e1%sb%dtrial%03d'% (vpname,block,i); 
@@ -540,6 +545,42 @@ def generateGao09e1(vpn):
         Q.save('SettingsTraj.pkl')
         os.chdir('..')
     os.chdir('..')
+    
+def generateGao10e4(vp):
+    # gao10e4 settings
+    maze=EmptyMaze((1,1),dispSize=(18,18),lw2cwRatio=0)
+    Q.setTrialDur(8); nrtrials=180; 
+    Q.setAspeed(5.1)
+    block=0;os.chdir('..');os.chdir('input/')
+    vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
+    for trial in range(nrtrials):
+        trajectories=generateTrial(12,maze=maze, rejectionDistance=0.0)
+        fn='gao10e4%sb%dtrial%03d'% (vpname,block,trial); 
+        np.save(fn,trajectories[:,2:,:])
+    np.save('gao10e4order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
+    Q.save('SettingsTraj.pkl')
+
+def generateGao10e3(vp):
+    offs=5.875; sz=(2*offs+Q.agentSize,2*offs+Q.agentSize)
+    quadrants=[EmptyMaze((1,1),dispSize=sz,pos=(offs,offs),lw2cwRatio=0),
+        EmptyMaze((1,1),dispSize=sz,pos=(-offs,offs),lw2cwRatio=0),
+        EmptyMaze((1,1),dispSize=sz,pos=(offs,-offs),lw2cwRatio=0),
+        EmptyMaze((1,1),dispSize=sz,pos=(-offs,-offs),lw2cwRatio=0)]
+    nrtrials=90; 
+    block=0;os.chdir('..');os.chdir('input/')
+    vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
+    for trial in range(nrtrials):
+        trajectories=[]
+        for k in range(len(quadrants)):
+            traj=generateTrial(5,maze=quadrants[k], rejectionDistance=0.0)
+            trajectories.append(traj[:,2:,:])
+        fn='gao10e3%sb%dtrial%03d'% (vpname,block,trial); 
+        np.save(fn,np.concatenate(trajectories,axis=1))
+    np.save('gao10e3order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
+    Q.save('SettingsTraj.pkl')
+
+        
+    
 def exportSvmGao09(nrtrials=10000):
     def saveTraj(fout,traj,label):
         sample=5
@@ -591,7 +632,7 @@ if __name__ == '__main__':
     #random.seed(3)
     #maze=EmptyMaze((1,1),dispSize=(32,24))
     
-    generateMixedExperiment([2],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
+    #generateMixedExperiment([2],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
     #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
     #print t.shape
     #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
@@ -608,11 +649,13 @@ if __name__ == '__main__':
     #print t.shape
     #np.save('t.npy',t)
     #exportSvmGao09()
-    #generateGao09e1([23])
     
     #d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3.0])
     #Diagnosis.save(d,'diagBaby6.pkl')
     #D=Diagnosis.multiload(6,prefix='diagBaby')
+    #generateGao10e4(308)
+    generateGao09e1([501])
+
 
         
 

@@ -48,14 +48,15 @@ def lineLine(x1,y1,x2,y2,x3,y3,x4,y4):
 
 class Maze(np.ndarray):
     H=0; V=1;I=0;J=1 # map indices of horizontal and vertical 
-    def __new__(cls,sz,dispSize):
+    def __new__(cls,sz,dispSize,pos=(0,0),lw2cwRatio=0.1):
         inst= super(Maze, cls).__new__(cls,(sz[0],sz[1],2),np.bool)
         #inst.dispSize=dispSize
         return inst
-    def __init__(self,sz=(0,0),dispSize=(18,18),lw2cwRatio=0.1):
+    def __init__(self,sz=(0,0),dispSize=(18,18),lw2cwRatio=0.1,pos=(0,0)):
         """
             Edge type may be 'flat' 0 or 'circle' 1
         """
+        self.pos=np.array(pos)
         #mon=visual.monitors.Monitor(Q.monname)
         self.dispSize=np.array(dispSize)
         self.cw=self.dispSize/(np.float32(self.shape)[[0,1]])
@@ -97,7 +98,7 @@ class Maze(np.ndarray):
                 lineWidth=deg2pix(self.lw,wind.monitor))
             elem.append(body)
         frame=visual.Rect(wind,width=self.dispSize,
-            height=self.dispSize,lineColor=(1,1,1),
+            height=self.dispSize,lineColor=(1,1,1),pos=(0,0),
             lineWidth=deg2pix(self.lw,wind.monitor),units='deg')
         if len(self.lineXY)==0:
             self.maze=frame
@@ -108,6 +109,7 @@ class Maze(np.ndarray):
         
     def shortestDistanceFromWall(self, point):
         from psychopy.event import xydist
+        point-=self.pos
         X=Maze.I; Y = Maze.J
         (gx,gy)=self.dispSize/2.0
         arena=(((-gx,-gy),(gx,-gy)), ((gx,-gy),(gx,gy)),
@@ -138,7 +140,7 @@ class Maze(np.ndarray):
         return shd-self.lw/2.0, edge
 
     def bounceOff(self,posT1,posT0,edge,agentRadius):
-        
+        posT1-= self.pos; posT0-=self.pos
         if type(edge[0])==type(0.1):# edge is a point
             #print 'bounce ',posT1, posT0,edge, agentRadius
             # first translate the agent center
@@ -198,6 +200,7 @@ class Maze(np.ndarray):
                 newPos=np.copy(posT1)
                 newPos[Y]=2*inters[Y]-posT1[Y]-agoff
                 newPhi=2*np.pi-oldPhi
+        newPos+= self.pos
         return (newPos,(180*newPhi/np.pi)%360) 
     
 class GridMaze(Maze):
@@ -242,15 +245,17 @@ class ZbrickMaze(Maze):
                     i%4==0 and j%4==0 or i%4==2 and j%4==2)
         super(ZbrickMaze, self).__init__(*args,**kwargs)
 #m=EmptyMaze((1,1),(12,8))                    
-if False:#__name__ == '__main__':            
+if __name__ == '__main__':            
     wind=visual.Window(fullscr=False,size=(900,900),units='deg',
             color=[-1,-1,-1],winType='pyglet',monitor='dell')
     try:
         random.seed()
         np.random.seed()
         plt.close()       
-        m = ZbrickMaze(10,dispSize=18)#ZbrickMaze()     
-        m.draw(wind)
+        #m = ZbrickMaze(10,dispSize=18)#ZbrickMaze()  
+        m=EmptyMaze((1,1),dispSize=(18,18))
+        #bla
+        #m.draw(wind)
         wind.flip()
         stop=False
         while not stop:

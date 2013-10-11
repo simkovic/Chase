@@ -12,18 +12,16 @@ class Settings():
         self.monitor=monitor
         self.os=os
         self.fullscr=fullscr
-        self.trialDur=trialDur
+        self.setTrialDur(trialDur)
         self.agentSize=agentSize
         self.phiRange=phiRange
-        self.pDirChange=[pDirChange[CHASEE]/self.refreshRate,
-                         pDirChange[CHASER]/self.refreshRate,
-                         pDirChange[DISTRACTOR]/self.refreshRate]
+        self.setpDirChange(pDirChange)
         self.initDistCC=initDistCC
         self.bckgCLR=bckgCLR
         self.agentCLR=agentCLR
         self.mouseoverCLR=mouseoverCLR
         self.selectedCLR=selectedCLR
-        self.aSpeed=aSpeed/self.refreshRate
+        self.setAspeed(aSpeed)
         self.guiPos=guiPos
         self.winPos=winPos
         if self.os==WINDOWS: self.delim='\\'
@@ -34,8 +32,15 @@ class Settings():
         self.outputPath=path+"output"+self.delim
         self.stimPath=path+"stimuli"+self.delim
         self.agentRadius=self.agentSize/2.0
-        self.nrframes=self.trialDur*self.refreshRate+1
         self.fullscr=fullscr
+    def setTrialDur(self,td):
+        self.trialDur=td
+        self.nrframes=self.trialDur*self.refreshRate+1
+    def setpDirChange(self,pDirChange):
+        self.pDirChange=[pDirChange[CHASEE]/self.refreshRate,
+             pDirChange[CHASER]/self.refreshRate,
+             pDirChange[DISTRACTOR]/self.refreshRate]
+    def setAspeed(self,aSpeed):  self.aSpeed=aSpeed/self.refreshRate
   
     def initDisplay(self,sz=None):
         if sz==None: sz=(1280,1280)
@@ -76,7 +81,7 @@ laptop={'monitor' :     dell,
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
         'pDirChange':   [4.8,5.4,4.8],          # avg number of direction changes per second
-        'bckgCLR':      [-0,-0,-0],
+        'bckgCLR':      [-1,-1,-1],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
@@ -84,7 +89,7 @@ laptop={'monitor' :     dell,
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
-        'fullscr':      False}
+        'fullscr':      True}
 
 eyelinklab ={'monitor' :sonycrt,
         'refreshRate':  85,                # [hz]
@@ -136,6 +141,22 @@ tobiilab ={'monitor' :  t60,
         'winPos':       (1280,0),           # in pixels
         'fullscr':      False}
 
+gao10e3={'monitor' :     dell,
+        'refreshRate':  75,                 # [hz]
+        'os':           LINUX,              # Linux or Windows
+        'phiRange':     [90,90],          # in degrees [0-360]
+        'agentSize':    1.9,                  # in degrees of visial angle
+        'initDistCC':   [4.0 ,4.0],       # in degrees of visial angle
+        'pDirChange':   [3.0,3.0,3.0],          # avg number of direction changes per second
+        'bckgCLR':      [-1,-1,-1],
+        'agentCLR':     1,                  # [1 -1]
+        'mouseoverCLR': 0.5,                # [1 -1]
+        'selectedCLR':  -0.5,               # [1 -1]
+        'trialDur':     17,                 # in seconds
+        'aSpeed':       7.8,               # in degrees of visual angle per second
+        'guiPos':       (200,400),          # in pixels
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      True}
 
 Q=Settings(**laptop)
 #Q2=Settings(**smilab)
