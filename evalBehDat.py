@@ -6,6 +6,9 @@ plt.ion()
 from jagstools import jags
 from pymc.Matplot import plot
 import scipy.stats as stats
+ipath= os.getcwd().rstrip('code')+'behavioralOutput/'
+opath= os.getcwd().rstrip('code')+'evaluation/jags/'
+os.chdir(opath)
 
 def errorbar(p):
     perc=5
@@ -26,9 +29,7 @@ def loadData(vpn, verbose=False):
 
     D=[]
     for vp in vpn:
-        path = os.getcwd()
-        path = path.rstrip('code')
-        dat=np.loadtxt(path+'behavioralOutput/vp%03d.res'%vp)
+        dat=np.loadtxt(ipath+'/vp%03d.res'%vp)
         if verbose: print vp, dat.shape
         D.append(dat[dat[:,1]>0,:])
     D=np.concatenate(D,0)
@@ -38,6 +39,7 @@ vpn=range(20,70)
 vpn.remove(27)
 vpn=[1]
 D=loadData(vpn)
+D=D[D[:,3]>35,:]
 acc=np.zeros((len(vpn),2))*np.nan
 
 # check accuracy
@@ -52,11 +54,12 @@ for i in (p<0.50).nonzero()[0].tolist():
 for r in rem: vpn.remove(r)
 
 BL=21
+TR=4
 stat=np.ones((len(vpn),BL,2))*np.nan
-rts=np.zeros((len(vpn),BL*40))*np.nan
-acc=np.zeros((len(vpn),BL*40))*np.nan
+rts=np.zeros((len(vpn),BL*TR))*np.nan
+acc=np.zeros((len(vpn),BL*TR))*np.nan
 acc2=np.zeros((len(vpn),2))*np.nan
-covar=np.zeros((len(vpn),BL*40))*2
+covar=np.zeros((len(vpn),BL*TR))*2
 N=np.zeros(len(vpn))
 K=np.copy(D[:,-1])
 K[D[:,6]==30]=np.nan
@@ -68,9 +71,9 @@ for i in range(len(vpn)):
             stat[i,b,0]= (D[sel,6]==30).mean()
             sel2= np.logical_and(sel,~(D[:,6]==30))
             stat[i,b,1]=np.median(D[sel2,6])
-            rts[i,b*40:(b+1)*40]=D[sel,6]
-            acc[i,b*40:(b+1)*40]=K[sel]
-            covar[i,b*40:(b+1)*40]=np.int32(D[sel,3]>34)
+            rts[i,b*TR:(b+1)*TR]=D[sel,6]
+            acc[i,b*TR:(b+1)*TR]=K[sel]
+            covar[i,b*TR:(b+1)*TR]=np.int32(D[sel,3]>34)
     sel2= np.logical_and(D[:,0]==vpn[i],D[:,6]!=30)
     acc2[i,0]= np.sum(D[sel2,-1])
     acc2[i,1]=np.sum(sel2)
@@ -150,7 +153,7 @@ def modelACC(acc):
     '''
 
     from jagstools import jags
-    D=jags(pname,indata,indatlabels,outdatlabels,modelLogit,
+    D=jags(opath,indata,indatlabels,outdatlabels,modelLogit,
         inpars,inparlabels,chainLen=2000,burnIn=500,thin=5)
     p=D[0]
     errorbar(p)
@@ -217,9 +220,6 @@ def modelSingleVP(vp=2):
         rttemp~ dgamma(pow(mean,2)*pow(sdev,-2),mean*pow(sdev,-2))
     }
     '''
-    from jagstools import jags
-    from pymc.Matplot import plot
-    import scipy.stats as stats
     plt.close('all')
     rtPred,mean,sdev=jags(pname,indata,indatlabels,outdatlabels,model,
         inpars,inparlabels,chainLen=20000,burnIn=5000,thin=5)
@@ -242,17 +242,17 @@ rts[rts==30]=np.nan
 pname='chaseRT'
 dat=rts[vp,:]
 censored=np.float32(np.isnan(dat))
-censored[N[vp]*40:]=np.nan
+censored[N[vp]*TR:]=np.nan
 shift=np.zeros(BL)
 dd=np.copy(dat)
 for b in range(BL):
-    shift[b]=np.nanmin(dat[b*40:(b+1)*40])-0.001
-    dd[b*40:(b+1)*40]-= shift[b]
+    shift[b]=np.nanmin(dat[b*TR:(b+1)*TR])-0.001
+    dd[b*TR:(b+1)*TR]-= shift[b]
 shift=np.nanmin(dat)-0.001
-indata=[dd, censored,shift]
-indatlabels=['rt','rtcens','shift']
+indata=[dd, censored,shift,BL*TR]
+indatlabels=['rt','rtcens','shift','N']
 outdatlabels=['rt','sdev','b0','b1','b2']
-rtInit=np.ones(BL*40)*np.nan
+rtInit=np.ones(BL*TR)*np.nan
 rtInit[censored==1]=31
 inpars=[rtInit]
 inparlabels=['rt']
@@ -275,28 +275,27 @@ model{
 '''
 modeltrials='''
 model{
-    rtcens[1]~ dinterval(rt[1],30-shift)
-    rt[1] ~ dunif(0,50)
-    for (t in 2:840){
+
+    for (t in 1:N){
         rtcens[t]~ dinterval(rt[t],30-shift)
         rt[t] ~ dgamma(pow(mean[t],2)*pow(sdev,-2),mean[t]*pow(sdev,-2))
-        mean[t] <- b0+b1*rt[t-1]+b2*t
+        mean[t] <- b0+0
     }
     b2 ~ dnorm(0,1/1000)
     b1 ~ dnorm(0,1/1000)
-    b0 ~ dunif(0,30)
-    sdev ~ dunif(0,30)
+    b0 ~ dunif(0,50)
+    sdev ~ dunif(0,50)
 }
 '''
+#+b1*rt[t-1]+b2*t
 #sdev[b] ~ dgamma(pow(dm,2)*pow(ds,-2),dm*pow(ds,-2))
 #rt[t]~dweib(mean,pow(sdev,-mean))
 #rt[t] ~ dgamma(pow(mean,2)*pow(sdev,-2),mean*pow(sdev,-2))
-from jagstools import jags
-from pymc.Matplot import plot
-import scipy.stats as stats
+
+
 plt.close('all')
 rt,sdev,b0,b1,b2=jags(pname,indata,indatlabels,outdatlabels,modeltrials,
-    inpars,inparlabels,chainLen=20000,burnIn=5000,thin=5)
+    inpars,inparlabels,chainLen=20000,burnIn=5000,thin=5,path=opath)
 
 ##Rs=[]
 ##for b in range(BL):

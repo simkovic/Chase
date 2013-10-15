@@ -9,7 +9,9 @@ from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
 from images2gif import writeGif
-
+event=1
+vp=1
+path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
@@ -90,7 +92,7 @@ def PFlist2gif(pf,fname='pf'):
     for k in range(len(pf)): pf[k]=pf[k].squeeze()
     pf.append(np.zeros(pf[0].shape,dtype=np.float32))
     writeGif(fname,pf,duration=0.1)
-def PFextract(part=[0,1]):
+def PFextract(E,part=[0,1],wind=None,elem=None):
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
@@ -99,20 +101,23 @@ def PFextract(part=[0,1]):
     rot=15
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
-        wind=Q.initDisplay()
-        elem=visual.ElementArrayStim(wind,fieldShape='sqr',
+        if type(wind)==type(None):
+            close=True; wind=Q.initDisplay()
+        else: close=False
+        if elem==None:
+            elem=visual.ElementArrayStim(wind,fieldShape='sqr',
                 nElements=E.shape[1], sizes=Q.agentSize,
                 elementMask=RING,elementTex=None,colors='white')
         for i in range(ende-start):
             #print i
             D[i,:,:,:,:]=traj2movie(E[i+start,:,:,:],outsize=os,
                         elem=elem,wind=wind,rot=rot)
-        wind.close()
+        if close: wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save('cxx/similPix/TI/PF%d.npy'%part[0],PF)
+        if len(part)==2: np.save(path+'E%d/PF/PF%02d.npy'%(event,part[0]),PF)
         else: np.save('PF.npy',PF)
     except:
-        wind.close()
+        if close: wind.close()
         raise
 
 
@@ -126,12 +131,18 @@ def PFsubsampleF():
         PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
 def PFparallel():
     ''' you can setup stack by np.save('stackPF.npy',range(601))'''
+    E=np.load(path+'E%d/DG.npy'%event)
     stack=np.load('stackPF.npy').tolist()
-
+    N=150
+    wind=Q.initDisplay()
+    elem=visual.ElementArrayStim(wind,fieldShape='sqr',
+            nElements=E.shape[1], sizes=Q.agentSize,
+            elementMask=RING,elementTex=None,colors='white')
+    
     while len(stack):
         jobid=stack.pop(0)
         np.save('stackPF.npy',stack)
-        PFextract([jobid,50])
+        PFextract(E,[jobid,N],wind=wind, elem=elem)
         loaded=False
         while not loaded:
             try:
@@ -140,7 +151,7 @@ def PFparallel():
             except IOError:
                 print 'IOError'
                 core.wait(1)
-#E=np.load('tiD0.npy')
+    wind.close()
 #PFparallel()
 def Mcompute():
     ''' mean of the PF data'''
@@ -243,33 +254,61 @@ def Scompute():
     print (S-S2).mean()  
 
 
-def SinitParallel(N=601):
+def SinitParallel():
+    
+    N1=602
+    N2=152
     out=[]
-    for i in range(N):
-        for j in range(i,N):
-            out.append([i,j])
-    np.save('cxx/similPix/stack',out)
+    for i in range(0,N1,5):
+        for j in range(N2):
+            out.append([i,j,1,0,1])
+    np.save(path+'E%d/S/stack'%event,out)
 def Sparallel():
     ''' parallel similarity computation'''
-    os.chdir('cxx/similPix')
-    stack=np.load('stack.npy').tolist()
-    
-    while len(stack):
-        loaded=False
-        while not loaded:
+    stack=np.load(path+'E%d/S/stack.npy'%event).tolist()
+    os.chdir(path.rstrip('vp%03d/'%vp))
+    while True:
+        while True:
             try:
-                stack=np.load('stack.npy').tolist()
-                loaded=True
+                stack=np.load(path+'E%d/S/stack.npy'%event).tolist()
+                break
             except IOError:
                 print 'IO Error'
                 core.wait(1)
             except ValueError:
                 print 'Value Error'
                 core.wait(1)
+        if len(stack)==0: break
         jobinfo=stack.pop(0)
-        np.save('stack.npy',stack)
+        np.save(path+'E%d/S/stack.npy'%event,stack)
         print jobinfo
-        os.system('./simil %d %d'%tuple(jobinfo))
+        os.system('./simil %d %d %d %d %d'%tuple(jobinfo))
+    print 'finished'
+Sparallel()
+    
+def Scheck():
+    N=151
+    stack=[]
+    for i in range(N):
+        #print i
+        for j in range(i,N):
+            try:
+                np.load(path+'E%d/S/S%03dx%03d.npy'%(event,i,j))
+            except:
+                print 'missing', i,j
+                stack.append([i,j])
+    np.save('cxx/similPix/stack',stack)
+def Smerge():
+    N=601
+    stack=[]
+    for i in range(N):
+        print i
+        out=[]
+        for j in range(0,i+1):
+            out.append(np.load('cxx/similPix/S/S%03dx%03d.npy'%(j,i)))
+        np.save('cxx/similPix/S2/S%03d.npy'%i,out)
+        
+            
 
 def checkSimWideGrid():
     from Analysis import E
@@ -596,18 +635,17 @@ def PF2X(merge=1):
         pf=pf[:,:,:,0,:].squeeze()
         x.append(pf.reshape((pf.shape[0],pf.size/pf.shape[0])))
         if k%merge==merge-1:
-            x=np.concatenate(x,0)
-            np.save(inpath+'X%d'%h,x)
+            out=np.concatenate(x,0)
+            np.save(inpath+'X%d'%h,out)
             x=[];h+=1
         k+=1
     if len(x)>0:
-        x=np.concatenate(x,0)
-        np.save(inpath+'X%d'%h,x);h+=1
-    #h=201
-    #x=np.load(inpath+'X0.npy')
-    global X
-    X=h
-    inc=int(np.ceil(x.shape[1]/float(h)))
+        out=np.concatenate(x,0)
+        np.save(inpath+'X%d'%h,out);h+=1
+    global N
+    N=h
+    print 'h=',h
+    inc=int(np.ceil(out.shape[1]/float(h)))
     for g in range(h):
         out=[]
         print g
@@ -831,28 +869,20 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-inpath='cxx/similPix/TI/X/'
-N=13
-##PF2X(merge=4)
+inpath=path+'E%d/X/'%event
+##PF2X(merge=1)
 ##C=Xcov()
-##np.save('C',C)
+##np.save(inpath+'C',C)
+##
+##C=np.load(inpath+'C.npy')
 ##[latent,coeff]=np.linalg.eig(C)
-##coeff=Xleftmult(coeff[:,:100],True)
-##np.save(inpath+'coeff.npy',coeff)
+##coeff=np.real(coeff)
 ##latent/=latent.sum()
 ##np.save(inpath+'latent',latent[:100])
-
-####pcaNipals(K=20)
 ##
-#Sparallel()
-##
-####latent=np.load(inpath+'latent.npy')
-##N=5
-##fs=os.listdir(inpath)
-##N=0
-##for f in fs: N+= f.startswith('coeff')
-##coeff=mergeT('coeff')
-##coeff=np.load(inpath+'coeff.npy')
+##coeff=Xleftmult(coeff[:,:100],True)
+##np.save(inpath+'coeff.npy',coeff)
+##coeff=np.real(np.load(inpath+'coeff.npy'))
 ##for h in range(coeff.shape[1]):
 ##    pf=coeff[:,h].reshape((64,64,68))
 ##    pf-= np.min(pf)
@@ -863,9 +893,17 @@ N=13
 ##    for k in range(len(pf)): pf[k]=pf[k].squeeze()
 ##    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
 ##    writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+##
+##latent=np.load(inpath+'latent.npy')
+##fs=os.listdir(inpath)
+##N=0
+##for f in fs: N+= f.startswith('coeff')
+##coeff=mergeT('coeff')
+
+
     
 
-def controlSimulations():
+def controlSimulationsPIX():
     P=32;T=20
     I=np.random.rand(P,P,T)*1e-2
     for t in range(T):
@@ -891,41 +929,41 @@ def controlSimulations():
     coeff,score,latent=pcaSVD(D)
     for k in range(coeff.shape[1]):
         PFlist2gif(coeff[:,k].reshape((P,P,T)),'pc%02d'%k)
-
-def rotate(x,phi):
-    phi=phi/180.0*np.pi
-    R=np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
-    return R.dot(x)
-def traj2gif(K,T,A,P,fn='pf'):
-    K=np.reshape(np.array(K),(T,A,2))
-    I=[]
+def controlSimulationsXY():
+    def rotate(x,phi):
+        phi=phi/180.0*np.pi
+        R=np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
+        return R.dot(x)
+    def traj2gif(K,T,A,P,fn='pf'):
+        K=np.reshape(np.array(K),(T,A,2))
+        I=[]
+        for t in range(T):
+            Im=np.zeros((P,P,1))
+            for a in range(A):
+                Im[P/2+K[t,a,1],P/2+K[t,a,0],0]=1
+            I.append(Im)
+        I=np.concatenate(I,axis=2)
+        PFlist2gif(I,fname=fn)
+    plt.close('all')
+    A=2
+    T=20; P=50
+    I=np.zeros((T,A,2))
     for t in range(T):
-        Im=np.zeros((P,P,1))
-        for a in range(A):
-            Im[P/2+K[t,a,1],P/2+K[t,a,0],0]=1
-        I.append(Im)
-    I=np.concatenate(I,axis=2)
-    PFlist2gif(I,fname=fn)
-plt.close('all')
-A=2
-T=20; P=50
-I=np.zeros((T,A,2))
-for t in range(T):
-    I[t,0,0] = t
-    I[t,1,0] = t-T
-#I[:,:,1]=10
-it=10
-D=[np.matrix(I.flatten())]
-for phi in range(it,360,it):
-    Im=np.copy(I)
-    for t in range(T):
-        Im[t,:,:]=rotate(Im[t,:,:].T,float(phi)).T
-        Im[t,:,1]+=10
-    D.append(np.matrix(Im.flatten()))
-D=np.concatenate(D)
-   
-coeff,score,latent=pcaSVD(D)
-traj2gif(coeff[:,0]*50,T,A,P,fn='PC0')
-traj2gif(coeff[:,1]*50,T,A,P,fn='PC1')
-plt.plot(score[0,:],score[1,:],'o')
+        I[t,0,0] = t
+        I[t,1,0] = t-T
+    #I[:,:,1]=10
+    it=10
+    D=[np.matrix(I.flatten())]
+    for phi in range(it,360,it):
+        Im=np.copy(I)
+        for t in range(T):
+            Im[t,:,:]=rotate(Im[t,:,:].T,float(phi)).T
+            Im[t,:,1]+=10
+        D.append(np.matrix(Im.flatten()))
+    D=np.concatenate(D)
+       
+    coeff,score,latent=pcaSVD(D)
+    traj2gif(coeff[:,0]*50,T,A,P,fn='PC0')
+    traj2gif(coeff[:,1]*50,T,A,P,fn='PC1')
+    plt.plot(score[0,:],score[1,:],'o')
 

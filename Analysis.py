@@ -10,7 +10,7 @@ plt.close('all')
 
 
 vp=1
-path=getcwd().rstrip('code')+'/evaluation/vp%03d/'%vp
+path=getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 figpath=getcwd().rstrip('code')+'/figures/Analysis/'
 
 
@@ -180,6 +180,7 @@ def dirChanges():
     D=[]
     for d in range(len(dtos)): D.append(np.load(path+'E%d/D%s.npy'%(event,dtos[d])))
     #plt.close('all');
+    print D[0].shape
     P=[];J=[];K=[];nK=[]
     shape=D[0].shape
     bn=np.arange(0,20,0.5)
@@ -231,7 +232,7 @@ def dirChanges():
     saveFigures('dc')
     #return K,nK
 
-def extractSaliency(channel='motion'):
+def extractSaliency(channel='intensity'):
     from ezvisiontools import Mraw
     si=plotSearchInfo(plot=False)
     inpath=getcwd().rstrip('code')+'input/'
@@ -252,7 +253,7 @@ def extractSaliency(channel='motion'):
         if si[h,-1]!=lastt:
             order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
             traj=np.load(inpath+'vp%03d/vp%03db%dtrial%03d.npy'%(vp,vp,si[h,-2],order[si[h,-1]]))
-            try: vid=Mraw(path.rstrip('vp001/')+'/saliency/vp001b%dtrial%03dCO%s-.%dx%d.mgrey'%(int(si[h,-2]),order[si[h,-1]],channel,dim,dim))
+            try: vid=Mraw(path.rstrip('vp001/')+'/saliency/vp001b%dtrial%03dSO%s-.%dx%d.mgrey'%(int(si[h,-2]),order[si[h,-1]],channel,dim,dim))
             except: print 'missing saliency file',vp,int(si[h,-2]),order[si[h,-1]]
         temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
         gridG+=temp1; radG+=temp2.T; lastt=si[h,-2];
@@ -269,15 +270,15 @@ def extractSaliency(channel='motion'):
     rad=[radG,radT,radP,radA]
     for i in range(len(grid)):
         grid[i]/=float(k);rad[i]/=float(k)
-        np.save(path+'E%d/grd%s.npy'%(event,dtos[i]),grid[i])
-        np.save(path+'E%d/rad%s.npy'%(event,dtos[i]),rad[i])
+        np.save(path+'E%d/grd%s%s.npy'%(event,dtos[i],channel),grid[i])
+        np.save(path+'E%d/rad%s%s.npy'%(event,dtos[i],channel),rad[i])
 
 
 def plotSaliency():
     K=[];I=[]
     for i in range(len(dtos)):
-        K.append(np.load(path+'E%d/grd%s.npy'%(event,dtos[i])))
-        I.append(np.load(path+'E%d/rad%s.npy'%(event,dtos[i])).T)
+        K.append(np.load(path+'E%d/grd%sS.npy'%(event,dtos[i])))
+        I.append(np.load(path+'E%d/rad%sS.npy'%(event,dtos[i])).T)
 
     plt.figure();plot=False
     if plot:
@@ -423,8 +424,8 @@ if __name__ == '__main__':
 ##            agentDensity()
 ##            dirChanges()
 ##            plotSaliency()
-    event=3
-    dirChanges()
+    event=1
+    plotSaliency()
     
 
 

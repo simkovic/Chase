@@ -73,6 +73,7 @@ def loadCoda(pname=''):
                 #bla
         return inds
     chain=1
+    print pname
     f=open('%sCODAindex.txt'%pname,'r')
     inds=f.readlines()
     f.close()
@@ -113,7 +114,7 @@ def loadCoda(pname=''):
     return D
 
 def jags(pname,indata,indatlabels,outdatlabels,modelSpec,inpars=[],inparlabels=[],
-         nrChains=1,burnIn=5000,chainLen=15000, thin=1):
+         nrChains=1,burnIn=5000,chainLen=15000, thin=1,path=''):
     if len(inpars)>0:
         dump(inpars,inparlabels,fn=pname+'.inpar')
     #print 'bla',indata[1].shape
@@ -142,7 +143,7 @@ def jags(pname,indata,indatlabels,outdatlabels,modelSpec,inpars=[],inparlabels=[
     f.close()
     nfo= os.system('jags '+pname+'.script')
     print nfo
-    if nfo!=256:return loadCoda()
+    if nfo==0:return loadCoda(path)
 
 def plotNode(data,thin=1,burn=0):
     plt.close('all')
