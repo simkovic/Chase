@@ -81,7 +81,7 @@ laptop={'monitor' :     dell,
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
         'pDirChange':   [4.8,5.4,4.8],          # avg number of direction changes per second
-        'bckgCLR':      [-1,-1,-1],
+        'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
@@ -89,7 +89,7 @@ laptop={'monitor' :     dell,
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
-        'fullscr':      True}
+        'fullscr':      False}
 
 eyelinklab ={'monitor' :sonycrt,
         'refreshRate':  85,                # [hz]

@@ -271,7 +271,11 @@ class ETTrialData():
         self.t0=[t0[1]-t0[0],t0[2]-t0[0]]
         self.fs=fs
         self.msgs=msgs
-        if self.fs==None: self.fs= self.computeFs()
+        if self.fs==None or self.fs.size==0: self.fs= self.computeFs()
+        #fsa=self.computeFs()
+        #m=min(self.fs.shape[0],fsa.shape[0])
+        #print np.round(np.max(np.abs(self.fs[:m,:2]-fsa[:m,:])),1), self.t0[1]-self.t0[0]
+        np.save('fs',self.fs)
         self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
         if self.t0[0]>=0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
@@ -291,8 +295,9 @@ class ETTrialData():
         monhz=float(f.readline().lstrip('F').rstrip('\r\n'))
         f.close()
         dur=self.t0[1]-self.t0[0]
-        N=int(round((dur)*monhz/1000.0))
-        return np.array([range(N),np.linspace(0,dur,N)]).T
+        inc=1000/monhz
+        N=int(round((dur)/inc))
+        return np.array([range(N),np.linspace(inc/2.0,dur-inc,N)]).T
         
     
     def getDist(self,a=0):
@@ -320,7 +325,9 @@ class ETTrialData():
         path = getcwd()
         path = path.rstrip('code')
         order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
-        s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%(self.vp,self.vp,self.block,order) 
+        if self.vp>1 and self.vp<10: nfo=(1,1,self.block,order) 
+        else: nfo=(self.vp,self.vp,self.block,order) 
+        s=path+'/input/vp%03d/vp%03db%dtrial%03d.npy'%nfo
         traj=np.load(s)
         self.oldtraj=traj
         
@@ -334,6 +341,7 @@ class ETTrialData():
         self.dev=np.zeros((g.shape[0]-1,traj.shape[1]))
         for a in range(traj.shape[1]):
             #print tt.shape, traj[:,a,0].shape
+            #print self.fs.shape, traj.shape, self.traj.shape
             self.traj[:,a,0]=interpRange(self.fs[:,1], traj[:,a,0],g[:,0])
             self.traj[:,a,1]=interpRange(self.fs[:,1], traj[:,a,1],g[:,0])
             dx=np.roll(self.traj[:,a,0],int(0*self.hz),axis=0)-g[:,7]
@@ -509,7 +517,8 @@ class ETTrialData():
                 self.track.append([tr[2],tr[5],tr[-3],fs])
             self.extractSearch()
         except IOError:
-            self.track=None;self.search=None # avoid unknown attribute error
+            try: self.track # dont overwrite existing track
+            except: self.track=None;self.search=None # avoid unknown attribute error
             print 'coding file not available'
         
         

@@ -348,6 +348,13 @@ class Gao10e3Experiment(Experiment):
         self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor='green')
         self.pnt2=visual.ShapeStim(self.wind, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
         Experiment.run(self,prefix='gao10e3')
+        self.output.close()
+        self.area.setAutoDraw(False)
+        self.text1.setText(u'Der Block ist nun zu Ende.')
+        self.text1.draw()
+        self.wind.flip()
+        core.wait(10)
+        self.wind.close()
         
 class Gao10e4Experiment(Experiment):
     def flip(self):
@@ -454,6 +461,12 @@ class Gao10e4Experiment(Experiment):
         self.mouse=visual.CustomMouse(self.wind, leftLimit=-9,rightLimit=9,showLimitBox=True,
             topLimit=9,bottomLimit=-9,pointer=self.pnt2)
         Experiment.run(self,prefix='gao10e4')
+        self.text1.setText(u'Der Block ist nun zu Ende.')
+        self.text1.draw()
+        self.wind.flip()
+        core.wait(10)
+        self.output.close()
+        self.wind.close()
         
     
 class BabyExperiment(Experiment):
@@ -737,7 +750,7 @@ if __name__ == '__main__':
     from Settings import Q
     #E=AdultExperiment()
     #E=TobiiExperiment()
-    E=Gao09Experiment()
+    E=Gao10e3Experiment()
     #E=BabyExperiment()
     E.run()
 
