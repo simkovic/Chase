@@ -29,6 +29,11 @@ def drawCircle(M,pos,radius,value=1):
     
 # ring mask
 N=128
+CIRCLE=np.ones((N,N))*-1
+for i in range(N):
+    for j in range(N):
+        if np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)<N/2:
+            CIRCLE[i,j]= 1
 RING=np.ones((N,N))*-1
 for i in range(N):
     for j in range(N):

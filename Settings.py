@@ -139,7 +139,7 @@ tobiilab ={'monitor' :  t60,
         'aSpeed':       9,                  # in degrees of visual angle per second
         'guiPos':       (-800,400),         # in pixels
         'winPos':       (1280,0),           # in pixels
-        'fullscr':      False}
+        'fullscr':      True}
 
 gao10e3={'monitor' :     dell,
         'refreshRate':  75,                 # [hz]
@@ -158,7 +158,7 @@ gao10e3={'monitor' :     dell,
         'winPos':       (0,0),              # in pixels
         'fullscr':      True}
 
-Q=Settings(**laptop)
+Q=Settings(**tobiilab)
 #Q2=Settings(**smilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
 #print fpath

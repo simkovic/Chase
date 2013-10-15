@@ -560,24 +560,28 @@ def generateGao10e4(vp):
     np.save('gao10e4order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
     Q.save('SettingsTraj.pkl')
 
-def generateGao10e3(vp):
+def generateGao10e3(vpn):
     offs=5.875; sz=(2*offs+Q.agentSize,2*offs+Q.agentSize)
     quadrants=[EmptyMaze((1,1),dispSize=sz,pos=(offs,offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(-offs,offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(offs,-offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(-offs,-offs),lw2cwRatio=0)]
-    nrtrials=90; 
-    block=0;os.chdir('..');os.chdir('input/')
-    vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
-    for trial in range(nrtrials):
-        trajectories=[]
-        for k in range(len(quadrants)):
-            traj=generateTrial(5,maze=quadrants[k], rejectionDistance=0.0)
-            trajectories.append(traj[:,2:,:])
-        fn='gao10e3%sb%dtrial%03d'% (vpname,block,trial); 
-        np.save(fn,np.concatenate(trajectories,axis=1))
-    np.save('gao10e3order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
-    Q.save('SettingsTraj.pkl')
+    nrtrials=72; 
+    os.chdir('..');os.chdir('input/')
+    for vp in vpn:
+        vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
+        for trial in range(nrtrials):
+            if vp>300 and vp<400: continue
+            trajectories=[]
+            for k in range(len(quadrants)):
+                traj=generateTrial(5,maze=quadrants[k], rejectionDistance=0.0)
+                trajectories.append(traj[:,2:,:])
+            fn='%strial%03d'% (vpname,trial); 
+            np.save(fn,np.concatenate(trajectories,axis=1))
+        np.save('order%sb%d'% (vpname,0),np.random.permutation(nrtrials))
+        np.save('order%sb%d'% (vpname,1),np.random.permutation(nrtrials))
+        Q.save('SettingsTraj.pkl')
+        os.chdir('..')
 
         
     
@@ -654,7 +658,8 @@ if __name__ == '__main__':
     #Diagnosis.save(d,'diagBaby6.pkl')
     #D=Diagnosis.multiload(6,prefix='diagBaby')
     #generateGao10e4(308)
-    generateGao09e1([501])
+    
+    generateGao10e3(range(301,311))
 
 
         

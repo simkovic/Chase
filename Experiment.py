@@ -66,6 +66,12 @@ class Experiment():
         self.text2.setHeight(fs)
         self.text3.setHeight(fs)
         self.f=0
+        self.permut=np.load(Q.inputPath+'vp%03d'%self.id+Q.delim
+            +'ordervp%03db%d.npy'%(self.id,self.block))
+        if len(self.permut.shape)>1 and self.permut.shape[1]>1:
+            self.data=self.permut[:,1:]
+            self.permut=self.permut[:,0]
+        self.nrtrials=self.permut.size
         
     def getWind(self):
         try: return self.wind
@@ -177,13 +183,6 @@ class Experiment():
         
     def run(self,mouse=None,prefix=''): 
         self.output = open(Q.outputPath+prefix+'vp%03d.res'%self.id,'a')
-        
-        permut=np.load(Q.inputPath+'vp%03d'%self.id+Q.delim
-            +prefix+'ordervp%03db%d.npy'%(self.id,self.block))
-        if len(permut.shape)>1 and permut.shape[1]>1:
-            self.data=permut[:,1:]
-            permut=permut[:,0]
-        self.nrtrials=permut.size
         # show initial screen until key pressed
 #        self.text2.setText(u'Bereit ?')
 #        self.text2.draw()
@@ -194,14 +193,17 @@ class Experiment():
 #            mkey = self.mouse.getPressed(False)
         # loop trials
         for trial in range(self.initTrial,self.nrtrials):   
-            self.t=trial; self.pt=permut[trial]
+            self.t=trial; 
             #print self.t
-            self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(permut[trial])))
+            self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(self.permut[trial])))
             if self.id>1 and self.id<10:
-                fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,permut[trial])
+                fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,self.permut[trial])
                 self.trajectories= np.load(Q.inputPath+'vp001'+Q.delim+fname)
+            elif self.id>300 and self.id<400:
+                fname=prefix+'vp300trial%03d.npy' % self.permut[trial]
+                self.trajectories= np.load(Q.inputPath+'vp300'+Q.delim+fname)
             else:
-                fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,permut[trial])
+                fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,self.permut[trial])
                 self.trajectories= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
             self.runTrial(self.trajectories)
             
@@ -220,14 +222,14 @@ class Gao09Experiment(Experiment):
             self.wind.flip()
             mkey=self.mouse.getPressed()
         if mkey[0]>0:
-            self.output.write('\t%d\t%2.4f\t1'%(self.data[self.pt,0],core.getTime()-t0))
-            if self.data[self.pt,0]>=6: self.sFalse.play()
+            self.output.write('\t%d\t%2.4f\t1'%(self.data[self.permut[self.t],0],core.getTime()-t0))
+            if self.data[self.permut[self.t],0]>=6: self.sFalse.play()
             resp=self.getJudgment()
-            res= self.data[self.pt,0]<6 and resp==1
+            res= self.data[self.permut[self.t],0]<6 and resp==1
         else: 
-            self.output.write('\t%d\t%2.4f\t0\t-1\t-1\t-1\t-1'%(self.data[self.pt,0],core.getTime()-t0))
-            res= self.data[self.pt,0]>=6
-            if self.data[self.pt,0]<6: self.sFalse.play()
+            self.output.write('\t%d\t%2.4f\t0\t-1\t-1\t-1\t-1'%(self.data[self.permut[self.t],0],core.getTime()-t0))
+            res= self.data[self.permut[self.t],0]>=6
+            if self.data[self.permut[self.t],0]<6: self.sFalse.play()
         if not res: self.output.write('\t0')
         else: self.output.write('\t1')
         
@@ -243,6 +245,7 @@ class Gao10e3Experiment(Experiment):
             self.mouse._setPos([np.cos(phi)*11.75,np.sin(phi)*11.75])
         mpos=self.mouse.getPos()
         self.chasee[self.f,:]=mpos
+        #print self.t, self.trialType.shape,self.quadMaps.shape 
         qmap=self.quadMaps[int(self.trialType[self.t])]
         self.oris=np.arctan2(mpos[Y]-self.pos[:,Y],mpos[X]-self.pos[:,X])
         for i in range(4):
@@ -331,21 +334,20 @@ class Gao10e3Experiment(Experiment):
         if self.repmom==0: Q.agentSize=1.9
         else: Q.agentSize=1.9
         self.chradius=0.6
-        s=os.listdir(Q.inputPath+'vp%03d'%self.id+Q.delim);self.nrtrials=0
-        for ss in s: self.nrtrials+= int(ss.startswith('gao10e3vp'))
+        
         self.area=visual.Circle(self.wind,radius=11.75,fillColor=None,lineColor='gray',edges=128)
         self.area.setAutoDraw(True)
-        fname='gao10e3vp%03db%dtrial%03d.npy' % (self.id,self.block,0)
-        traj= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
+        fname='gao10e3vp300trial000.npy'
+        traj= np.load(Q.inputPath+'vp300'+Q.delim+fname)
         self.cond=traj.shape[1]
         self.eyes= visual.ElementArrayStim(self.wind,fieldShape='sqr',
-            nElements=self.cond*2, sizes=0.38,
+            nElements=self.cond*2, sizes=0.38,interpolate=True,
             elementMask='circle',elementTex=None,colors='red')
         NT= 6; temp=[]
         for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*n)
         self.trialType=np.concatenate(temp)
         self.trialType=self.trialType[np.random.permutation(self.nrtrials)]
-        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor='green')
+        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor=None)
         self.pnt2=visual.ShapeStim(self.wind, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
         Experiment.run(self,prefix='gao10e3')
         self.output.close()
@@ -750,8 +752,8 @@ if __name__ == '__main__':
     from Settings import Q
     #E=AdultExperiment()
     #E=TobiiExperiment()
-    E=Gao10e3Experiment()
-    #E=BabyExperiment()
+    #E=Gao10e3Experiment()
+    E=BabyExperiment()
     E.run()
 
 
