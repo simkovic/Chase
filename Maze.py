@@ -5,7 +5,7 @@ from psychopy.misc import pix2deg, deg2pix
 from Constants import *
 import random
 from psychopy.event import xydist
-plt.ion()
+
 def circleLine(p0,lin1,lin2,r):
     """ compute circle line intersetion
         p0 - circle center
@@ -349,3 +349,4 @@ if __name__ == '__main__':
 ##        else:
 ##            #print pos
 ##            self[pos[I],pos[J],d%2]=False
+plt.show()
