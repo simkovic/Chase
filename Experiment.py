@@ -49,10 +49,10 @@ class Experiment():
         self.mouse.setVisible(False)
         fcw=0.1; fch=0.8 #fixcross width and height
         fclist=[ visual.ShapeStim(win=self.wind, pos=[0,0],fillColor='white',
-            vertices=((fcw,fch),(-fcw,fch),(-fcw,-fch),(fcw,-fch))),
+            vertices=((fcw,fch),(-fcw,fch),(-fcw,-fch),(fcw,-fch)),interpolate=False),
             visual.ShapeStim(win=self.wind, pos=[0,0],fillColor='white',
-            vertices=((fch,fcw),(-fch,fcw),(-fch,-fcw),(fch,-fcw))),
-            visual.Circle(win=self.wind, pos=[0,0],fillColor='black',radius=0.1)]
+            vertices=((fch,fcw),(-fch,fcw),(-fch,-fcw),(fch,-fcw)),interpolate=False),
+            visual.Circle(win=self.wind, pos=[0,0],fillColor='black',radius=0.1,interpolate=False)]
         self.fixcross=visual.BufferImageStim(self.wind,stim=fclist)
         self.wind.flip(); self.wind.flip()
         self.score=0
@@ -142,7 +142,7 @@ class Experiment():
         self.nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
-            nElements=self.cond, sizes=Q.agentSize*self.scale,
+            nElements=self.cond, sizes=Q.agentSize*self.scale,interpolate=True,
             elementMask=MASK,elementTex=None,colors=Q.agentCLR)
         # display fixation cross
         if fixCross:
@@ -239,6 +239,7 @@ class Gao09Experiment(Experiment):
         
 class Gao10e3Experiment(Experiment):
     def flip(self):
+        self.area.draw()
         mpos=self.mouse.getPos()
         if np.linalg.norm(mpos)>11.75:
             phi=np.arctan2(mpos[Y],mpos[X])
@@ -290,6 +291,7 @@ class Gao10e3Experiment(Experiment):
             self.elem.setXYs(self.pos+rm)
         else: self.elem.setXYs(self.pos)
         while sum(mkey)==0: # wait for subject response
+            self.area.draw()
             self.elem.draw()
             if self.repmom==0:  self.eyes.draw()
             self.pnt1.draw()
@@ -320,6 +322,7 @@ class Gao10e3Experiment(Experiment):
         mp=np.array([np.inf,np.inf]); pN=0
         while np.linalg.norm(mp-mpos)>self.pnt1.radius:
             while np.sum(mkey)==pN:
+                self.area.draw()
                 self.pnt1.draw()
                 self.mouse.draw()
                 self.wind.flip()
@@ -335,9 +338,8 @@ class Gao10e3Experiment(Experiment):
         else: Q.agentSize=1.9
         self.chradius=0.6
         
-        self.area=visual.Circle(self.wind,radius=11.75,fillColor=None,lineColor='gray',edges=128)
-        self.area.setAutoDraw(True)
-        fname='gao10e3vp300trial000.npy'
+        self.area=visual.Circle(self.wind,radius=11.75,fillColor=None,lineColor='gray',edges=128,interpolate=False)
+        fname='vp300trial000.npy'
         traj= np.load(Q.inputPath+'vp300'+Q.delim+fname)
         self.cond=traj.shape[1]
         self.eyes= visual.ElementArrayStim(self.wind,fieldShape='sqr',
@@ -347,11 +349,10 @@ class Gao10e3Experiment(Experiment):
         for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*n)
         self.trialType=np.concatenate(temp)
         self.trialType=self.trialType[np.random.permutation(self.nrtrials)]
-        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor=None)
-        self.pnt2=visual.ShapeStim(self.wind, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
-        Experiment.run(self,prefix='gao10e3')
+        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor=None,interpolate=False)
+        self.pnt2=visual.ShapeStim(self.wind,interpolate=False, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
+        Experiment.run(self,prefix='')
         self.output.close()
-        self.area.setAutoDraw(False)
         self.text1.setText(u'Der Block ist nun zu Ende.')
         self.text1.draw()
         self.wind.flip()
@@ -726,25 +727,27 @@ class AdultExperiment(BehavioralExperiment):
         #self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
         return BehavioralExperiment.flip(self)
         
-class TobiiExperiment(BehavioralExperiment):
-    def __init__(self,doSetup=True):
-        BehavioralExperiment.__init__(self)
-        self.eyeTracker = TobiiController(self.getWind(),sj=self.id,block=self.block,doSetup=doSetup)
+class TobiiExperiment(Gao10e3Experiment):
+    def __init__(self):
+        Gao10e3Experiment.__init__(self)
+        self.eyeTracker = TobiiController(self.getWind(),self.getf,sid=self.id,block=self.block)
         self.eyeTracker.sendMessage('Monitor Distance\t%f'% self.wind.monitor.getDistance())
+        self.eyeTracker.doMain()
     def run(self):
-        BehavioralExperiment.run(self)
+        Gao10e3Experiment.run(self)
         self.eyeTracker.closeConnection()
     def runTrial(self,*args):
         self.eyeTracker.preTrial(False)#self.t,False,self.getWind(),autoDrift=True)
         self.eyeTracker.sendMessage('Trial\t%d'%self.t)
-        BehavioralExperiment.runTrial(self,*args,fixCross=True)
+        Gao10e3Experiment.runTrial(self,*args,fixCross=True)
         self.eyeTracker.postTrial()
     def getJudgment(self,*args):
         self.eyeTracker.sendMessage('Detection')
-        resp=BehavioralExperiment.getJudgment(self,*args)
+        resp=Gao10e3Experiment.getJudgment(self,*args)
         return resp 
     def omission(self):
         self.eyeTracker.sendMessage('Omission')
+        Gao10e3Experiment.omission(self)
         pass
     
 
@@ -752,8 +755,8 @@ if __name__ == '__main__':
     from Settings import Q
     #E=AdultExperiment()
     #E=TobiiExperiment()
-    #E=Gao10e3Experiment()
-    E=BabyExperiment()
+    E=TobiiExperiment()
+    #E=BabyExperiment()
     E.run()
 
 

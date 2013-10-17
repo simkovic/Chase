@@ -141,9 +141,9 @@ tobiilab ={'monitor' :  t60,
         'winPos':       (1280,0),           # in pixels
         'fullscr':      True}
 
-gao10e3={'monitor' :     dell,
+gao10e3={'monitor' :     t60,
         'refreshRate':  75,                 # [hz]
-        'os':           LINUX,              # Linux or Windows
+        'os':           WINDOWS,              # Linux or Windows
         'phiRange':     [90,90],          # in degrees [0-360]
         'agentSize':    1.9,                  # in degrees of visial angle
         'initDistCC':   [4.0 ,4.0],       # in degrees of visial angle
@@ -154,11 +154,11 @@ gao10e3={'monitor' :     dell,
         'selectedCLR':  -0.5,               # [1 -1]
         'trialDur':     17,                 # in seconds
         'aSpeed':       7.8,               # in degrees of visual angle per second
-        'guiPos':       (200,400),          # in pixels
-        'winPos':       (0,0),              # in pixels
+        'guiPos':       (-800,400),          # in pixels
+        'winPos':       (1280,0),              # in pixels
         'fullscr':      True}
 
-Q=Settings(**tobiilab)
+Q=Settings(**gao10e3)
 #Q2=Settings(**smilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
 #print fpath
