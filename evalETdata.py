@@ -296,7 +296,7 @@ class ETTrialData():
         f.close()
         dur=self.t0[1]-self.t0[0]
         inc=1000/monhz
-        N=int(round((dur)/inc))
+        N=min(int(round((dur)/inc)), int(Q.trialDur*monhz)+1)
         return np.array([range(N),np.linspace(inc/2.0,dur-inc,N)]).T
         
     
@@ -796,22 +796,31 @@ def manualDC(vp,b,t):
         elif b==14 and t==38: out=-1
         elif b==18 and t==8: out=-1
         elif b==19 and t==6: out=-1 
+    elif vp==2:
+        if b==1 and t==4: out=-1
+        elif b==1 and t==10: out=-1
+        elif b==1 and t==15: out=-1
+        elif b==1 and t==19: out=-20
+        elif b==4 and t==32: out=-1
+        elif b==5 and t==20: out=-1
+        elif b==5 and t==9: out=-1
+        elif b==5 and t==14: out=-1
     return out
 def plotDC():
     plt.interactive(False)
-    vp=1
+    vp=2
     from readETData import readEyelink
-    for b in range(1,22):
+    for b in range(4,23):
         print 'block ', b
         data=readEyelink(vp,b)
-        for i in range(len(data)):
-            plt.figure()
+        for i in range(0,len(data)):
             d=data[i]
             gg=d.getGaze(phase=3)
             plt.plot(gg[:,0],gg[:,1],'g--')
             plt.plot(gg[:,0],gg[:,2],'r--')
             plt.plot(gg[:,0],gg[:,4],'b--')
             plt.plot(gg[:,0],gg[:,5],'k--')
+            d.extractBasicEvents()
             d.driftCorrection(jump=manualDC(vp,b,i))
             gg=d.getGaze(phase=3)
             plt.plot(gg[:,0],gg[:,1],'g')
@@ -822,8 +831,8 @@ def plotDC():
             plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
             plt.grid()
             plt.ylim([-0.5,0.5])
-            plt.savefig(os.getcwd()+'/pic/dc/b%02dtr%02d'%(b,i))
-            plt.close()
+            plt.savefig(os.getcwd()+'/pic/dc/vp%03db%02dtr%02d'%(vp,b,i))
+            plt.cla()
             i+=1 
 
 def plotMD():
@@ -839,30 +848,5 @@ def plotMD():
         plt.show()
         plt.savefig(os.getcwd()+'/pic/missingdata/fb%02d'%(d.block))
             
-##class ETBlockData():
-##    def __init__(self,etdata):
-##        self.etdata=etdata
-##        self.vp=self.etdata[0].vp
-##        self.block=self.etdata[0].block
-##        
-##    def getTrial(self,trialid):
-##        return self.etdata[trialid]
-##
-##    def loadBehavioralData(self):
-##        path = getcwd()
-##        path = path.rstrip('code')
-##        dat=np.loadtxt(path+'behavioralOutput/vp%03d.res'%self.vp)
-##        self.behdata=dat[dat[:,1]==self.block,:]
-##
-##        print 'Checking consistence with behavioral data'
-##        dev=np.zeros(40)
-##
-##        for t in range(40):
-##            self.etdata[t].behdata=self.behdata[t,:]
-##            a=self.behdata[t,6]*1000
-##            b=self.etdata[t].gaze[1][-1,0]
-##            dev[t]=abs(a-b)
-##            if dev[t]>5: print '\tt=%d deviation %.3f'%(t,dev[t])
-##        if np.all(dev<5): print '\tdetection times ok (abs error <5 msec)' 
-##
-## 
+if __name__ == '__main__':
+    plotDC()
