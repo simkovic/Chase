@@ -546,19 +546,22 @@ def generateGao09e1(vpn):
         os.chdir('..')
     os.chdir('..')
     
-def generateGao10e4(vp):
+def generateGao10e4(vpn):
     # gao10e4 settings
     maze=EmptyMaze((1,1),dispSize=(18,18),lw2cwRatio=0)
-    Q.setTrialDur(8); nrtrials=180; 
+    Q.setTrialDur(8); nrtrials=90; 
     Q.setAspeed(5.1)
     block=0;os.chdir('..');os.chdir('input/')
-    vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
-    for trial in range(nrtrials):
-        trajectories=generateTrial(12,maze=maze, rejectionDistance=0.0)
-        fn='gao10e4%sb%dtrial%03d'% (vpname,block,trial); 
-        np.save(fn,trajectories[:,2:,:])
-    np.save('gao10e4order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
-    Q.save('SettingsTraj.pkl')
+    for vp in vpn:
+        vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
+        for trial in range(nrtrials):
+            if vp>400 and vp<500: continue
+            trajectories=generateTrial(12,maze=maze, rejectionDistance=0.0)
+            fn='%sb%dtrial%03d'% (vpname,block,trial); 
+            np.save(fn,trajectories[:,2:,:])
+        np.save('order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
+        Q.save('SettingsTraj.pkl')
+        os.chdir('..')
 
 def generateGao10e3(vpn):
     offs=5.875; sz=(2*offs+Q.agentSize,2*offs+Q.agentSize)
@@ -566,7 +569,7 @@ def generateGao10e3(vpn):
         EmptyMaze((1,1),dispSize=sz,pos=(-offs,offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(offs,-offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(-offs,-offs),lw2cwRatio=0)]
-    nrtrials=72; 
+    nrtrials=42; 
     os.chdir('..');os.chdir('input/')
     for vp in vpn:
         vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
@@ -580,6 +583,8 @@ def generateGao10e3(vpn):
             np.save(fn,np.concatenate(trajectories,axis=1))
         np.save('order%sb%d'% (vpname,0),np.random.permutation(nrtrials))
         np.save('order%sb%d'% (vpname,1),np.random.permutation(nrtrials))
+        np.save('order%sb%d'% (vpname,2),np.random.permutation(nrtrials))
+
         Q.save('SettingsTraj.pkl')
         os.chdir('..')
 
@@ -659,7 +664,7 @@ if __name__ == '__main__':
     #D=Diagnosis.multiload(6,prefix='diagBaby')
     #generateGao10e4(308)
     
-    generateGao10e3(range(301,311))
+    generateGao10e4(range(400,411))
 
 
         

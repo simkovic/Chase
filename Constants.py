@@ -59,7 +59,7 @@ for k in [1,2]:
     EYES[:,:,k]=drawCircle(EYES[:,:,k],(mid-0.48/1.9*N/2,mid+0.67/0.95*N/2), N/10.0,value=-1)
     EYES[:,:,k]=drawCircle(EYES[:,:,k],(mid+0.48/1.9*N/2,mid+0.67/0.95*N/2), N/10.0,value=-1)
 EYES=np.uint8((EYES+1)/2.0*255)
-MASK=RING#'circle'
+MASK=DART#RING#'circle'
 ANAMES=('Chasee','Chaser','Distractor')
 # color stack
 COLORS=['r','g','b','y','k','c']

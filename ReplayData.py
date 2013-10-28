@@ -9,7 +9,7 @@ from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING
 from copy import copy
 
 sclrs=['red','green','black'];
-hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
+hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 
 class Trajectory():
     def __init__(self,gazeData,maze=None,wind=None,
@@ -528,7 +528,7 @@ def replayBlock(vp,block,trialStart):
         trl.extractBasicEvents()
         trl.driftCorrection()
         trl.extractComplexEvents()
-        trl.importComplexEvents()
+        #trl.importComplexEvents()
     for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1)
         R.play(tlag=0)
@@ -601,7 +601,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(1,12,20)
+    replayTrial(vp=1,block=1,trial=3)
 
     #codingComparison()
 #    from readETData import readEyelink
