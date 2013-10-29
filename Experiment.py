@@ -158,7 +158,6 @@ class Experiment():
         #t0=core.getTime()
         #times=[]
         self.f=0
-        print 'here'
         while self.f<self.nrframes:
             self.pos=trajectories[self.f,:,[X,Y]].transpose()*self.scale
             self.phi=trajectories[self.f,:,PHI].squeeze()
@@ -497,9 +496,12 @@ class Gao10e4Experiment(Experiment):
         
     def trialIsFinished(self):
         mpos=self.mouse.getPos()
-        fin= (np.any(np.sqrt(np.power(np.matrix(mpos)-self.pos,2).sum(1))<2) 
-            or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum())<2)
+        dist=9-self.chradius
+        wallcrash= mpos[X]>dist or  mpos[X]<-dist or mpos[Y]>dist or  mpos[Y]<-dist
+        fin= (np.any(np.sqrt(np.power(np.matrix(mpos)-self.pos,2).sum(1))<(self.chradius+Q.agentSize/2.0)) 
+            or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum())<self.chradius*2 or wallcrash)
         if fin: 
+            self.output.write('\t%d\t%d'%(self.trialType[self.t],self.f))
             #self.getJudgment();
             self.noResponse=False
         return fin
@@ -533,21 +535,24 @@ class Gao10e4Experiment(Experiment):
         out=np.concatenate([self.chasee,self.chaser.traj],axis=1)
         np.save(Q.inputPath+'vp%03d/chsVp%03db%dtrial%03d.npy' % (self.id,self.id,self.block,self.t),out)
     def omission(self):
+        self.output.write('\t%d\t%d'%(self.trialType[self.t],self.f))
         #self.getJudgment()
         pass
     def runTrial(self,trajectories,fixCross=True):
         self.chasee=np.zeros((Q.nrframes,2))*np.nan
         self.chaser.reset()
         self.chaser.vis.setPos(self.chaser.getPosition())
-        mpos=np.matrix(np.random.rand(2)*18-9)
+        dd=18-self.chradius*2
+        mpos=np.matrix(np.random.rand(2)*dd-dd/2.0)
         pos0=np.copy(trajectories[0,:,:2])
         while (np.any(np.sqrt(np.power(mpos-pos0,2).sum(1))<3.5) 
             or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum(1))<5):
-            mpos=np.matrix(np.random.rand(2)*18-9)
+            mpos=np.matrix(np.random.rand(2)*dd-dd/2.0)
         # ask subject to bring the mouse on the position
         self.mouse.clickReset()
         mpos=np.array(mpos).squeeze()
         self.pnt1.setPos(mpos)
+        self.mouse.setPointer(self.pnt2)
         mkey=self.mouse.getPressed()
         mp=np.array([np.inf,np.inf]); pN=0
         while np.linalg.norm(mp-mpos)>self.pnt1.radius:
@@ -561,18 +566,20 @@ class Gao10e4Experiment(Experiment):
         self.mouse.setPointer(self.pnt1)
         Experiment.runTrial(self,trajectories,fixCross=False)
     def run(self):
-        self.repmom= -0.2
-        Q.setTrialDur(8);
-        Q.setAspeed(5.1)
-        if self.repmom<=0: Q.agentSize=1.5
-        else: Q.agentSize=0.8
-        NT= 3; temp=[];nrtrials=180
-        for n in [2,0,1]: temp.append(np.ones(nrtrials/NT)*n)
-        self.trialType=np.concatenate(temp)
-        self.trialType=self.trialType[np.random.permutation(nrtrials)]
-        self.chaser=HeatSeekingChaser(Q.nrframes,[18,18],(0,0),3.0/Q.refreshRate,5.1/Q.refreshRate,60.0,True)
-        self.chaser.vis=visual.Circle(self.wind,radius=0.65/2.0,fillColor='red',lineColor='red',interpolate=False)
-        self.pnt1=visual.Circle(self.wind,radius=0.65/2.0,fillColor='green',lineColor='green',interpolate=False)
+        self.repmom= 0
+        self.chradius=0.65/2.0
+        if self.block==0:
+            NT= 3; temp=[]
+            for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*n)
+            self.trialType=np.concatenate(temp)
+            self.trialType=self.trialType[np.random.permutation(self.nrtrials)]
+        elif self.block==1:
+            self.trialType=np.zeros(self.nrtrials)
+        else:
+             self.trialType=np.ones(self.nrtrials)
+        self.chaser=HeatSeekingChaser(Q.nrframes,[18,18],(0,0),Q.pDirChange[1],Q.aSpeed,Q.phiRange[1],True)
+        self.chaser.vis=visual.Circle(self.wind,radius=self.chradius,fillColor='red',lineColor='red',interpolate=False)
+        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor='green',interpolate=False)
         #stuff=[visual.Line(self.wind,start=[-0.2,0],end=[0.2,0],units='deg'),visual.Line(self.wind,start=[0,-0.2],end=[0,0.2],units='deg')] 
         self.pnt2=visual.ShapeStim(self.wind, 
             vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],

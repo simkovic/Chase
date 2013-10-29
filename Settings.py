@@ -159,24 +159,24 @@ gao10e3={'monitor' :     t60,
         'fullscr':      True}
         
 gao10e4={'monitor' :     t60,
-        'refreshRate':  75,                 # [hz]
-        'os':           WINDOWS,              # Linux or Windows
-        'phiRange':     [90,90],          # in degrees [0-360]
-        'agentSize':    1.9,                  # in degrees of visial angle
+        'refreshRate':  60,                 # [hz]
+        'os':           LINUX,              # Linux or Windows
+        'phiRange':     [90,60.0],          # in degrees [0-360]
+        'agentSize':    1.5,                  # in degrees of visial angle
         'initDistCC':   [4.0 ,4.0],       # in degrees of visial angle
         'pDirChange':   [3.0,3.0,3.0],          # avg number of direction changes per second
         'bckgCLR':      [-1,-1,-1],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
-        'trialDur':     17,                 # in seconds
-        'aSpeed':       7.8,               # in degrees of visual angle per second
+        'trialDur':     8,                 # in seconds
+        'aSpeed':       5.5,               # in degrees of visual angle per second
         'guiPos':       (-800,400),          # in pixels
-        'winPos':       (1280,0),              # in pixels
+        'winPos':       (0,0),              # in pixels
         'fullscr':      True}
 
 #Q=Settings(**laptop)
-Q=Settings(**gao10e3)
+Q=Settings(**gao10e4)
 #Q=Settings(**tobiilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
 #print fpath
