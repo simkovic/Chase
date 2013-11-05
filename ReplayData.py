@@ -101,6 +101,8 @@ class Trajectory():
                 if playing and tlag>0: core.wait(tlag)
                 for key in event.getKeys():
                     if key in ['escape']:
+                        try: self.saveSelection()
+                        except: print 'selection could not be saved'
                         self.wind.close()
                         return
                         #core.quit()
@@ -275,7 +277,7 @@ class ETReplay(Trajectory):
         self.frame.draw()
         self.tmsg.draw()
         Trajectory.showFrame(self,positions)
-    def highlightedAgents(self): return self.gazeData.getAgent(self.t[self.f])
+    def highlightedAgents(self): return self.gazeData.getAgent(self.t[self.f]),[]
     
 class Coder(ETReplay):
     def showFrame(self,positions):
@@ -354,16 +356,13 @@ class Coder(ETReplay):
         mkey=self.mouse.getPressed();select=False; selectA=False
         if 0<sum(mkey) and self.released:
             mpos=self.mouse.getPos();issac=False
-            #ppos=(Q.deg2pix(mpos[0]),Q.deg2pix(mpos[1]))
             mkey=self.mouse.getPressed()
-            #print mpos
-            
             for sr in self.sacrects:
-                if sr.ad>-1 and sr.contains(mpos):
+                if sr.ad>-1 and sr.contains(mpos):# saccade is drawn and contains mouse
                     g=self.gazeData.getGaze()
                     if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
                         and self.seltoolrect.contains(mpos) or
-                        (self.atoolrect.contains(mpos) and  mkey[0]>0)):
+                        (self.atoolrect.contains(mpos) and  mkey[2]>0)):
                         ff= self.sev[sr.ad][0]
                         gf=self.sev[sr.ad][2]
                         tt=g[gf,0]
@@ -412,7 +411,7 @@ class Coder(ETReplay):
                                     assert tar==None
                                     tar=ar
                 if tar!=None:
-                    if mkey[0]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+                    if mkey[2]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
                     else: self.selected[0][tar.ad][7][tar.ad2][:3]=[tt,ff,gf]
                     self.msg.setText('New Agent Timing: %d'%tt)          
             # agent selection
@@ -601,7 +600,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp=1,block=1,trial=3)
+    replayTrial(vp=1,block=7,trial=6)
 
     #codingComparison()
 #    from readETData import readEyelink

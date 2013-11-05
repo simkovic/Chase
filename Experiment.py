@@ -260,16 +260,21 @@ class Gao10e3Experiment(Experiment):
             epos[i+self.cond,X]+= np.cos(self.oris[i]-0.345)*0.71; epos[i+self.cond,Y]+= np.sin(self.oris[i]-0.345)*0.71
         self.epos=epos
         self.eyes.setXYs(self.epos)
+        self.elem.setOris(self.oris/np.pi*180)
         if self.repmom: 
             rm= np.array([np.cos(self.oris),np.sin(self.oris)]).T*self.repmom
             self.elem.setXYs(self.pos+rm)
         dist= np.sqrt(np.power(self.pos-np.matrix(mpos),2).sum(1))
         sel=np.array(dist).squeeze() <Q.agentSize/2.0+self.chradius
         clr=np.ones((self.cond,3))
-        if np.any(sel): clr[sel,1]=-1;clr[sel,2]=-1
+        if np.any(sel): 
+            clr[sel,1]=-1;clr[sel,2]=-1
+            if not self.tone.onn and self.block<2: self.tone.play();self.tone.onn=True
+        elif self.tone.onn: self.tone.stop(); self.tone.onn=False
+        if self.f==Q.nrframes-1 and self.tone.onn: self.tone.stop(); self.tone.onn=False
         if self.block!=2: self.elem.setColors(clr)
         self.elem.draw()
-        if self.repmom==0: self.eyes.draw()
+        if self.repmom==0 and self.id<350: self.eyes.draw()
         self.mouse.draw()
         self.wind.flip()
         
@@ -327,7 +332,7 @@ class Gao10e3Experiment(Experiment):
             while sum(mkey)==0: # wait for subject response
                 self.area.draw()
                 self.elem.draw()
-                if self.repmom==0:  self.eyes.draw()
+                if self.repmom==0 and self.id<350:  self.eyes.draw()
                 self.pnt1.draw()
                 self.text3.draw()
                 self.mouse.draw()
@@ -339,6 +344,7 @@ class Gao10e3Experiment(Experiment):
         else: 
             self.output.write('\t%d\t%.3f\t%d\t%d\t%.3f\t%.3f\t-1'%(self.trialType[self.t],
                 self.repmom,self.asel[0],self.asel[1],self.oris[self.asel[0]],self.oris[self.asel[1]]))
+        self.output.flush()
         np.save(Q.inputPath+'vp%03d/chsVp%03db%dtrial%03d.npy' % (self.id,self.id,self.block,self.t),self.chasee)
         return False
     def omission(self):
@@ -385,9 +391,12 @@ class Gao10e3Experiment(Experiment):
         Experiment.runTrial(self,trajectories,fixCross=False)
     def run(self):
         self.quadMaps=[[1,1,0,0],[0,0,1,1],[0,1,0,1],[1,0,1,0],[1,0,0,1],[0,1,1,0]]
-        manip=[0.05,0.1,0.15,0.2,0.25,0.3]
+        self.tone=sound.SoundPygame(value='A',secs=5)
+        self.tone.onn=False
+        if self.id<350: manip=[0.05,0.1,0.15,0.2,0.25,0.3]
+        else: manip=[-0.2,-0.4]
         if self.block==1:
-            NT= 6; temp=[]
+            NT= 2; temp=[]
             for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*manip[n])
             self.manipType=np.concatenate(temp)
             self.manipType=self.manipType[np.random.permutation(self.nrtrials)]
@@ -444,7 +453,7 @@ class Gao10e3Experiment(Experiment):
                     epos[0+self.cond,X]+= np.cos(self.oris[0]-0.345)*0.71; epos[0+self.cond,Y]+= np.sin(self.oris[0]-0.345)*0.71
                     self.eyes.setXYs(epos)
                     self.elem.draw()
-                    if k<10: self.eyes.draw()
+                    if k<10 and self.id<350: self.eyes.draw()
                     self.wind.flip()
                     core.wait(2+np.random.rand())
                     self.mouse.clickReset()
@@ -452,7 +461,7 @@ class Gao10e3Experiment(Experiment):
                     while sum(mkey)==0: # wait for subject response
                         if k>=5: 
                             self.elem.draw()
-                            if k<10: self.eyes.draw()
+                            if k<10 and self.id<350: self.eyes.draw()
                         self.mouse.draw()
                         self.wind.flip()
                         mkey=self.mouse.getPressed()
@@ -532,10 +541,12 @@ class Gao10e4Experiment(Experiment):
             mkey=self.mouse.getPressed()
         mpos=self.mouse.getPos()
         self.output.write('\t%d\t%d\t%d\t%.3f\t%.3f\t%.3f'%(self.trialType[self.t],self.f,ag, self.oris[ag],mpos[0],mpos[1]))
+        self.output.flush()
         out=np.concatenate([self.chasee,self.chaser.traj],axis=1)
         np.save(Q.inputPath+'vp%03d/chsVp%03db%dtrial%03d.npy' % (self.id,self.id,self.block,self.t),out)
     def omission(self):
         self.output.write('\t%d\t%d'%(self.trialType[self.t],self.f))
+        self.output.flush()
         #self.getJudgment()
         pass
     def runTrial(self,trajectories,fixCross=True):
@@ -876,8 +887,8 @@ class TobiiExperiment(Gao10e3Experiment):
 
 if __name__ == '__main__':
     from Settings import Q
-    E=Gao10e4Experiment()
-    #E=TobiiExperiment()
+    #E=Gao10e4Experiment()
+    E=TobiiExperiment()
     #E=BabyExperiment()
     E.run()
 

@@ -40,8 +40,8 @@ for i in range(N):
         if np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)>2*N/5 and np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)<N/2:
             RING[i,j]= 1
 DART=np.ones((N,N))*-1
-a=(N**2-(N/2)**2)**0.5-N/2
-b=((N/2)**2-( a**2))**0.5
+a=np.cos(np.pi/3.0)*N/2.0#(N**2-(N/2)**2)**0.5-N/2
+b=np.sin(np.pi/3.0)*N/2.0#((N/2)**2-( a**2))**0.5
 c=N/2-0.5
 t1=(0,c);t2=(c+a,c-b); t3=(c+a,c+b)
 
@@ -59,7 +59,7 @@ for k in [1,2]:
     EYES[:,:,k]=drawCircle(EYES[:,:,k],(mid-0.48/1.9*N/2,mid+0.67/0.95*N/2), N/10.0,value=-1)
     EYES[:,:,k]=drawCircle(EYES[:,:,k],(mid+0.48/1.9*N/2,mid+0.67/0.95*N/2), N/10.0,value=-1)
 EYES=np.uint8((EYES+1)/2.0*255)
-MASK=DART#RING#'circle'
+MASK=RING#'circle'
 ANAMES=('Chasee','Chaser','Distractor')
 # color stack
 COLORS=['r','g','b','y','k','c']

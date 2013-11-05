@@ -551,15 +551,17 @@ def generateGao10e4(vpn):
     maze=EmptyMaze((1,1),dispSize=(18,18),lw2cwRatio=0)
     Q.setTrialDur(8); nrtrials=90; 
     Q.setAspeed(5.1)
-    block=0;os.chdir('..');os.chdir('input/')
+    os.chdir('..');os.chdir('input/')
     for vp in vpn:
         vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
         for trial in range(nrtrials):
             if vp>400 and vp<500: continue
             trajectories=generateTrial(12,maze=maze, rejectionDistance=0.0)
-            fn='%sb%dtrial%03d'% (vpname,block,trial); 
+            fn='%strial%03d'% (vpname,trial); 
             np.save(fn,trajectories[:,2:,:])
-        np.save('order%sb%d'% (vpname,block),np.random.permutation(nrtrials))
+        np.save('order%sb0'% (vpname),np.random.permutation(nrtrials))
+        np.save('order%sb1'% (vpname),np.random.permutation(nrtrials))
+        np.save('order%sb2'% (vpname),np.random.permutation(nrtrials))
         Q.save('SettingsTraj.pkl')
         os.chdir('..')
 
@@ -574,7 +576,7 @@ def generateGao10e3(vpn):
     for vp in vpn:
         vpname='vp%03d' % vp;os.mkdir(vpname);os.chdir(vpname)
         for trial in range(nrtrials):
-            if vp>300 and vp<400: continue
+            if vp>300 and vp<400 and vp!=350: continue
             trajectories=[]
             for k in range(len(quadrants)):
                 traj=generateTrial(5,maze=quadrants[k], rejectionDistance=0.0)
@@ -664,7 +666,7 @@ if __name__ == '__main__':
     #D=Diagnosis.multiload(6,prefix='diagBaby')
     #generateGao10e4(308)
     
-    generateGao10e4(range(400,411))
+    generateGao10e3(range(350,370))
 
 
         
