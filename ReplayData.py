@@ -108,10 +108,10 @@ class Trajectory():
                         #core.quit()
                     #print key
                     if key=='space': playing= not playing
-                    if key=='l': self.f=self.f+1
-                    if key=='k': self.f=self.f-1
-                    if key=='semicolon': self.f=self.f+15
-                    if key=='j': self.f=self.f-15
+                    if key=='e': self.f=self.f+1
+                    if key=='w': self.f=self.f-1
+                    if key=='r': self.f=self.f+15
+                    if key=='q': self.f=self.f-15
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
@@ -600,7 +600,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp=1,block=7,trial=6)
+    replayTrial(vp = 1,block = 9,trial = 16)
 
     #codingComparison()
 #    from readETData import readEyelink
@@ -621,3 +621,4 @@ if __name__ == '__main__':
 #    for trl in data:
 #        R=ETReplay(gazeData=trl,phase=1,eyes=1)
 #        R.play(tlag=0)
+3
