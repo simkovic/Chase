@@ -49,10 +49,10 @@ class Experiment():
         self.mouse.setVisible(False)
         fcw=0.1; fch=0.8 #fixcross width and height
         fclist=[ visual.ShapeStim(win=self.wind, pos=[0,0],fillColor='white',
-            vertices=((fcw,fch),(-fcw,fch),(-fcw,-fch),(fcw,-fch))),
+            vertices=((fcw,fch),(-fcw,fch),(-fcw,-fch),(fcw,-fch)),interpolate=False),
             visual.ShapeStim(win=self.wind, pos=[0,0],fillColor='white',
-            vertices=((fch,fcw),(-fch,fcw),(-fch,-fcw),(fch,-fcw))),
-            visual.Circle(win=self.wind, pos=[0,0],fillColor='black',radius=0.1)]
+            vertices=((fch,fcw),(-fch,fcw),(-fch,-fcw),(fch,-fcw)),interpolate=False),
+            visual.Circle(win=self.wind, pos=[0,0],fillColor='black',radius=0.1,interpolate=False)]
         self.fixcross=visual.BufferImageStim(self.wind,stim=fclist)
         self.wind.flip(); self.wind.flip()
         self.score=0
@@ -66,6 +66,12 @@ class Experiment():
         self.text2.setHeight(fs)
         self.text3.setHeight(fs)
         self.f=0
+        self.permut=np.load(Q.inputPath+'vp%03d'%self.id+Q.delim
+            +'ordervp%03db%d.npy'%(self.id,self.block))
+        if len(self.permut.shape)>1 and self.permut.shape[1]>1:
+            self.data=self.permut[:,1:]
+            self.permut=self.permut[:,0]
+        self.nrtrials=self.permut.size
         
     def getWind(self):
         try: return self.wind
@@ -136,7 +142,7 @@ class Experiment():
         self.nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
-            nElements=self.cond, sizes=Q.agentSize*self.scale,
+            nElements=self.cond, sizes=Q.agentSize*self.scale,interpolate=True,
             elementMask=MASK,elementTex=None,colors=Q.agentCLR)
         # display fixation cross
         if fixCross:
@@ -177,13 +183,6 @@ class Experiment():
         
     def run(self,mouse=None,prefix=''): 
         self.output = open(Q.outputPath+prefix+'vp%03d.res'%self.id,'a')
-        
-        permut=np.load(Q.inputPath+'vp%03d'%self.id+Q.delim
-            +prefix+'ordervp%03db%d.npy'%(self.id,self.block))
-        if len(permut.shape)>1 and permut.shape[1]>1:
-            self.data=permut[:,1:]
-            permut=permut[:,0]
-        self.nrtrials=permut.size
         # show initial screen until key pressed
 #        self.text2.setText(u'Bereit ?')
 #        self.text2.draw()
@@ -194,14 +193,20 @@ class Experiment():
 #            mkey = self.mouse.getPressed(False)
         # loop trials
         for trial in range(self.initTrial,self.nrtrials):   
-            self.t=trial; self.pt=permut[trial]
+            self.t=trial; 
             #print self.t
-            self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(permut[trial])))
+            self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(self.permut[trial])))
             if self.id>1 and self.id<10:
-                fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,permut[trial])
+                fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,self.permut[trial])
                 self.trajectories= np.load(Q.inputPath+'vp001'+Q.delim+fname)
+            elif self.id>300 and self.id<400:
+                fname=prefix+'vp300trial%03d.npy' % self.permut[trial]
+                self.trajectories= np.load(Q.inputPath+'vp300'+Q.delim+fname)
+            elif self.id>400 and self.id<500:
+                fname=prefix+'vp400b0trial%03d.npy' % self.permut[trial]
+                self.trajectories= np.load(Q.inputPath+'vp400'+Q.delim+fname)
             else:
-                fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,permut[trial])
+                fname=prefix+'vp%03db%dtrial%03d.npy' % (self.id,self.block,self.permut[trial])
                 self.trajectories= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
             self.runTrial(self.trajectories)
             
@@ -220,14 +225,14 @@ class Gao09Experiment(Experiment):
             self.wind.flip()
             mkey=self.mouse.getPressed()
         if mkey[0]>0:
-            self.output.write('\t%d\t%2.4f\t1'%(self.data[self.pt,0],core.getTime()-t0))
-            if self.data[self.pt,0]>=6: self.sFalse.play()
+            self.output.write('\t%d\t%2.4f\t1'%(self.data[self.permut[self.t],0],core.getTime()-t0))
+            if self.data[self.permut[self.t],0]>=6: self.sFalse.play()
             resp=self.getJudgment()
-            res= self.data[self.pt,0]<6 and resp==1
+            res= self.data[self.permut[self.t],0]<6 and resp==1
         else: 
-            self.output.write('\t%d\t%2.4f\t0\t-1\t-1\t-1\t-1'%(self.data[self.pt,0],core.getTime()-t0))
-            res= self.data[self.pt,0]>=6
-            if self.data[self.pt,0]<6: self.sFalse.play()
+            self.output.write('\t%d\t%2.4f\t0\t-1\t-1\t-1\t-1'%(self.data[self.permut[self.t],0],core.getTime()-t0))
+            res= self.data[self.permut[self.t],0]>=6
+            if self.data[self.permut[self.t],0]<6: self.sFalse.play()
         if not res: self.output.write('\t0')
         else: self.output.write('\t1')
         
@@ -237,12 +242,14 @@ class Gao09Experiment(Experiment):
         
 class Gao10e3Experiment(Experiment):
     def flip(self):
+        if self.block!=2: self.area.draw()
         mpos=self.mouse.getPos()
         if np.linalg.norm(mpos)>11.75:
             phi=np.arctan2(mpos[Y],mpos[X])
             self.mouse._setPos([np.cos(phi)*11.75,np.sin(phi)*11.75])
         mpos=self.mouse.getPos()
         self.chasee[self.f,:]=mpos
+        #print self.t, self.trialType.shape,self.quadMaps.shape 
         qmap=self.quadMaps[int(self.trialType[self.t])]
         self.oris=np.arctan2(mpos[Y]-self.pos[:,Y],mpos[X]-self.pos[:,X])
         for i in range(4):
@@ -253,70 +260,127 @@ class Gao10e3Experiment(Experiment):
             epos[i+self.cond,X]+= np.cos(self.oris[i]-0.345)*0.71; epos[i+self.cond,Y]+= np.sin(self.oris[i]-0.345)*0.71
         self.epos=epos
         self.eyes.setXYs(self.epos)
+        self.elem.setOris(self.oris/np.pi*180)
         if self.repmom: 
             rm= np.array([np.cos(self.oris),np.sin(self.oris)]).T*self.repmom
             self.elem.setXYs(self.pos+rm)
         dist= np.sqrt(np.power(self.pos-np.matrix(mpos),2).sum(1))
         sel=np.array(dist).squeeze() <Q.agentSize/2.0+self.chradius
         clr=np.ones((self.cond,3))
-        if np.any(sel): clr[sel,1]=-1;clr[sel,2]=-1
-        self.elem.setColors(clr)
+        if np.any(sel): 
+            clr[sel,1]=-1;clr[sel,2]=-1
+            if not self.tone.onn and self.block<2: self.tone.play();self.tone.onn=True
+        elif self.tone.onn: self.tone.stop(); self.tone.onn=False
+        if self.f==Q.nrframes-1 and self.tone.onn: self.tone.stop(); self.tone.onn=False
+        if self.block!=2: self.elem.setColors(clr)
         self.elem.draw()
-        if self.repmom==0: self.eyes.draw()
+        if self.repmom==0 and self.id<350: self.eyes.draw()
         self.mouse.draw()
         self.wind.flip()
         
     def trialIsFinished(self):
         return False
             
-    def getJudgement(self):
-        self.text3.setText(' ')
-        self.mouse.clickReset()
-        self.mouse.setPointer(self.pnt2)
-        mkey=self.mouse.getPressed()
-        mpos=self.mouse.getPos()
-        self.pnt1.setPos(mpos)
-        # find three nearest agents and select one of at random
-        ags=np.argsort((np.power(np.array(mpos,ndmin=2)-self.pos,2)).sum(1))
-        ag=ags[np.random.randint(3)]
-        self.pos[ag,:]=np.inf # make it disappear
-        self.epos[self.cond+ag,:]=np.inf; self.epos[ag,:]=np.inf
-        self.eyes.setXYs(self.epos)
-        if self.repmom: 
-            rm= np.array([np.cos(self.oris),np.sin(self.oris)]).T*self.repmom
-            self.elem.setXYs(self.pos+rm)
-        else: self.elem.setXYs(self.pos)
-        while sum(mkey)==0: # wait for subject response
-            self.elem.draw()
-            if self.repmom==0:  self.eyes.draw()
-            self.pnt1.draw()
-            self.text3.draw()
-            self.mouse.draw()
-            self.wind.flip()
+    def getJudgment(self):
+        qmap=self.quadMaps[int(self.trialType[self.t])]
+        if self.block!=2:
+            self.text3.setText(' ')
+            self.mouse.clickReset()
+            self.mouse.setPointer(self.pnt2)
             mkey=self.mouse.getPressed()
-        mpos=self.mouse.getPos()
-        self.output.write('\t%d\t%d\t%d\t%.3f\t%.3f\t%.3f'%(self.trialType[self.t],self.f,ag, self.oris[ag],mpos[0],mpos[1]))
+            mpos=self.mouse.getPos()
+            self.pnt1.setPos(mpos)
+            # find three nearest agents 
+            ags=np.argsort((np.power(np.array(mpos,ndmin=2)-self.pos,2)).sum(1))
+            ags=ags[:3]
+            # ensure that the agent does not overlap
+            valid1=[]
+            for ag in ags:
+                accept=True
+                for a in range(self.pos.shape[0]):
+                    if ag!=a and np.linalg.norm(self.pos[ag,:]-self.pos[a,:])<Q.agentSize: accept=False
+                if accept: valid1.append(ag)
+            # choose wolfpack and perpendicular equally often
+            valid2=[]
+            for ag in ags:
+                if (self.wolfcount> self.t/2.0 and qmap[ag/3] or
+                    self.wolfcount<= self.t/2.0 and qmap[ag/3]==0):
+                    valid2.append(ag)
+            valid = list(set(valid1) & set(valid2))
+            if not valid: # select at random 
+                print 'search failed'
+                ag=ags[np.random.randint(3)]
+            elif valid:
+                ag=valid[np.random.randint(len(valid))]
+            elif valid1:
+                ag=valid1[np.random.randint(len(valid1))]
+            elif valid2:
+                ag=valid2[np.random.randint(len(valid2))]
+            else: print 'does never happen'
+            if qmap[ag/3]==0: 
+                print 'is Wolf'
+                self.wolfcount+=1
+            else: print 'no Wolf'
+            #print self.oris[ag],self.oris.shape
+            self.pos[ag,:]=np.inf # make it disappear
+            self.epos[self.cond+ag,:]=np.inf; self.epos[ag,:]=np.inf
+            self.eyes.setXYs(self.epos)
+            if self.repmom: 
+                rm= np.array([np.cos(self.oris),np.sin(self.oris)]).T*self.repmom
+                self.elem.setXYs(self.pos+rm)
+            else: self.elem.setXYs(self.pos)
+            while sum(mkey)==0: # wait for subject response
+                self.area.draw()
+                self.elem.draw()
+                if self.repmom==0 and self.id<350:  self.eyes.draw()
+                self.pnt1.draw()
+                self.text3.draw()
+                self.mouse.draw()
+                self.wind.flip()
+                mkey=self.mouse.getPressed()
+            mpos=self.mouse.getPos()
+            self.output.write('\t%d\t%.3f\t%d\t%.3f\t%.3f\t%.3f\t%d'%(self.trialType[self.t],
+                self.repmom,ag, self.oris[ag],mpos[0],mpos[1],int(qmap[ag/3]==0)))
+        else: 
+            self.output.write('\t%d\t%.3f\t%d\t%d\t%.3f\t%.3f\t-1'%(self.trialType[self.t],
+                self.repmom,self.asel[0],self.asel[1],self.oris[self.asel[0]],self.oris[self.asel[1]]))
+        self.output.flush()
         np.save(Q.inputPath+'vp%03d/chsVp%03db%dtrial%03d.npy' % (self.id,self.id,self.block,self.t),self.chasee)
+        return False
     def omission(self):
-        self.getJudgement()
+        self.getJudgment()
     def runTrial(self,trajectories,fixCross=True):
+        self.repmom=self.manipType[self.t]
+        if self.block==2:
+            q=np.random.permutation(4)
+            q0= np.array(self.quadMaps[int(self.trialType[self.t])]).nonzero()[0]
+            q1=(np.array(self.quadMaps[int(self.trialType[self.t])])==0).nonzero()[0]
+            a1=q0[np.random.randint(2)]*3+np.random.randint(3)
+            a2=q1[np.random.randint(2)]*3+np.random.randint(3)
+            self.asel=(a1,a2)
+            for a in range(self.cond):
+                if a!=a1 and a!=a2:
+                    trajectories[:,a,:]=np.nan
+            mpos=np.squeeze(trajectories[0,a1,:2]+trajectories[0,a2,:2])/2.0
         lim=1000
         self.mouse=visual.CustomMouse(self.wind, leftLimit=-lim,rightLimit=lim,
             topLimit=lim,bottomLimit=-lim,pointer=self.pnt2)
         self.chasee=np.zeros((Q.nrframes,2))*np.nan
-        mpos=np.matrix(np.random.rand(2)*23.5-11.75)
-        pos0=np.copy(trajectories[0,:,:2])
-        while (np.any(np.sqrt(np.power(mpos-pos0,2).sum(1))<Q.initDistCC) or 
-            np.linalg.norm(mpos)>11.75):
-            mpos=np.matrix(np.random.rand(2)*23.5 -11.75)
-        # ask subject to bring the mouse on the position
-        self.mouse.clickReset()
-        mpos=np.array(mpos).squeeze()
+        if self.block!=2:
+            mpos=np.matrix(np.random.rand(2)*23.5-11.75)
+            pos0=np.copy(trajectories[0,:,:2])
+            while (np.any(np.sqrt(np.power(mpos-pos0,2).sum(1))<Q.initDistCC) or 
+                np.linalg.norm(mpos)>11.75):
+                mpos=np.matrix(np.random.rand(2)*23.5 -11.75)
+            # ask subject to bring the mouse on the position
+            self.mouse.clickReset()
+            mpos=np.array(mpos).squeeze()
         self.pnt1.setPos(mpos)
         mkey=self.mouse.getPressed()
         mp=np.array([np.inf,np.inf]); pN=0
         while np.linalg.norm(mp-mpos)>self.pnt1.radius:
             while np.sum(mkey)==pN:
+                if self.block!=2: self.area.draw()
                 self.pnt1.draw()
                 self.mouse.draw()
                 self.wind.flip()
@@ -327,34 +391,96 @@ class Gao10e3Experiment(Experiment):
         Experiment.runTrial(self,trajectories,fixCross=False)
     def run(self):
         self.quadMaps=[[1,1,0,0],[0,0,1,1],[0,1,0,1],[1,0,1,0],[1,0,0,1],[0,1,1,0]]
-        self.repmom=0#0.22
-        if self.repmom==0: Q.agentSize=1.9
-        else: Q.agentSize=1.9
+        self.tone=sound.SoundPygame(value='A',secs=5)
+        self.tone.onn=False
+        if self.id<350: manip=[0.05,0.1,0.15,0.2,0.25,0.3]
+        else: manip=[-0.2,-0.4]
+        if self.block==1:
+            NT= 2; temp=[]
+            for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*manip[n])
+            self.manipType=np.concatenate(temp)
+            self.manipType=self.manipType[np.random.permutation(self.nrtrials)]
+        elif self.block==2:
+            self.manipType=np.zeros(self.nrtrials)
+            N=24;inc=N/len(manip)
+            temp=np.zeros(N)
+            for n in range(len(manip)):
+                temp[inc*n:inc*(n+1)]=manip[n]
+            temp=temp[np.random.permutation(N)]
+            self.manipType[(self.nrtrials-N):]=temp
+        else: self.manipType=np.zeros(self.nrtrials)
         self.chradius=0.6
-        s=os.listdir(Q.inputPath+'vp%03d'%self.id+Q.delim);self.nrtrials=0
-        for ss in s: self.nrtrials+= int(ss.startswith('gao10e3vp'))
-        self.area=visual.Circle(self.wind,radius=11.75,fillColor=None,lineColor='gray',edges=128)
-        self.area.setAutoDraw(True)
-        fname='gao10e3vp%03db%dtrial%03d.npy' % (self.id,self.block,0)
-        traj= np.load(Q.inputPath+'vp%03d'%self.id+Q.delim+fname)
+        self.wolfcount=0
+        self.area=visual.Circle(self.wind,radius=11.75,fillColor=None,lineColor='gray',edges=128,interpolate=False)
+        fname='vp300trial000.npy'
+        traj= np.load(Q.inputPath+'vp300'+Q.delim+fname)
         self.cond=traj.shape[1]
         self.eyes= visual.ElementArrayStim(self.wind,fieldShape='sqr',
-            nElements=self.cond*2, sizes=0.38,
+            nElements=self.cond*2, sizes=0.38,interpolate=True,
             elementMask='circle',elementTex=None,colors='red')
         NT= 6; temp=[]
         for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*n)
         self.trialType=np.concatenate(temp)
         self.trialType=self.trialType[np.random.permutation(self.nrtrials)]
-        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor='green')
-        self.pnt2=visual.ShapeStim(self.wind, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
-        Experiment.run(self,prefix='gao10e3')
+        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor=None,interpolate=False)
+        self.pnt2=visual.ShapeStim(self.wind,interpolate=False, 
+            vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],
+            closeShape=False,lineColor='gray')
+        Experiment.run(self,prefix='')
+        try:
+            if self.block==2:
+                self.block=3
+                self.text1.setText(u'Der Versuch ist fast zu Ende.')
+                self.text1.draw()
+                self.wind.flip()
+                core.wait(2)
+                self.text1.setText(u'Gleich sehen Sie einen Pfeil verschwinden')
+                self.text2.setText(u'Bitte zeigen Sie seine letzte Position an')
+                self.text1.draw(); self.text2.draw()
+                self.wind.flip()
+                core.wait(3)
+                self.mouse.setPointer(self.pnt2)
+                self.pos=np.ones((self.cond,2))*50
+                self.oris=np.zeros(self.pos.shape[0]) 
+                for k in range(13):
+                    self.oris[0]=(2*np.pi*np.random.rand()-np.pi)/np.pi*180
+                    self.pos[0,Y]=0
+                    self.pos[0,X]=3*(k%5)-6
+                    
+                    self.elem.setXYs(self.pos)
+                    self.elem.setOris(self.oris)
+                    epos = np.concatenate([self.pos,self.pos])
+                    epos[0,X]+= np.cos(self.oris[0]+0.345)*0.71; epos[0,Y]+= np.sin(self.oris[0]+0.345)*0.71
+                    epos[0+self.cond,X]+= np.cos(self.oris[0]-0.345)*0.71; epos[0+self.cond,Y]+= np.sin(self.oris[0]-0.345)*0.71
+                    
+                    self.elem.draw()
+                    if k<10 and self.id<350: 
+                        self.eyes.setXYs(epos)
+                        self.eyes.draw()
+                    self.wind.flip()
+                    core.wait(2+np.random.rand())
+                    self.mouse.clickReset()
+                    mkey=self.mouse.getPressed()
+                    while sum(mkey)==0: # wait for subject response
+                        if k>=5: 
+                            self.elem.draw()
+                            if k<10 and self.id<350: self.eyes.draw()
+                        self.mouse.draw()
+                        self.wind.flip()
+                        mkey=self.mouse.getPressed()
+                    mpos=self.mouse.getPos()
+                    self.output.write('%d\t%d\t%d\t%.3f\t%.3f\t%.3f\t-1\t-1\t-1\t-1\t-1\n'%(self.id,self.block,k,self.oris[0],float(mpos[0]),float(mpos[1])))
+        except:
+            self.output.close()
+            raise
+            
         self.output.close()
-        self.area.setAutoDraw(False)
         self.text1.setText(u'Der Block ist nun zu Ende.')
         self.text1.draw()
         self.wind.flip()
         core.wait(10)
         self.wind.close()
+        
         
 class Gao10e4Experiment(Experiment):
     def flip(self):
@@ -366,7 +492,6 @@ class Gao10e4Experiment(Experiment):
             if not crash: self.chaser.move(mpos-chpos)
             else:  self.chaser.crashed(targetPos=mpos-chpos)
         self.chasee[self.f,:]=mpos
-        
         if self.trialType[self.t]==0 or self.trialType[self.t]==1 :# wolfpack to sheep
             self.oris=np.arctan2(mpos[Y]-self.pos[:,Y],mpos[X]-self.pos[:,X])
         elif self.trialType[self.t]==2:# wolfpack to wolf
@@ -383,23 +508,27 @@ class Gao10e4Experiment(Experiment):
         
     def trialIsFinished(self):
         mpos=self.mouse.getPos()
-        fin= (np.any(np.sqrt(np.power(np.matrix(mpos)-self.pos,2).sum(1))<2) 
-            or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum())<2)
+        dist=9-self.chradius
+        wallcrash= mpos[X]>dist or  mpos[X]<-dist or mpos[Y]>dist or  mpos[Y]<-dist
+        fin= (np.any(np.sqrt(np.power(np.matrix(mpos)-self.pos,2).sum(1))<(self.chradius+Q.agentSize/2.0)) 
+            or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum())<self.chradius*2 or wallcrash)
         if fin: 
-            self.getJudgement();
+            self.output.write('\t%d\t%d'%(self.trialType[self.t],self.f))
+            #self.getJudgment();
             self.noResponse=False
         return fin
             
-    def getJudgement(self):
+    def getJudgment(self):
         self.text3.setText('Ein Distraktor ist verschwunden.\nKlicken Sie bitte seine letzte Position an.')
         self.mouse.clickReset()
         self.mouse.setPointer(self.pnt2)
         mkey=self.mouse.getPressed()
         mpos=self.mouse.getPos()
         self.pnt1.setPos(mpos)
-        # find three nearest agents and select one of at random
+        # find three nearest agents and select one at random that does not overlap
         ags=np.argsort((np.power(np.array(mpos,ndmin=2)-self.pos,2)).sum(1))
-        ag=ags[np.random.randint(3)]
+        r=np.random.permutation(3)
+        a=ag[r[0]]
         self.pos[ag,:]=np.inf # make it disappear
         if self.repmom: 
             self.rm= np.array([np.cos(self.oris),np.sin(self.oris)]).T*self.repmom
@@ -415,23 +544,29 @@ class Gao10e4Experiment(Experiment):
             mkey=self.mouse.getPressed()
         mpos=self.mouse.getPos()
         self.output.write('\t%d\t%d\t%d\t%.3f\t%.3f\t%.3f'%(self.trialType[self.t],self.f,ag, self.oris[ag],mpos[0],mpos[1]))
+        self.output.flush()
         out=np.concatenate([self.chasee,self.chaser.traj],axis=1)
         np.save(Q.inputPath+'vp%03d/chsVp%03db%dtrial%03d.npy' % (self.id,self.id,self.block,self.t),out)
     def omission(self):
-        self.getJudgement()
+        self.output.write('\t%d\t%d'%(self.trialType[self.t],self.f))
+        self.output.flush()
+        #self.getJudgment()
+        pass
     def runTrial(self,trajectories,fixCross=True):
         self.chasee=np.zeros((Q.nrframes,2))*np.nan
         self.chaser.reset()
         self.chaser.vis.setPos(self.chaser.getPosition())
-        mpos=np.matrix(np.random.rand(2)*18-9)
+        dd=18-self.chradius*2
+        mpos=np.matrix(np.random.rand(2)*dd-dd/2.0)
         pos0=np.copy(trajectories[0,:,:2])
         while (np.any(np.sqrt(np.power(mpos-pos0,2).sum(1))<3.5) 
             or np.sqrt(np.power(mpos-self.chaser.getPosition(),2).sum(1))<5):
-            mpos=np.matrix(np.random.rand(2)*18-9)
+            mpos=np.matrix(np.random.rand(2)*dd-dd/2.0)
         # ask subject to bring the mouse on the position
         self.mouse.clickReset()
         mpos=np.array(mpos).squeeze()
         self.pnt1.setPos(mpos)
+        self.mouse.setPointer(self.pnt2)
         mkey=self.mouse.getPressed()
         mp=np.array([np.inf,np.inf]); pN=0
         while np.linalg.norm(mp-mpos)>self.pnt1.radius:
@@ -445,22 +580,28 @@ class Gao10e4Experiment(Experiment):
         self.mouse.setPointer(self.pnt1)
         Experiment.runTrial(self,trajectories,fixCross=False)
     def run(self):
-        self.repmom= -0.2
-        Q.setTrialDur(8);
-        if self.repmom<=0: Q.agentSize=1.5
-        else: Q.agentSize=0.8
-        NT= 3; temp=[];nrtrials=180
-        for n in [2,0,1]: temp.append(np.ones(nrtrials/NT)*n)
-        self.trialType=np.concatenate(temp)
-        self.trialType=self.trialType[np.random.permutation(nrtrials)]
-        self.chaser=HeatSeekingChaser(Q.nrframes,[18,18],(0,0),3.0/Q.refreshRate,5.1/Q.refreshRate,60.0,True)
-        self.chaser.vis=visual.Circle(self.wind,radius=0.65/2.0,fillColor='red',lineColor='red')
-        self.pnt1=visual.Circle(self.wind,radius=0.65/2.0,fillColor='green',lineColor='green')
+        self.repmom= 0
+        self.chradius=0.65/2.0
+        if self.block==0:
+            NT= 3; temp=[]
+            for n in range(NT): temp.append(np.ones(self.nrtrials/NT)*n)
+            self.trialType=np.concatenate(temp)
+            self.trialType=self.trialType[np.random.permutation(self.nrtrials)]
+        elif self.block==1:
+            self.trialType=np.zeros(self.nrtrials)
+        else:
+             self.trialType=np.ones(self.nrtrials)
+        self.chaser=HeatSeekingChaser(Q.nrframes,[18,18],(0,0),Q.pDirChange[1],Q.aSpeed,Q.phiRange[1],True)
+        self.chaser.vis=visual.Circle(self.wind,radius=self.chradius,fillColor='red',lineColor='red',interpolate=False)
+        self.pnt1=visual.Circle(self.wind,radius=self.chradius,fillColor='green',lineColor='green',interpolate=False)
         #stuff=[visual.Line(self.wind,start=[-0.2,0],end=[0.2,0],units='deg'),visual.Line(self.wind,start=[0,-0.2],end=[0,0.2],units='deg')] 
-        self.pnt2=visual.ShapeStim(self.wind, vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],closeShape=False,lineColor='white')
+        self.pnt2=visual.ShapeStim(self.wind, 
+            vertices=[(-0.5,0),(-0,0),(0,0.5),(0,0),(0.5,0),(0,-0),(0,-0.5),(-0,0), (-0.5,0)],
+            closeShape=False,lineColor='white',interpolate=False)
         self.mouse=visual.CustomMouse(self.wind, leftLimit=-9,rightLimit=9,showLimitBox=True,
             topLimit=9,bottomLimit=-9,pointer=self.pnt2)
-        Experiment.run(self,prefix='gao10e4')
+        Experiment.run(self,prefix='')
+        
         self.text1.setText(u'Der Block ist nun zu Ende.')
         self.text1.draw()
         self.wind.flip()
@@ -724,33 +865,35 @@ class AdultExperiment(BehavioralExperiment):
         #self.eyeTracker.sendMessage('FRAME %d %f'%(self.f, core.getTime()))
         return BehavioralExperiment.flip(self)
         
-class TobiiExperiment(BehavioralExperiment):
-    def __init__(self,doSetup=True):
-        BehavioralExperiment.__init__(self)
-        self.eyeTracker = TobiiController(self.getWind(),sj=self.id,block=self.block,doSetup=doSetup)
+class TobiiExperiment(Gao10e3Experiment):
+    def __init__(self):
+        Gao10e3Experiment.__init__(self)
+        self.eyeTracker = TobiiController(self.getWind(),self.getf,sid=self.id,block=self.block)
         self.eyeTracker.sendMessage('Monitor Distance\t%f'% self.wind.monitor.getDistance())
+        self.eyeTracker.doMain()
     def run(self):
-        BehavioralExperiment.run(self)
+        Gao10e3Experiment.run(self)
         self.eyeTracker.closeConnection()
     def runTrial(self,*args):
         self.eyeTracker.preTrial(False)#self.t,False,self.getWind(),autoDrift=True)
         self.eyeTracker.sendMessage('Trial\t%d'%self.t)
-        BehavioralExperiment.runTrial(self,*args,fixCross=True)
+        Gao10e3Experiment.runTrial(self,*args,fixCross=True)
         self.eyeTracker.postTrial()
     def getJudgment(self,*args):
         self.eyeTracker.sendMessage('Detection')
-        resp=BehavioralExperiment.getJudgment(self,*args)
+        resp=Gao10e3Experiment.getJudgment(self,*args)
         return resp 
     def omission(self):
         self.eyeTracker.sendMessage('Omission')
-        pass
+        Gao10e3Experiment.omission(self)
     
 
 if __name__ == '__main__':
     from Settings import Q
-    #E=AdultExperiment()
-    #E=TobiiExperiment()
-    E=Gao10e3Experiment()
+    #E=Gao10e4Experiment()
+    
+    E=TobiiExperiment()
+    
     #E=BabyExperiment()
     E.run()
 

@@ -29,14 +29,19 @@ def drawCircle(M,pos,radius,value=1):
     
 # ring mask
 N=128
+CIRCLE=np.ones((N,N))*-1
+for i in range(N):
+    for j in range(N):
+        if np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)<N/2:
+            CIRCLE[i,j]= 1
 RING=np.ones((N,N))*-1
 for i in range(N):
     for j in range(N):
         if np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)>2*N/5 and np.sqrt((i-N/2+0.5)**2+(j-N/2+0.5)**2)<N/2:
             RING[i,j]= 1
 DART=np.ones((N,N))*-1
-a=(N**2-(N/2)**2)**0.5-N/2
-b=((N/2)**2-( a**2))**0.5
+a=np.cos(np.pi/3.0)*N/2.0#(N**2-(N/2)**2)**0.5-N/2
+b=np.sin(np.pi/3.0)*N/2.0#((N/2)**2-( a**2))**0.5
 c=N/2-0.5
 t1=(0,c);t2=(c+a,c-b); t3=(c+a,c+b)
 

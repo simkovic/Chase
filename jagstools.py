@@ -5,6 +5,15 @@ from scipy.stats import scoreatpercentile as sap
 plt.ion()
 
 def dump(stuff,labels,fn='test.out'):
+    ''' emulates dump() function from R'''
+    def writerec(stf,s):
+        if np.array(stf).ndim==0:
+            if np.isnan(stf): s+='NA, '
+            else: s+=str(stf)+', '
+        else:
+            for k in range(stf.shape[0]):
+                s=writerec(stf[k],s)
+        return s
     f = open(fn,'w')
     for i in range(len(stuff)):
         if np.array(stuff[i]).ndim==0:
@@ -17,17 +26,18 @@ def dump(stuff,labels,fn='test.out'):
             if np.isnan(stuff[i][-1]): f.write('NA)\n')
             else: f.write(str(stuff[i][-1])+')\n')
         else:
+            #reverse dimensions
+            t=stuff[i].shape
+            for ii in range(len(t)):
+                for jj in range(0,len(t)-ii-1):
+                    stuff[i]=stuff[i].swapaxes(jj,jj+1)
+            #print t,stuff[i].shape
             f.write(labels[i]+' <-\nstructure(c(')
-            for j in range(stuff[i].shape[1]):
-                for k in range(stuff[i].shape[0]):
-                    if k+1==stuff[i].shape[0] and j+1==stuff[i].shape[1]: suf=')'
-                    else: suf=', '
-                    if np.isnan(stuff[i][k][j]): f.write('NA'+suf)
-                    else: f.write(str(stuff[i][k][j])+suf)
-                if j+1==stuff[i].shape[1]: f.write(', .Dim=c(%dL, %dL))\n'%np.array(stuff[i]).shape)
-                else: f.write('\n')
-           
-            
+            s=writerec(stuff[i],s='')
+            f.write(s[:-2]+'), .Dim=c(')
+            for k in range(len(t)):
+                if k<len(t)-1:f.write('%dL, '%t[k])
+                else: f.write('%dL))\n'%t[k])      
     f.close()
 
 def loadCoda(pname=''):
@@ -73,7 +83,7 @@ def loadCoda(pname=''):
                 #bla
         return inds
     chain=1
-    print pname
+    #print pname
     f=open('%sCODAindex.txt'%pname,'r')
     inds=f.readlines()
     f.close()
@@ -116,11 +126,11 @@ def loadCoda(pname=''):
 def jags(pname,indata,indatlabels,outdatlabels,modelSpec,inpars=[],inparlabels=[],
          nrChains=1,burnIn=5000,chainLen=15000, thin=1,path=''):
     if len(inpars)>0:
-        dump(inpars,inparlabels,fn=pname+'.inpar')
+        dump(inpars,inparlabels,fn=path+pname+'.inpar')
     #print 'bla',indata[1].shape
-    dump(indata,indatlabels,fn=pname+'.indat')
+    dump(indata,indatlabels,fn=path+pname+'.indat')
     #bla
-    f=open(pname+'.bug','w')
+    f=open(path+pname+'.bug','w')
     f.write(modelSpec)
     f.close()
     ss=''
@@ -138,12 +148,13 @@ def jags(pname,indata,indatlabels,outdatlabels,modelSpec,inpars=[],inparlabels=[
     coda *
     '''%(burnIn,ss, chainLen)
 
-    f=open(pname+'.script','w')
+    f=open(path+pname+'.script','w')
     f.write(script)
     f.close()
+    os.chdir(path)
     nfo= os.system('jags '+pname+'.script')
-    print nfo
-    if nfo==0:return loadCoda(path)
+    print 'jags exited with code', nfo
+    if nfo==0: return loadCoda(path)
 
 def plotNode(data,thin=1,burn=0):
     plt.close('all')
@@ -170,6 +181,5 @@ def plotNode(data,thin=1,burn=0):
     
     
 
-#D=loadCoda()
 #for d in D:
 #    print d.shape
