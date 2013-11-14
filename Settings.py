@@ -76,7 +76,7 @@ t60=monitors.Monitor('tobii', width=34, distance=50); t60.setSizePix((1280,1024)
 
 laptop={'monitor' :     dell,
         'refreshRate':  75,                 # [hz]
-        'os':           WINDOWS,              # Linux or Windows
+        'os':           LINUX,              # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
@@ -176,6 +176,7 @@ gao10e4={'monitor' :     t60,
         'fullscr':      True}
 
 Q=Settings(**laptop)
+    
 #Q=Settings(**gao10e3)
 #Q=Settings(**tobiilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
