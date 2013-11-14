@@ -115,7 +115,7 @@ class Trajectory():
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
-                if playing: self.f+=2
+                if playing: self.f+=1
             self.wind.flip()
             #print core.getTime() - t0
             self.wind.close()
@@ -389,7 +389,7 @@ class Coder(ETReplay):
                         for a in tms:
                             s=int(np.round(scale*a[0]))
                             e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
-                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1]])
+                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1],'yellow'])
                         self.selected[0][-1].extend([ags,tmsnew,True])
                         self.msg.setText('Selection Closed: %d,%d'%(self.selected[0][-1][0], self.selected[0][-1][3]))
             else:
@@ -486,6 +486,7 @@ class Coder(ETReplay):
             for a in range(len(sel[6])):
                 fout.write(' %d'%sel[6][a])
             for a in range(len(sel[6])):
+                print a,sel[7][a]
                 for k in sel[7][a][:-1]:
                     fout.write(' %d'%int(k))
                     
@@ -519,16 +520,18 @@ def replayTrial(vp,block,trial):
     R=Coder(gazeData=trl,phase=1,eyes=1)
     R.play(tlag=0)
     
-def replayBlock(vp,block,trialStart):
+def replayBlock(vp,block,trial):
     from readETData import readEyelink
     data=readEyelink(vp,block)
-    for trial in range(trialStart,len(data)):
+    ts=trial
+    for trial in range(ts,len(data)):
+        print trial
         trl=data[trial]
         trl.extractBasicEvents()
         trl.driftCorrection()
         trl.extractComplexEvents()
         #trl.importComplexEvents()
-    for trial in range(trialStart,len(data)):
+    for trial in range(ts,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1)
         R.play(tlag=0)
 # coding verification routines       
@@ -600,7 +603,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp = 1,block = 9,trial = 16)
+    replayTrial(vp = 1,block = 13,trial =35)
 
     #codingComparison()
 #    from readETData import readEyelink
