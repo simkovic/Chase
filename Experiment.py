@@ -434,26 +434,29 @@ class Gao10e3Experiment(Experiment):
                 self.text1.draw()
                 self.wind.flip()
                 core.wait(2)
-                self.text1.setText(u'Gleich sehen Sie einen Kreis verschwinden')
+                self.text1.setText(u'Gleich sehen Sie einen Pfeil verschwinden')
                 self.text2.setText(u'Bitte zeigen Sie seine letzte Position an')
                 self.text1.draw(); self.text2.draw()
                 self.wind.flip()
                 core.wait(3)
                 self.mouse.setPointer(self.pnt2)
-                self.pos=np.zeros((self.cond,2))*np.nan
+                self.pos=np.ones((self.cond,2))*50
                 self.oris=np.zeros(self.pos.shape[0]) 
                 for k in range(13):
-                    self.oris[0]=2*np.pi*np.random.rand()-np.pi
+                    self.oris[0]=(2*np.pi*np.random.rand()-np.pi)/np.pi*180
                     self.pos[0,Y]=0
                     self.pos[0,X]=3*(k%5)-6
                     
                     self.elem.setXYs(self.pos)
+                    self.elem.setOris(self.oris)
                     epos = np.concatenate([self.pos,self.pos])
                     epos[0,X]+= np.cos(self.oris[0]+0.345)*0.71; epos[0,Y]+= np.sin(self.oris[0]+0.345)*0.71
                     epos[0+self.cond,X]+= np.cos(self.oris[0]-0.345)*0.71; epos[0+self.cond,Y]+= np.sin(self.oris[0]-0.345)*0.71
-                    self.eyes.setXYs(epos)
+                    
                     self.elem.draw()
-                    if k<10 and self.id<350: self.eyes.draw()
+                    if k<10 and self.id<350: 
+                        self.eyes.setXYs(epos)
+                        self.eyes.draw()
                     self.wind.flip()
                     core.wait(2+np.random.rand())
                     self.mouse.clickReset()
@@ -888,7 +891,9 @@ class TobiiExperiment(Gao10e3Experiment):
 if __name__ == '__main__':
     from Settings import Q
     #E=Gao10e4Experiment()
+    
     E=TobiiExperiment()
+    
     #E=BabyExperiment()
     E.run()
 

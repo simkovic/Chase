@@ -9,7 +9,7 @@ from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
 from images2gif import writeGif
-event=1
+event=2
 vp=1
 path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 
@@ -133,7 +133,7 @@ def PFparallel():
     ''' you can setup stack by np.save('stackPF.npy',range(601))'''
     E=np.load(path+'E%d/DG.npy'%event)
     stack=np.load('stackPF.npy').tolist()
-    N=150
+    N=100
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
             nElements=E.shape[1], sizes=Q.agentSize,
@@ -152,7 +152,6 @@ def PFparallel():
                 print 'IOError'
                 core.wait(1)
     wind.close()
-#PFparallel()
 def Mcompute():
     ''' mean of the PF data'''
     inpath='cxx/similPix/TI/'
@@ -256,13 +255,13 @@ def Scompute():
 
 def SinitParallel():
     
-    N1=602
-    N2=152
+    N1=101;e1=2
+    N2=101;e2=2
     out=[]
-    for i in range(0,N1,5):
-        for j in range(N2):
-            out.append([i,j,1,0,1])
-    np.save(path+'E%d/S/stack'%event,out)
+    for i in range(0,N1):
+        for j in range(i,N2):
+            out.append([i,j,vp,e1,e2])
+    np.save(path+'E%d/S/stack'%e1,out)
 def Sparallel():
     ''' parallel similarity computation'''
     stack=np.load(path+'E%d/S/stack.npy'%event).tolist()
@@ -284,8 +283,8 @@ def Sparallel():
         print jobinfo
         os.system('./simil %d %d %d %d %d'%tuple(jobinfo))
     print 'finished'
+
 Sparallel()
-    
 def Scheck():
     N=151
     stack=[]
@@ -293,22 +292,35 @@ def Scheck():
         #print i
         for j in range(i,N):
             try:
-                np.load(path+'E%d/S/S%03dx%03d.npy'%(event,i,j))
+                np.load(path+'E%d/Scross/S%03dx%03d.npy'%(event,i,j))
             except:
                 print 'missing', i,j
                 stack.append([i,j])
-    np.save('cxx/similPix/stack',stack)
+    np.save(path+'E%d/Scross/stack.npy'%event,stack)
+
+
 def Smerge():
-    N=601
+    N=152
     stack=[]
     for i in range(N):
         print i
         out=[]
         for j in range(0,i+1):
-            out.append(np.load('cxx/similPix/S/S%03dx%03d.npy'%(j,i)))
-        np.save('cxx/similPix/S2/S%03d.npy'%i,out)
-        
-            
+            out.append(np.load(path+'E%d/S/S%03dx%03d.npy'%(event,j,i)))
+        np.save(path+'E%d/S2/S%03d.npy'%(event,i),out)
+#def SexportSvm():
+##e1=0;e2=1
+##fn1=range(0,602,5);fn2=range(152)
+##n1=np.load(path+'E%d/S/S000x000.npy'%(e1))
+##n11=np.load(path+'E%d/S/S000x%03d.npy'%(e1,fn1[-1]))
+##
+##n1=np.load(path+'E%d/S/S001x%03d.npy'%(e2,fn2[-1]))
+##n2=np.load(path+'E%d/S/S%03dx%03d.npy'%(e2,fn2[-1],fn2[-1]))
+##
+##f=open(path+'svm/e0e1.in','w')
+##f.close()
+    
+    
 
 def checkSimWideGrid():
     from Analysis import E
