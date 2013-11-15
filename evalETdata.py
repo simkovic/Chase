@@ -375,21 +375,25 @@ class ETTrialData():
             else: print s, 'calibration BAD',self.calib[-1]
         
         if self.ts==-1: print  s, 'online dcorr failed'
-        if jump==-1: 
+        if jump is int and jump==-1: 
             print 'skipping drift correction'
             return
-        # find the latest fixation
-        isFix=self.getFixations(phase=1)
-        isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
-        h= isFix.size-50-jump
-        while (not np.all(isFix[h:(h+50)]) and h>=0 ): h-=1
-        #print i, d.isFix[0].size-h
-        self.dcfix=[self.gaze[h+10,0]-self.t0[0],self.gaze[h+40,0]-self.t0[0]]
-        if h>=0:
-            for j in [1,4,2,5]:
-                dif=self.gaze[(h+10):(h+40),j].mean()
-                self.gaze[:,j]-=dif
-        else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
+        elif jump is int:
+            # find the latest fixation
+            isFix=self.getFixations(phase=1)
+            isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
+            h= isFix.size-50-jump
+            while (not np.all(isFix[h:(h+50)]) and h>=0 ): h-=1
+            #print i, d.isFix[0].size-h
+            self.dcfix=[self.gaze[h+10,0]-self.t0[0],self.gaze[h+40,0]-self.t0[0]]
+            if h>=0:
+                for j in [1,4,2,5]:
+                    dif=self.gaze[(h+10):(h+40),j].mean()
+                    self.gaze[:,j]-=dif
+            else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
+        else: 
+                self.gaze[:,[1,2]]-=np.array(jump,ndmin=2)
+                self.gaze[:,[4,5]]-=np.array(jump,ndmin=2)
         # recompute events
         self.gaze=self.gaze[:,:7]
         self.extractBasicEvents()
@@ -805,6 +809,7 @@ def manualDC(vp,b,t):
         elif b==5 and t==20: out=-1
         elif b==5 and t==9: out=-1
         elif b==5 and t==14: out=-1
+        elif b==6 and t==7: out=-1
     return out
 def plotDC():
     plt.interactive(False)

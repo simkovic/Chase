@@ -5,7 +5,7 @@ from psychopy.misc import pix2deg
 import numpy as np
 from scipy.interpolate import interp1d
 from datetime import datetime
-from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING
+from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
 
 sclrs=['red','green','black'];
@@ -101,8 +101,8 @@ class Trajectory():
                 if playing and tlag>0: core.wait(tlag)
                 for key in event.getKeys():
                     if key in ['escape']:
-                        try: self.saveSelection()
-                        except: print 'selection could not be saved'
+                        #try: self.saveSelection()
+                        #except: print 'selection could not be saved'
                         self.wind.close()
                         return
                         #core.quit()
@@ -362,7 +362,7 @@ class Coder(ETReplay):
                     g=self.gazeData.getGaze()
                     if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
                         and self.seltoolrect.contains(mpos) or
-                        (self.atoolrect.contains(mpos) and  mkey[2]>0)):
+                        (self.atoolrect.contains(mpos) and  mkey[0]>0)):
                         ff= self.sev[sr.ad][0]
                         gf=self.sev[sr.ad][2]
                         tt=g[gf,0]
@@ -411,7 +411,7 @@ class Coder(ETReplay):
                                     assert tar==None
                                     tar=ar
                 if tar!=None:
-                    if mkey[2]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+                    if mkey[0]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
                     else: self.selected[0][tar.ad][7][tar.ad2][:3]=[tt,ff,gf]
                     self.msg.setText('New Agent Timing: %d'%tt)          
             # agent selection
@@ -508,12 +508,13 @@ class Master(Coder):
         for rect in self.selrects:
             rect.setHeight(self.spar[2]/float(len(self.selected)))
 
-def replayTrial(vp,block,trial):
+def replayTrial(vp,block,trialStart):
     from readETData import readEyelink
+    trial=trialStart
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
-    trl.driftCorrection()
+    trl.driftCorrection(jump=manualDC(vp,block,trial))
     trl.extractComplexEvents()
     trl.importComplexEvents()
     R=Coder(gazeData=trl,phase=1,eyes=1)
@@ -523,9 +524,10 @@ def replayBlock(vp,block,trialStart):
     from readETData import readEyelink
     data=readEyelink(vp,block)
     for trial in range(trialStart,len(data)):
+        print trial
         trl=data[trial]
         trl.extractBasicEvents()
-        trl.driftCorrection()
+        trl.driftCorrection(jump=manualDC(vp,block,trial))
         trl.extractComplexEvents()
         #trl.importComplexEvents()
     for trial in range(trialStart,len(data)):
@@ -600,7 +602,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp=1,block=7,trial=6)
+    replayBlock(vp=2,block=9,trialStart=0)
 
     #codingComparison()
 #    from readETData import readEyelink
