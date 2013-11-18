@@ -5,7 +5,7 @@ from psychopy.misc import pix2deg
 import numpy as np
 from scipy.interpolate import interp1d
 from datetime import datetime
-from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING
+from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
 
 sclrs=['red','green','black'];
@@ -102,22 +102,30 @@ class Trajectory():
                 if playing and tlag>0: core.wait(tlag)
                 for key in event.getKeys():
                     if key in ['escape']:
-                        try: self.saveSelection()
-                        except: print 'selection could not be saved'
+                        #try: self.saveSelection()
+                        #except: print 'selection could not be saved'
                         self.wind.close()
                         return
                         #core.quit()
                     #print key
+<<<<<<< HEAD
                     if key=='space': playing= not playing
                     if key=='i': self.f=1
                     if key==KL[RH][0]: self.f=self.f-15
                     if key==KL[RH][1]: self.f=self.f-1
                     if key==KL[RH][2]: self.f=self.f-1
                     if key==KL[RH][3]: self.f=self.f+15
+=======
+                    if key=='space': playing= not playing
+                    if key=='l': self.f=self.f+1
+                    if key=='k': self.f=self.f-1
+                    if key=='semicolon': self.f=self.f+15
+                    if key=='j': self.f=self.f-15
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
-                if playing: self.f+=1
+                if playing: self.f+=2
             self.wind.flip()
             #print core.getTime() - t0
             self.wind.close()
@@ -364,7 +372,11 @@ class Coder(ETReplay):
                     g=self.gazeData.getGaze()
                     if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
                         and self.seltoolrect.contains(mpos) or
+<<<<<<< HEAD
                         (self.atoolrect.contains(mpos) and  mkey[RH*2]>0)):
+=======
+                        (self.atoolrect.contains(mpos) and  mkey[0]>0)):
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
                         ff= self.sev[sr.ad][0]
                         gf=self.sev[sr.ad][2]
                         tt=g[gf,0]
@@ -391,7 +403,11 @@ class Coder(ETReplay):
                         for a in tms:
                             s=int(np.round(scale*a[0]))
                             e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
+<<<<<<< HEAD
                             tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1],1])
+=======
+                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1]])
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
                         self.selected[0][-1].extend([ags,tmsnew,True])
                         self.msg.setText('Selection Closed: %d,%d'%(self.selected[0][-1][0], self.selected[0][-1][3]))
             else:
@@ -413,7 +429,11 @@ class Coder(ETReplay):
                                     assert tar==None
                                     tar=ar
                 if tar!=None:
+<<<<<<< HEAD
                     if mkey[RH*2]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+=======
+                    if mkey[0]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
                     else: self.selected[0][tar.ad][7][tar.ad2][:3]=[tt,ff,gf]
                     self.msg.setText('New Agent Timing: %d'%tt)          
             # agent selection
@@ -488,8 +508,12 @@ class Coder(ETReplay):
             assert len(sel[6])==len(sel[7])
             for a in range(len(sel[6])):
                 fout.write(' %d'%sel[6][a])
+<<<<<<< HEAD
             for a in range(len(sel[6])):
                 #print a,sel[7][a]
+=======
+            for a in range(len(sel[6])):
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
                 for k in sel[7][a][:-1]:
                     fout.write(' %d'%int(k))
                     
@@ -512,29 +536,29 @@ class Master(Coder):
         for rect in self.selrects:
             rect.setHeight(self.spar[2]/float(len(self.selected)))
 
-def replayTrial(vp,block,trial):
+def replayTrial(vp,block,trialStart):
     from readETData import readEyelink
+    trial=trialStart
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
-    trl.driftCorrection()
+    trl.driftCorrection(jump=manualDC(vp,block,trial))
     trl.extractComplexEvents()
     trl.importComplexEvents()
     R=Coder(gazeData=trl,phase=1,eyes=1)
     R.play(tlag=0)
     
-def replayBlock(vp,block,trial):
+def replayBlock(vp,block,trialStart):
     from readETData import readEyelink
     data=readEyelink(vp,block)
-    ts=trial
-    for trial in range(ts,len(data)):
+    for trial in range(trialStart,len(data)):
         print trial
         trl=data[trial]
         trl.extractBasicEvents()
-        trl.driftCorrection()
+        trl.driftCorrection(jump=manualDC(vp,block,trial))
         trl.extractComplexEvents()
         #trl.importComplexEvents()
-    for trial in range(ts,len(data)):
+    for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1)
         R.play(tlag=0)
 # coding verification routines       
@@ -606,7 +630,11 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
+<<<<<<< HEAD
     replayTrial(vp = 1,block = 17,trial =7)
+=======
+    replayBlock(vp=2,block=9,trialStart=0)
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
 
     #codingComparison()
 #    from readETData import readEyelink
@@ -626,4 +654,8 @@ if __name__ == '__main__':
 #    data=readTobii(172,0)
 #    for trl in data:
 #        R=ETReplay(gazeData=trl,phase=1,eyes=1)
+<<<<<<< HEAD
 #        R.play(tlag=0)
+=======
+#        R.play(tlag=0)
+>>>>>>> 951770a59455fde9ebd5da19374239d7ed7f741a
