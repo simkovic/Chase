@@ -10,7 +10,8 @@ from copy import copy
 
 sclrs=['red','green','black'];
 hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
-
+KL=[['j','k','l','semicolon'],['q','w','e','r']]
+RH=0 # set right handed or left handed layout
 class Trajectory():
     def __init__(self,gazeData,maze=None,wind=None,
             highlightChase=False,phase=1,eyes=1):
@@ -83,7 +84,7 @@ class Trajectory():
                 if self.phase==1:
                     clrs=np.copy(self.elem.colors)
                     ags,clrr=self.highlightedAgents()
-                    #print self.t[f], ags
+                    #print ags
                     for a in range(self.cond-self.eyes): 
                         if a in ags: clrs[a,:]=clrr[ags.index(a)]
                         else: clrs[a,:]=[1,1,1]
@@ -108,10 +109,11 @@ class Trajectory():
                         #core.quit()
                     #print key
                     if key=='space': playing= not playing
-                    if key=='e': self.f=self.f+1
-                    if key=='w': self.f=self.f-1
-                    if key=='r': self.f=self.f+15
-                    if key=='q': self.f=self.f-15
+                    if key=='i': self.f=1
+                    if key==KL[RH][0]: self.f=self.f-15
+                    if key==KL[RH][1]: self.f=self.f-1
+                    if key==KL[RH][2]: self.f=self.f-1
+                    if key==KL[RH][3]: self.f=self.f+15
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
@@ -233,7 +235,7 @@ class ETReplay(Trajectory):
                     for a in tr[3]:
                         s=int(np.round(scale*a[0]))
                         e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
-                        self.selected[0][-1][7].append([self.t[s],s,a[0],self.t[e],e,a[1],'black'])
+                        self.selected[0][-1][7].append([self.t[s],s,a[0],self.t[e],e,a[1],[-1,-1,-1]])
             except AttributeError: print 'Tracking events not available'
             #self.selected=[Coder.loadSelection(self.gazeData.vp,
             #        self.gazeData.block,self.gazeData.trial,prefix= 'track/coder1/')]
@@ -362,7 +364,7 @@ class Coder(ETReplay):
                     g=self.gazeData.getGaze()
                     if ((len(self.selected[0])>0 and len(self.selected[0][-1])==3)
                         and self.seltoolrect.contains(mpos) or
-                        (self.atoolrect.contains(mpos) and  mkey[2]>0)):
+                        (self.atoolrect.contains(mpos) and  mkey[RH*2]>0)):
                         ff= self.sev[sr.ad][0]
                         gf=self.sev[sr.ad][2]
                         tt=g[gf,0]
@@ -389,7 +391,7 @@ class Coder(ETReplay):
                         for a in tms:
                             s=int(np.round(scale*a[0]))
                             e=min(len(self.t)-1,max(s+1, int(np.round(scale*a[1]))))
-                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1],'yellow'])
+                            tmsnew.append([self.t[s],s,a[0],self.t[e],e,a[1],1])
                         self.selected[0][-1].extend([ags,tmsnew,True])
                         self.msg.setText('Selection Closed: %d,%d'%(self.selected[0][-1][0], self.selected[0][-1][3]))
             else:
@@ -411,7 +413,7 @@ class Coder(ETReplay):
                                     assert tar==None
                                     tar=ar
                 if tar!=None:
-                    if mkey[2]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
+                    if mkey[RH*2]>0: self.selected[0][tar.ad][7][tar.ad2][3:6]=[tt,ff,gf]
                     else: self.selected[0][tar.ad][7][tar.ad2][:3]=[tt,ff,gf]
                     self.msg.setText('New Agent Timing: %d'%tt)          
             # agent selection
@@ -440,6 +442,7 @@ class Coder(ETReplay):
             elif len(sel)>=6 and sel[1]<=self.f and sel[4]>=self.f:
                 sel[6].append(a)
                 sel[7].append(sel[:6])
+                sel[7][-1].append([-1,-1,-1])
     @staticmethod
     def loadSelectionOld(vp,block,trial,prefix='track/'):
         #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
@@ -486,7 +489,7 @@ class Coder(ETReplay):
             for a in range(len(sel[6])):
                 fout.write(' %d'%sel[6][a])
             for a in range(len(sel[6])):
-                print a,sel[7][a]
+                #print a,sel[7][a]
                 for k in sel[7][a][:-1]:
                     fout.write(' %d'%int(k))
                     
@@ -603,7 +606,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp = 1,block = 13,trial =35)
+    replayTrial(vp = 1,block = 17,trial =7)
 
     #codingComparison()
 #    from readETData import readEyelink
@@ -624,4 +627,3 @@ if __name__ == '__main__':
 #    for trl in data:
 #        R=ETReplay(gazeData=trl,phase=1,eyes=1)
 #        R.play(tlag=0)
-3
