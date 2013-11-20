@@ -11,7 +11,9 @@ from copy import copy
 sclrs=['red','green','black'];
 hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 KL=[['j','k','l','semicolon'],['q','w','e','r']]
+
 RH=0 # set right handed or left handed layout
+
 class Trajectory():
     def __init__(self,gazeData,maze=None,wind=None,
             highlightChase=False,phase=1,eyes=1):
@@ -510,9 +512,8 @@ class Master(Coder):
         for rect in self.selrects:
             rect.setHeight(self.spar[2]/float(len(self.selected)))
 
-def replayTrial(vp,block,trialStart):
+def replayTrial(vp,block,trial,tlag=0):
     from readETData import readEyelink
-    trial=trialStart
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
@@ -520,9 +521,10 @@ def replayTrial(vp,block,trialStart):
     trl.extractComplexEvents()
     trl.importComplexEvents()
     R=Coder(gazeData=trl,phase=1,eyes=1)
-    R.play(tlag=0)
+    R.play(tlag=tlag)
     
-def replayBlock(vp,block,trialStart):
+def replayBlock(vp,block,trial,tlag=0):
+    trialStart=trial
     from readETData import readEyelink
     data=readEyelink(vp,block)
     for trial in range(trialStart,len(data)):
@@ -534,7 +536,7 @@ def replayBlock(vp,block,trialStart):
         #trl.importComplexEvents()
     for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1)
-        R.play(tlag=0)
+        R.play(tlag=tlag)
 # coding verification routines       
 def codingComparison(vp=1,block=2):
     from readETData import readEyelink
@@ -604,21 +606,5 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp = 1,block = 17,trial =7)
-    #codingComparison()
-#    from readETData import readEyelink
-#    vp=1;block=5
-#    trial=16
-#    data=readEyelink(vp,block)
-#    #for trial in range(20):
-#    trl=data[trial]
-#    trl.loadTrajectories()
-#    trl.driftCorrection()
-#    trl.extractTracking()
-#    R=Coder(gazeData=trl,phase=1,eyes=1)
-#    R.play()
+    replayTrial(vp = 1,block = 17,trial =26,tlag=0.015)
 
-            
-#    from readETData import readTobii
-#    data=readTobii(172,0)
-#    for trl in data:
