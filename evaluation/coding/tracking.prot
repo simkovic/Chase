@@ -1,0 +1,51 @@
+selection tool usage:
+bottom window shows saccades (blue rects) and tracking events selected by user (red opaque rects)
+mouse:
+1st left click: open selection (indicates start of tracking event)
+2nd left click: close selection (indicates end of tracking event)
+left click on saccade or any position. if selecting position outside saccade use the pursuit indicator (graph in the 7th row on the right) to select pursuit onset or end
+right click on tracking selection to delete it
+left click on agent to select/deselect it, selected agents are shown in green, agents can be selected only during tracking event
+
+keyboard:
+(lefty version, do we need rh one?)
+j - 10 frames back
+k - 1 frame back
+l - 1 frame forward
+;/ö - 10 frame forward
+space - play/stop
+s - write selection to file, note previous data will be overwritten
+escape - move to the next trial, all unsaved tracking data will be lost
+
+The selection tool is a custom software. There are 1001 possible ways how to break it, if you just try hard enough to find them. Please, don't try to break it. Work quickly and don't forget to save. If it breaks, report to your supervisor. 
+
+Task:
+Extract tracking events from the data. All remaining events are categorized as search events. 
+
+Description of event extraction:
+search - brief (200-500 ms) fixations, may be also pursuit preceded by long saccade
+tracking - extended period of focus on few agents, usually follows search in viccinity of the onset of tracking, starts and continues with extended pursuit event. includes saccades to targets
+	- may target multiple agents (e.g. group of overlapping agents moving in same direction)
+	- the target agent may change during tracking
+	- tracking starts with short saccade to target (following search in viccinity) and continues with pursuit
+	- tracking ends when new search block starts, the two blocks are usually seperated by a long saccade
+	- tracking may be followed by new tracking event (tracking-to-tracking)
+	- how do we separate tracking-to-tracking from target change during single tracking event? watch for distance and movement direction between old and new target. short distance, same direction => new target, same event; if the pursuit targets both agents for a certain period => new target, same event
+	- eye movement programming takes 200 ms. very short events (< 150 ms) can be discarded, especially if they would interrupt tracking event. they may be interpretted as search prequel to tracking
+	(- measurements of eye position are not perfect indicator of focus: covert vs. overt attention, noise in eye movements, noise in ET measurements.)
+
+Your task:
+The extraction is done via an algorithm. This algorithm is not perfect and there is large variety of possible eye movements such that it is impossible to account for all of them with an algorithm. Your task is to survey the resulting output of the extraction algorithm. Watch for following things.	
+	
+	- if two tracked agents are far apart (>4 deg) the algorithm may fail to the tracking event. instead it will produce multiple short tracking events. merge them together.
+	- if agents hit the wall, tracking will slow down and may include fixations or event pursuit in opposite direction. this may fool the algorithm such that a valid tracking event is not detected or is interupted. 
+	- start of long tracking
+	- end of short tracking
+	- selected agents that move in direction inconsistent with pursuit
+	- no selected agents or too many selected agents during tracking, in this case most probably several tracking events have been merged together. separate them.
+	
+	
+
+	
+skip invalid trials: 1,0; 1,34; 4,0; 7,0;8,16; 16,0;17,0;
+
