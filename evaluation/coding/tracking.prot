@@ -1,51 +1,79 @@
-selection tool usage:
-bottom window shows saccades (blue rects) and tracking events selected by user (red opaque rects)
-mouse:
-1st left click: open selection (indicates start of tracking event)
-2nd left click: close selection (indicates end of tracking event)
-left click on saccade or any position. if selecting position outside saccade use the pursuit indicator (graph in the 7th row on the right) to select pursuit onset or end
-right click on tracking selection to delete it
-left click on agent to select/deselect it, selected agents are shown in green, agents can be selected only during tracking event
+Coding protocol
 
-keyboard:
-(lefty version, do we need rh one?)
-j - 10 frames back
-k - 1 frame back
-l - 1 frame forward
-;/ö - 10 frame forward
-space - play/stop
-s - write selection to file, note previous data will be overwritten
-escape - move to the next trial, all unsaved tracking data will be lost
+Content
+	1. Coding Theory
+	2. Instructions for coder
+	3. Coder Tool Usage
 
-The selection tool is a custom software. There are 1001 possible ways how to break it, if you just try hard enough to find them. Please, don't try to break it. Work quickly and don't forget to save. If it breaks, report to your supervisor. 
+1. Coding Theory
 
-Task:
-Extract tracking events from the data. All remaining events are categorized as search events. 
+The data are filtered and basic events are extracted. Basic events are identified based on the gaze velocity (v) and acceleration (a) and minimal event duration (d).
 
-Description of event extraction:
-search - brief (200-500 ms) fixations, may be also pursuit preceded by long saccade
-tracking - extended period of focus on few agents, usually follows search in viccinity of the onset of tracking, starts and continues with extended pursuit event. includes saccades to targets
-	- may target multiple agents (e.g. group of overlapping agents moving in same direction)
-	- the target agent may change during tracking
-	- tracking starts with short saccade to target (following search in viccinity) and continues with pursuit
-	- tracking ends when new search block starts, the two blocks are usually seperated by a long saccade
+* Fixations: v<6 deg/sec, a<800 deg/sec^2, d> 50 ms
+* Saccades: v>21 deg/sec, a>4000 deg/sec^2, d>20 ms
+* Fast Pursuit: 9<v<21 deg/sec, a>800 deg/sec^2, d> 100 ms and at least one agent is within 4 deg radius moving in similar direction.
+* Slow Pursuit: 4<v<21 deg/sec, a>800 deg/sec^2, d> 80 ms and is not Fast Pursuit
+
+Complex events are search and tracking. 
+
+*Search is usually brief (200-500 ms) fixation or slow pusuit. May be also fast pursuit preceded by long saccade.
+*Tracking is extended period of focus on few agents, usually follows search in viccinity of the onset of tracking, starts and continues with extended pursuit event. The agents targeted by tracking can be multiple agents (e.g. group of overlapping agents moving in same direction). The target agent may change during tracking, although at least one agent should always connect the consecutive tracking event. Tracking starts with short-distance saccade to target (following search in viccinity) and continues with pursuit. Tracking usually ends with search. Either the subject lost the tracked agents from view, give up the tracked agents (i.e. decided that the agents are not target) or or decided to track different agents. 
+
+2. Instructions for coder
+
+The extraction of basic events is straightforward and can be automated. The extraction of complex is more demanding and the implemented algorithm for extracting complex events is not perfect. Since there is large variety of possible eye movements it is difficult to account for all of them with an algorithm. Coder's task is to survey the resulting output of the extraction algorithm. Coder should correct following things.	
+	
+	* If two tracked agents are far apart (>4 deg) the algorithm may fail to detect the tracking event. Instead it will produce multiple short tracking events. merge them together.
+	* If agents hit the wall, tracking will slow down and may include fixations or event pursuit in opposite direction. this may fool the algorithm such that a valid tracking event is not detected or split into two separate events. 
+	* The two above-mentioned issues can be best detected by paying special attention to the start of long tracking events
+
+Furthermore the extraction algorithm does determine which agents are followed. This functionality is very primitive. The algorithm selects agent if it is followed at least half of the basic events within the tracking event. The task of coder is to select and deselect agents and to adjust the start and end of the period during which the particular agent is tracked. In particular coder should correct following things
+	* selected agents that move in direction inconsistent with pursuit should be deselected
+	* no selected agents or too many selected agents during tracking, in this case most probably several tracking events have been merged together and should be separated.
+	
+Some trials are missing or should be discarded due to poor data quality. These trials are listed in the textfile /evaluation/coding/missing
+
+####################
 	- tracking may be followed by new tracking event (tracking-to-tracking)
 	- how do we separate tracking-to-tracking from target change during single tracking event? watch for distance and movement direction between old and new target. short distance, same direction => new target, same event; if the pursuit targets both agents for a certain period => new target, same event
 	- eye movement programming takes 200 ms. very short events (< 150 ms) can be discarded, especially if they would interrupt tracking event. they may be interpretted as search prequel to tracking
 	(- measurements of eye position are not perfect indicator of focus: covert vs. overt attention, noise in eye movements, noise in ET measurements.)
 
-Your task:
-The extraction is done via an algorithm. This algorithm is not perfect and there is large variety of possible eye movements such that it is impossible to account for all of them with an algorithm. Your task is to survey the resulting output of the extraction algorithm. Watch for following things.	
-	
-	- if two tracked agents are far apart (>4 deg) the algorithm may fail to the tracking event. instead it will produce multiple short tracking events. merge them together.
-	- if agents hit the wall, tracking will slow down and may include fixations or event pursuit in opposite direction. this may fool the algorithm such that a valid tracking event is not detected or is interupted. 
-	- start of long tracking
-	- end of short tracking
-	- selected agents that move in direction inconsistent with pursuit
-	- no selected agents or too many selected agents during tracking, in this case most probably several tracking events have been merged together. separate them.
-	
-	
+3. Coder tool usage
 
-	
-skip invalid trials: 1,0; 1,34; 4,0; 7,0;8,16; 16,0;17,0;
+The tools can be started by calling the replayTrial or replayBlock functions or simply by running ReplayData as a script. The former shows a single trial while the latter replays whole block. Both functions can be provided with 5 arguments which specify which data set should be replayed:
+	* vp - integer, subject id (1-4)
+	* block - integer (1-23)
+	* trial - integer (0-39)
+	* tlag - positive float, time lag between consecutive frames. higher values make the replay slower
+	* coderid - integer, the coding file will be saved to the directory /evaluation/coding/coder$, where $ is coderid. 
+
+After starting the replay a window pops up. The window is divided into four areas. 
+
+In the first area the movement of the rings (white circles) as well as the gaze location is shown (dark blue). The replay can be controlled with keyboard. 
+
+space - play/stop
+q - 10 frames back
+w - 1 frame back
+r - 1 frame forward
+t - 10 frames forward
+
+Lefty layout can be run by setting the flag RH=0:
+j - 10 frames back
+k - 1 frame back
+l - 1 frame forward
+;/ö - 10 frames forward
+
+In the second area, on the right middle-top various statistics of the gaze movement are shown. The columns from top to the bottom show a) velocity, b) acceleration, c) extracted fixations, d) saccades, e) slow pursuit movement, f) fast pursuit movement, g) high level events used to automatically extract h) tracking events. The horizontal axis is the time axis. The vertical axis is given in measure specific units. Events are given as ones (on) and zeros (off).
+
+The third area, second from bottom shows, saccades as blue rectangles which can be overlayed by tracking events selected by user (red opaque rectangles).
+This can be done with mouse as follows:
+1st primary button click: open selection (indicates start of tracking event)
+2nd primary button click: close selection (indicates end of tracking event)
+auxilliary button click within a red rectangle: delete selection
+Click on saccade or at any position. Whenever selecting position outside saccade use the fast pursuit indicator (graph in the 7th row on the right) to click at a location immediately before pursuit onset or after the pursuit end.
+
+The bottommost fourth area shows the tracked circles as colored rectangles which are always located within the red band in the third area. Circles can be selected/deselected by clicking on them in the first area. The start and end of agent tracking block can be adjusted respectively left and right clicking a location in the fourth area.
+
+When the replay is initilized it attempts to load data from /evaluation/coding/coder$/ directory. If the requested dataset is not found, the program loads the output of the complex event extraction algorithm instead. These data are then displayed and can be adjusted by the coder. Coding data shown in third and fourth area can be saved into /evaluation/coding/coder$/ by pressing "s" key. Previous data will be overwritten. To exit the trial press escape. All unsaved coding data will be lost.
 

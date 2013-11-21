@@ -513,7 +513,7 @@ class ETTrialData():
     def importComplexEvents(self,coderid=1):
         from ReplayData import Coder
         try:
-            dat=Coder.loadSelection(self.vp,self.block,self.trial,prefix='track/coder%d/'%coderid)
+            dat=Coder.loadSelection(self.vp,self.block,self.trial,prefix='coder%d'%coderid)
             self.track=[]
             for tr in dat:
                 fs=[]
@@ -523,7 +523,7 @@ class ETTrialData():
         except IOError:
             try: self.track # dont overwrite existing track
             except: self.track=None;self.search=None # avoid unknown attribute error
-            print 'coding file not available'
+            print 'import of complex events failed'
         
         
         

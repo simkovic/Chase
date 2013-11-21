@@ -7,16 +7,16 @@ from scipy.interpolate import interp1d
 from datetime import datetime
 from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
+import os
 
-sclrs=['red','green','black'];
+sclrs=['red','green','black']
 hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 KL=[['j','k','l','semicolon'],['q','w','e','r']]
-
-RH=0 # set right handed or left handed layout
+PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep+'coding'+os.path.sep
 
 class Trajectory():
     def __init__(self,gazeData,maze=None,wind=None,
-            highlightChase=False,phase=1,eyes=1):
+            highlightChase=False,phase=1,eyes=1,coderid=0):
         self.wind=wind
         self.phase=phase
         self.cond=gazeData.oldtraj.shape[1]
@@ -114,7 +114,7 @@ class Trajectory():
                     if key=='i': self.f=1
                     if key==KL[RH][0]: self.f=self.f-15
                     if key==KL[RH][1]: self.f=self.f-1
-                    if key==KL[RH][2]: self.f=self.f-1
+                    if key==KL[RH][2]: self.f=self.f+1
                     if key==KL[RH][3]: self.f=self.f+15
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
@@ -162,6 +162,7 @@ class ETReplay(Trajectory):
         Trajectory.__init__(self,gazeData,wind=wind,**kwargs)
         self.gazeData=gazeData
         self.mouse = event.Mouse(True,None,self.wind)
+        self.coderid = kwargs.get('coderid',0)
         try:
             indic=['Velocity','Acceleration','Saccade','Fixation','OL Pursuit','CL Pursuit','HEV','Tracking']
             self.lim=([0,450],[-42000,42000],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1])# limit of y axis
@@ -460,9 +461,9 @@ class Coder(ETReplay):
             out[-1].append(els[-1])
         return out
     @staticmethod
-    def loadSelection(vp,block,trial,prefix='track/'):
-        #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
-        fin = open(prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial),'r')
+    def loadSelection(vp,block,trial,coder=1,prefix=''):
+        fname = PATH+prefix+os.path.sep+'vp%03db%dtr%02d.trc'%(vp,block,trial)
+        fin = open(fname,'r')
         out=[]
         for line in fin:
             line=line.rstrip('\n')
@@ -479,11 +480,10 @@ class Coder(ETReplay):
         return out
         
         
-    def saveSelection(self,path=None):
+    def saveSelection(self):
         """ take care that refreshrate settings remain the
             same when saving and loading """
-        if path==None: path='track/'
-        fout = open(path+'vp%03db%dtr%02d.trc'%(self.gazeData.vp,
+        fout = open(PATH+'coder%d'% self.coderid +os.path.sep+'vp%03db%dtr%02d.trc'%(self.gazeData.vp,
                 self.gazeData.block,self.gazeData.trial),'w')
         for sel in self.selected[0]:
             fout.write('%d %d %d %d %d %d'%tuple(sel[:6]))
@@ -512,30 +512,31 @@ class Master(Coder):
         for rect in self.selrects:
             rect.setHeight(self.spar[2]/float(len(self.selected)))
 
-def replayTrial(vp,block,trial,tlag=0):
+def replayTrial(vp,block,trial,tlag=0,coderid=0):
     from readETData import readEyelink
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
     trl.driftCorrection(jump=manualDC(vp,block,trial))
     trl.extractComplexEvents()
-    trl.importComplexEvents()
-    R=Coder(gazeData=trl,phase=1,eyes=1)
+    trl.importComplexEvents(coderid=coderid)
+    R=Coder(gazeData=trl,phase=1,eyes=1,coderid=coderid)
     R.play(tlag=tlag)
     
-def replayBlock(vp,block,trial,tlag=0):
+def replayBlock(vp,block,trial,tlag=0,coderid=0):
     trialStart=trial
     from readETData import readEyelink
     data=readEyelink(vp,block)
+    PATH+='coder%d'% coderid +os.path.sep
     for trial in range(trialStart,len(data)):
         print trial
         trl=data[trial]
         trl.extractBasicEvents()
         trl.driftCorrection(jump=manualDC(vp,block,trial))
         trl.extractComplexEvents()
-        #trl.importComplexEvents()
+        trl.importComplexEvents(coderid=coderid)
     for trial in range(trialStart,len(data)):
-        R=Coder(gazeData=data[trial],phase=1,eyes=1)
+        R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
         R.play(tlag=tlag)
 # coding verification routines       
 def codingComparison(vp=1,block=2):
@@ -606,5 +607,7 @@ def findOverlappingTrackingEvents():
                 pass
             
 if __name__ == '__main__':
-    replayTrial(vp = 1,block = 17,trial =26,tlag=0.015)
+    
+    RH=0 # set right handed or left handed layout
+    replayTrial(vp = 1,block = 17,trial =26,tlag=0.015,coderid=1)
 
