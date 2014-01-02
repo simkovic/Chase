@@ -197,7 +197,7 @@ class ETReplay(Trajectory):
                 height=self.spar[2],width=1,fillColor='red',opacity=0.5,lineColor='red'))
             for i in range(15): self.sacrects.append(visual.Rect(self.wind,
                 height=self.spar[2]+self.apar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
-            for i in range(15): self.arects.append(visual.Rect(self.wind,
+            for i in range(30): self.arects.append(visual.Rect(self.wind,
                 height=self.apar[2],width=2,fillColor='green',opacity=0.5,lineColor='blue'))
             
             for f in range(len(indic)):      
@@ -462,7 +462,7 @@ class Coder(ETReplay):
         return out
     @staticmethod
     def loadSelection(vp,block,trial,coder=1,prefix=''):
-        fname = PATH+prefix+os.path.sep+'vp%03db%dtr%02d.trc'%(vp,block,trial)
+        fname = PATH+prefix+os.path.sep+'coder%d'%coder+os.path.sep+'vp%03db%dtr%02d.trc'%(vp,block,trial)
         fin = open(fname,'r')
         out=[]
         for line in fin:
@@ -527,7 +527,7 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
     trialStart=trial
     from readETData import readEyelink
     data=readEyelink(vp,block)
-    PATH+='coder%d'% coderid +os.path.sep
+    #PATH+='coder%d'% coderid +os.path.sep
     for trial in range(trialStart,len(data)):
         print trial
         trl=data[trial]
@@ -539,33 +539,37 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
         R.play(tlag=tlag)
 # coding verification routines       
-def codingComparison(vp=1,block=2):
-    from readETData import readEyelink
-    data=readEyelink(vp,block)
-    for trial in range(20):
-        trl=data[trial]
-        trl.extractBasicEvents()
-        trl.driftCorrection()
-        trl.extractTracking()
-        R=Coder(gazeData=trl,phase=1,eyes=1)
-        R.saveSelection(path='track/coder0/')
-        R.wind.close()
-        
+def compareCoding(vp=1,block=10,cids=[0,1,2]):
     import pylab as plt
     import matplotlib as mpl
-    ax=plt.gca()
-    N=4; clrs=['r','g','b','k']
-    for t in range(20):
-        for c in range(N):
-            D=np.loadtxt('track/coder%d/vp%03db%dtr%02d.trc'
-                          %(c,vp,block,t))
-            D=np.array(D,ndmin=2).tolist()
+    ax=plt.gca(); N=len(cids)
+    for trial in range(40):
+        for k in range(N):
+            try: D=Coder.loadSelection(vp,block,trial,coder=cids[k])
+            except IOError: continue
             for e in D:
-                r=mpl.patches.Rectangle((e[0],t+c*float(N)**-1),
-                    e[1]-e[0],float(N)**-1,color=clrs[c])
+                r=mpl.patches.Rectangle((e[2],trial+k/float(N)),
+                    e[5]-e[2],1/float(N),color=['k','b','r'][k])
                 ax.add_patch(r)
     plt.xlim([0,30000])
-    plt.ylim([0,20])
+    plt.ylim([0,40])
+    plt.show()
+    
+def compareAgs(vp=1,block=10,trial=1,cids=[0,1,2]):
+    import pylab as plt
+    import matplotlib as mpl
+    ax=plt.gca(); N=len(cids)
+    for k in range(N):
+        try: D=Coder.loadSelection(vp,block,trial,coder=cids[k])
+        except IOError:  continue
+        for e in D:
+            ags=e[6];ts=e[7]
+            for a in range(len(ags)):
+                r=mpl.patches.Rectangle((ts[a][2],ags[a]+k/float(N)),
+                    ts[a][5]-ts[a][2],1/float(N),color=['k','b','r'][k])
+                ax.add_patch(r)
+    plt.xlim([0,np.ceil(D[-1][5]/1000.0)*1000])
+    plt.ylim([0,14])
     plt.show()
 
 def compareETnBehData():
@@ -581,7 +585,8 @@ def compareETnBehData():
             dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
             maxx=0;ags=[]
             for d in dat:
-                if d[0]>maxx:
+                if d[0]>maxx: jkl;j
+                
                     maxx=d[0]
                     ags=d[-2]
             if behdata[k,4]==1:
@@ -608,6 +613,8 @@ def findOverlappingTrackingEvents():
             
 if __name__ == '__main__':
     
+    
     RH=0 # set right handed or left handed layout
-    replayTrial(vp = 1,block = 17,trial =26,tlag=0.015,coderid=1)
+    replayBlock(vp = 1,block = 13,
+        trial=13,tlag=0.,coderid=1)
 
