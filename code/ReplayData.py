@@ -539,7 +539,7 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
         R.play(tlag=tlag)
 # coding verification routines       
-def compareCoding(vp=1,block=10,cids=[0,1,2]):
+def compareCoding(vp=1,block=10,cids=[1,2]):
     import pylab as plt
     import matplotlib as mpl
     ax=plt.gca(); N=len(cids)
@@ -548,8 +548,8 @@ def compareCoding(vp=1,block=10,cids=[0,1,2]):
             try: D=Coder.loadSelection(vp,block,trial,coder=cids[k])
             except IOError: continue
             for e in D:
-                r=mpl.patches.Rectangle((e[2],trial+k/float(N)),
-                    e[5]-e[2],1/float(N),color=['k','b','r'][k])
+                r=mpl.patches.Rectangle((e[0],trial+k/float(N)),
+                    e[3]-e[0],1/float(N),color=['r','b','r'][k])
                 ax.add_patch(r)
     plt.xlim([0,30000])
     plt.ylim([0,40])
@@ -585,8 +585,7 @@ def compareETnBehData():
             dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
             maxx=0;ags=[]
             for d in dat:
-                if d[0]>maxx: jkl;j
-                
+                if d[0]>maxx: 
                     maxx=d[0]
                     ags=d[-2]
             if behdata[k,4]==1:
@@ -614,7 +613,8 @@ def findOverlappingTrackingEvents():
 if __name__ == '__main__':
     
     
-    RH=0 # set right handed or left handed layout
-    replayBlock(vp = 1,block = 13,
-        trial=13,tlag=0.,coderid=1)
+    RH=1 # set right handed or left handed layout
+    #compareCoding()
+    replayTrial(vp = 1,block = 10,
+        trial=39,tlag=0.,coderid=1)
 

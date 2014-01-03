@@ -513,7 +513,7 @@ class ETTrialData():
     def importComplexEvents(self,coderid=1):
         from ReplayData import Coder
         try:
-            dat=Coder.loadSelection(self.vp,self.block,self.trial,prefix='coder%d'%coderid)
+            dat=Coder.loadSelection(self.vp,self.block,self.trial,coder=coderid)
             self.track=[]
             for tr in dat:
                 fs=[]
