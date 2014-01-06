@@ -8,9 +8,14 @@ from datetime import datetime
 from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
 import os
+import pylab as plt
+hclrs=[]
+cm = plt.get_cmap('Paired')
+for i in range(14):
+    hclrs.append(np.array(cm(((i+7)%14)/float(14))[:-1])*2-1) 
 
 sclrs=['red','green','black']
-hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
+#hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 KL=[['j','k','l','semicolon'],['q','w','e','r']]
 PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep+'coding'+os.path.sep
 
@@ -43,9 +48,9 @@ class Trajectory():
             self.cond+=1
             if eyes==2: self.cond+=1
             clrs=np.ones((self.cond,3))
-            clrs[-1,[0,1]]=0
-            if eyes==2: clrs[-2,[0,1]]=0
-            if highlightChase: clrs[0,[0,2]]=0; clrs[1,[1,2]]=0
+            clrs[-1,[1,2]]=-0.5
+            if eyes==2: clrs[-2,[0,1]]=-0.5
+            if highlightChase: clrs[0,[0,2]]=0; clrs[1,[0,2]]=-1
             #print clrs
             self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
                 nElements=self.cond,sizes=Q.agentSize,colors=clrs,interpolate=False,
@@ -338,6 +343,7 @@ class Coder(ETReplay):
                     if ( self.t[int(s)]<=sel[3] and self.t[int(e)]>=sel[3]
                     or self.t[int(s)]<=sel[0] and self.t[int(e)]>=sel[0]
                     or self.t[int(s)]>=sel[0] and self.t[int(e)]<=sel[3]):
+                        if h==len(hclrs):continue
                         ss=(max(sel[1],s)-self.f)/sws*self.ga[1]*2
                         ee= (min(sel[4],e)-self.f)/sws*self.ga[1]*2
                         w=self.apar[2]/float(len(sell[7]))
@@ -345,10 +351,14 @@ class Coder(ETReplay):
                                 self.apar[1]+self.apar[2]/2.0-(h+0.5)*w))
                         self.arects[i].setWidth(ee-ss);
                         self.arects[i].setHeight(w);
-                        self.arects[i].setFillColor(hclrs[h],colorSpace='rgb')
+                        try:
+                            self.arects[i].setFillColor(hclrs[sell[6][h]],colorSpace='rgb')
+                        except:
+                            print h, sell[6][h], len(hclrs)
+                            raise
                         self.arects[i].ad=k;self.arects[i].ad2=h
                         self.arects[i].setAutoDraw(True);i+=1
-                        sel[-1]=hclrs[h]
+                        sel[-1]=hclrs[sell[6][h]]
                     h+=1
             k+=1
         while i<len(self.arects):
@@ -437,6 +447,7 @@ class Coder(ETReplay):
         return res,clr
     def highlightAgent(self,a):
         for sel in self.selected[0]:
+            #print 'a', sel[6],sel[7]
             if len(sel)>6 and a in sel[6]:
                 sell=sel[7][sel[6].index(a)]
                 if sell[1]<=self.f and sell[4]>=self.f:
@@ -446,6 +457,7 @@ class Coder(ETReplay):
                 sel[6].append(a)
                 sel[7].append(sel[:6])
                 sel[7][-1].append([-1,-1,-1])
+            #print sel[6],sel[7]
     @staticmethod
     def loadSelectionOld(vp,block,trial,prefix='track/'):
         #print prefix+'vp%03db%dtr%02d.trc'%(vp,block,trial)
@@ -480,10 +492,11 @@ class Coder(ETReplay):
         return out
         
         
-    def saveSelection(self):
+    def saveSelection(self,coderid=None):
         """ take care that refreshrate settings remain the
-            same when saving and loading """
-        fout = open(PATH+'coder%d'% self.coderid +os.path.sep+'vp%03db%dtr%02d.trc'%(self.gazeData.vp,
+            same between saving and loading """
+        if coderid is None: coderid=self.coderid
+        fout = open(PATH+'coder%d'% coderid +os.path.sep+'vp%03db%dtr%02d.trc'%(self.gazeData.vp,
                 self.gazeData.block,self.gazeData.trial),'w')
         for sel in self.selected[0]:
             fout.write('%d %d %d %d %d %d'%tuple(sel[:6]))
@@ -496,21 +509,8 @@ class Coder(ETReplay):
             fout.write(' %d'%sel[8])
             fout.write('\n')
         
-        self.msg.setText('Selection Saved')
+        if coderid!=0: self.msg.setText('Selection Saved')
         self.save=False
-
-class Master(Coder):
-    def __init__(self,gazeData,**kwargs):
-        ETReplay.__init__(self,gazeData,**kwargs)
-        vp=gazeData.vp; block=gazeData.block;t=gazeData.trial
-        for i in range(1,10):
-            try:
-                self.selected.append(Coder.loadSelection(self.gazeData.vp,
-                    self.gazeData.block,self.gazeData.trial,prefix= 'track/coder%d/'%i))
-            except: 
-                break
-        for rect in self.selrects:
-            rect.setHeight(self.spar[2]/float(len(self.selected)))
 
 def replayTrial(vp,block,trial,tlag=0,coderid=0):
     from readETData import readEyelink
@@ -521,6 +521,7 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     trl.extractComplexEvents()
     trl.importComplexEvents(coderid=coderid)
     R=Coder(gazeData=trl,phase=1,eyes=1,coderid=coderid)
+    R.saveSelection(coderid=0)
     R.play(tlag=tlag)
     
 def replayBlock(vp,block,trial,tlag=0,coderid=0):
@@ -537,40 +538,42 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         trl.importComplexEvents(coderid=coderid)
     for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
+        R.saveSelection(coderid=0)
+        #R.wind.close()
         R.play(tlag=tlag)
 # coding verification routines       
-def compareCoding(vp=1,block=10,cids=[1,2]):
+def compareCoding(vp=1,block=14,cids=[0,1,2]):
     import pylab as plt
     import matplotlib as mpl
+    plt.figure(figsize=(20,60))
     ax=plt.gca(); N=len(cids)
     for trial in range(40):
         for k in range(N):
             try: D=Coder.loadSelection(vp,block,trial,coder=cids[k])
-            except IOError: continue
+            except IOError: 
+                print trial, cids[k]
+                continue
             for e in D:
-                r=mpl.patches.Rectangle((e[0],trial+k/float(N)),
-                    e[3]-e[0],1/float(N),color=['r','b','r'][k])
+                r=mpl.patches.Rectangle((e[0]/1000.0,trial+k/float(N)),
+                    (e[3]-e[0])/1000.0,1/float(N),ec='w',fc='gray',alpha=0.1)
                 ax.add_patch(r)
-    plt.xlim([0,30000])
+                ags=e[6];ts=e[7]
+                for a in range(len(ags)):
+                    r=mpl.patches.Rectangle((ts[a][0]/1000.0,trial+(k+a/float(len(ags)))/float(N)),
+                        (ts[a][3]-ts[a][0])/1000.0,1/float(N)/float(len(ags)),color=(1+hclrs[ags[a]])/2.0,alpha=0.5)
+                    ax.add_patch(r)
+    plt.xlim([0,30])
+    ax.set_yticks(range(40))
+    ax.set_xticks(range(30))
+    #ax.set_yticklabels(['pc','anna','matus']*40)
+    for x in range(0,30,5):plt.plot([x,x],[0,40],'gray',lw=1)
+    for y in range(40):plt.plot([0,30],[y,y],'k',lw=2)
+    for y in range(40*len(cids)):plt.plot([0,30],[y/float(len(cids)),y/float(len(cids))],'gray',lw=1)
     plt.ylim([0,40])
-    plt.show()
+    plt.grid()
+    plt.savefig(PATH+'comparison'+os.path.sep+'vp%db%d.jpg'%(vp,block),format='jpg',dpi=100,bbox_inches='tight')
+    #plt.show()
     
-def compareAgs(vp=1,block=10,trial=1,cids=[0,1,2]):
-    import pylab as plt
-    import matplotlib as mpl
-    ax=plt.gca(); N=len(cids)
-    for k in range(N):
-        try: D=Coder.loadSelection(vp,block,trial,coder=cids[k])
-        except IOError:  continue
-        for e in D:
-            ags=e[6];ts=e[7]
-            for a in range(len(ags)):
-                r=mpl.patches.Rectangle((ts[a][2],ags[a]+k/float(N)),
-                    ts[a][5]-ts[a][2],1/float(N),color=['k','b','r'][k])
-                ax.add_patch(r)
-    plt.xlim([0,np.ceil(D[-1][5]/1000.0)*1000])
-    plt.ylim([0,14])
-    plt.show()
 
 def compareETnBehData():
     path = getcwd()
@@ -613,8 +616,8 @@ def findOverlappingTrackingEvents():
 if __name__ == '__main__':
     
     
-    RH=1 # set right handed or left handed layout
+    RH=0 # set right handed or left handed layout
     #compareCoding()
-    replayTrial(vp = 1,block = 10,
-        trial=39,tlag=0.,coderid=1)
+    replayBlock(vp = 1,block = 21,
+        trial=11,tlag=0.,coderid=2)
 
