@@ -27,6 +27,7 @@ class Trajectory():
         self.cond=gazeData.oldtraj.shape[1]
         self.pos=[]
         self.eyes=eyes
+        self.behsel=None
         # determine common time intervals
         g=gazeData.getGaze(phase)
         ts=max(g[0,0], gazeData.fs[0,1])
@@ -48,8 +49,8 @@ class Trajectory():
             self.cond+=1
             if eyes==2: self.cond+=1
             clrs=np.ones((self.cond,3))
-            clrs[-1,[1,2]]=-0.5
-            if eyes==2: clrs[-2,[0,1]]=-0.5
+            clrs[-1,[0,1,2]]=-1
+            if eyes==2: clrs[-2,[0,1,2]]=-1
             if highlightChase: clrs[0,[0,2]]=0; clrs[1,[0,2]]=-1
             #print clrs
             self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
@@ -95,6 +96,8 @@ class Trajectory():
                     for a in range(self.cond-self.eyes): 
                         if a in ags: clrs[a,:]=clrr[ags.index(a)]
                         else: clrs[a,:]=[1,1,1]
+                    if not self.behsel is None and self.f==(self.pos.shape[0]-1) and self.behsel[0]>=0:
+                        clrs[self.behsel,:]=[-1,1,-1]
                     self.elem.setColors(clrs)
 ##                elif self.phase==2:
 ##                    if sel<1 and f>self.gazeData.behdata[8]*Q.refreshRate:
@@ -521,16 +524,17 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     trl.extractComplexEvents()
     trl.importComplexEvents(coderid=coderid)
     R=Coder(gazeData=trl,phase=1,eyes=1,coderid=coderid)
-    R.saveSelection(coderid=0)
+    #R.saveSelection(coderid=0)
     R.play(tlag=tlag)
     
 def replayBlock(vp,block,trial,tlag=0,coderid=0):
+    behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     trialStart=trial
     from readETData import readEyelink
     data=readEyelink(vp,block)
     #PATH+='coder%d'% coderid +os.path.sep
     for trial in range(trialStart,len(data)):
-        print trial
+        print vp,block,trial
         trl=data[trial]
         trl.extractBasicEvents()
         trl.driftCorrection(jump=manualDC(vp,block,trial))
@@ -538,11 +542,13 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         trl.importComplexEvents(coderid=coderid)
     for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
-        R.saveSelection(coderid=0)
+        bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
+        R.behsel= np.int32(behdata[bi,[-3,-5]])
+        #R.saveSelection(coderid=0)
         #R.wind.close()
         R.play(tlag=tlag)
 # coding verification routines       
-def compareCoding(vp=1,block=14,cids=[0,1,2]):
+def compareCoding(vp,block,cids=[0,1,2]):
     import pylab as plt
     import matplotlib as mpl
     plt.figure(figsize=(20,60))
@@ -601,7 +607,7 @@ def findOverlappingTrackingEvents():
     vp=1
     for b in range(30):
         for t in range(40):
-            try:      
+            try:
                 dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
                 for i in range(len(dat)):
                     if dat[i][0]> dat[i][3]: print 'should never happen'
@@ -609,15 +615,11 @@ def findOverlappingTrackingEvents():
                         if not ((dat[i][0]>dat[j][3] and dat[i][3]>dat[j][3])
                             or (dat[i][3]<dat[j][3] and dat[i][3]<dat[j][0])):
                             print vp,b,t,'overlap',i,j
-                
             except IOError:
                 pass
             
 if __name__ == '__main__':
-    
-    
     RH=0 # set right handed or left handed layout
-    #compareCoding()
-    replayBlock(vp = 1,block = 21,
-        trial=11,tlag=0.,coderid=2)
+    replayBlock(vp = 2,block = 2,trial=39,tlag=0.,coderid=2)
+    #compareCoding(block=13,vp=1)
 
