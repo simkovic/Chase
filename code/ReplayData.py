@@ -13,7 +13,7 @@ hclrs=[]
 cm = plt.get_cmap('Paired')
 for i in range(14):
     hclrs.append(np.array(cm(((i+7)%14)/float(14))[:-1])*2-1) 
-
+hclrs.append([-1,-1,-1])
 sclrs=['red','green','black']
 #hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
 KL=[['j','k','l','semicolon'],['q','w','e','r']]
@@ -219,7 +219,7 @@ class ETReplay(Trajectory):
                 self.graphs[f].setAutoDraw(True)
                 
             self.frame=visual.BufferImageStim(self.wind,stim=frame)
-            self.tmsg=visual.TextStim(self.wind,color=(0.5,0.5,0.5),pos=(-14,-7.8))
+            self.tmsg=visual.TextStim(self.wind,color=(0.5,0.5,0.5),pos=(-13,-7.8))
             self.msg= visual.TextStim(self.wind,color=(0.5,0.5,0.5),
                 pos=(0,-7.8),text=' ',wrapWidth=20)
             self.msg.setAutoDraw(True)
@@ -279,7 +279,7 @@ class ETReplay(Trajectory):
             veldata=np.concatenate((xveldata,yveldata),axis=0).T.tolist()
             self.graphs[g].setVertices(veldata)
         rct=self.gazeData.recTime # update time message
-        self.tmsg.setText('Time %d:%02d:%06.3f' % (rct.hour,
+        self.tmsg.setText('t%d Time %d:%02d:%06.3f' % (self.gazeData.trial,rct.hour,
                 rct.minute+ (rct.second+int(self.t[self.f]/1000.0))/60,
                 np.mod(rct.second+ self.t[self.f]/1000.0,60)))
 #        for m in self.gazeData.msgs:
@@ -544,9 +544,9 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
         bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
         R.behsel= np.int32(behdata[bi,[-3,-5]])
-        #R.saveSelection(coderid=0)
-        #R.wind.close()
-        R.play(tlag=tlag)
+        R.saveSelection(coderid=0)
+        R.wind.close()
+        #R.play(tlag=tlag)
 # coding verification routines       
 def compareCoding(vp,block,cids=[0,1,2]):
     import pylab as plt
@@ -567,6 +567,7 @@ def compareCoding(vp,block,cids=[0,1,2]):
                 for a in range(len(ags)):
                     r=mpl.patches.Rectangle((ts[a][0]/1000.0,trial+(k+a/float(len(ags)))/float(N)),
                         (ts[a][3]-ts[a][0])/1000.0,1/float(N)/float(len(ags)),color=(1+hclrs[ags[a]])/2.0,alpha=0.5)
+                    
                     ax.add_patch(r)
     plt.xlim([0,30])
     ax.set_yticks(range(40))
@@ -620,6 +621,6 @@ def findOverlappingTrackingEvents():
             
 if __name__ == '__main__':
     RH=0 # set right handed or left handed layout
-    replayBlock(vp = 2,block = 2,trial=39,tlag=0.,coderid=2)
-    #compareCoding(block=13,vp=1)
+    replayTrial(vp = 1,block = 4,trial=36,tlag=0.,coderid=3)
+    #compareCoding(block=4,vp=1)
 
