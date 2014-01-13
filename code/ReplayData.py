@@ -544,9 +544,9 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
         bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
         R.behsel= np.int32(behdata[bi,[-3,-5]])
-        R.saveSelection(coderid=0)
-        R.wind.close()
-        #R.play(tlag=tlag)
+        #R.saveSelection(coderid=8)
+        #R.wind.close()
+        R.play(tlag=tlag)
 # coding verification routines       
 def compareCoding(vp,block,cids=[0,1,2]):
     import pylab as plt
@@ -581,46 +581,19 @@ def compareCoding(vp,block,cids=[0,1,2]):
     plt.savefig(PATH+'comparison'+os.path.sep+'vp%db%d.jpg'%(vp,block),format='jpg',dpi=100,bbox_inches='tight')
     #plt.show()
     
-
-def compareETnBehData():
-    path = getcwd()
-    path = path.rstrip('code')
-
+def missingTEfiles():
     vp=1
-    behdata=np.loadtxt(path+'behavioralOutput/vp%03d.res'%vp)
-    for k in range(behdata.shape[0]):
-        b=int(behdata[k,1])
-        t=int(behdata[k,2])
-        try:      
-            dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
-            maxx=0;ags=[]
-            for d in dat:
-                if d[0]>maxx: 
-                    maxx=d[0]
-                    ags=d[-2]
-            if behdata[k,4]==1:
-                if not (int(behdata[k,-3]) in ags and int(behdata[k,-5]) in ags):
-                    print vp,b,t,'inconsistent selection', ags, int(behdata[k,-3]),int(behdata[k,-5]) 
-        except IOError:
-            print vp,b,t,'tracking file not available'
-            pass
-def findOverlappingTrackingEvents():
-    vp=1
-    for b in range(30):
+    for b in range(1,22):
         for t in range(40):
-            try:
-                dat=Coder.loadSelection(vp,b,t,prefix='track/coder1/')
-                for i in range(len(dat)):
-                    if dat[i][0]> dat[i][3]: print 'should never happen'
-                    for j in range(i+1,len(dat)):
-                        if not ((dat[i][0]>dat[j][3] and dat[i][3]>dat[j][3])
-                            or (dat[i][3]<dat[j][3] and dat[i][3]<dat[j][0])):
-                            print vp,b,t,'overlap',i,j
-            except IOError:
-                pass
+            for c in range(2):
+                try:
+                    dat=Coder.loadSelection(vp,b,t,coder=c+1)
+                except IOError:
+                    print vp,b,t,c+1
             
 if __name__ == '__main__':
     RH=0 # set right handed or left handed layout
-    replayTrial(vp = 1,block = 4,trial=36,tlag=0.,coderid=3)
-    #compareCoding(block=4,vp=1)
+    replayTrial(vp = 1,block = 12,trial=37,tlag=0.,coderid=2)
+    #compareCoding(block=11,vp=1,cids=[0,8])
+    #missingTEfiles()
 

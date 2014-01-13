@@ -89,7 +89,7 @@ laptop={'monitor' :     dell,
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
-        'fullscr':      True}
+        'fullscr':      False}
 
 eyelinklab ={'monitor' :sonycrt,
         'refreshRate':  85,                # [hz]

@@ -13,7 +13,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import nanmean
 from copy import copy
 import time,os
-
+PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep
 
 plt.ion()
 def t2f(t,tser):
@@ -375,11 +375,11 @@ class ETTrialData():
             else: print s, 'calibration BAD',self.calib[-1]
         
         if self.ts==-1: print  s, 'online dcorr failed'
-        if jump is int and jump==-1: 
+        if isinstance(jump,(int,long)) and jump==-1: 
             print 'skipping drift correction'
-            return
-        elif jump is int:
+        elif isinstance(jump,(int,long)):
             # find the latest fixation
+            print 'manual drift correction'
             isFix=self.getFixations(phase=1)
             isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
             h= isFix.size-50-jump
@@ -489,6 +489,14 @@ class ETTrialData():
                         e=h[i][-1][1]
             if h[2] and s!=-1: track.append([s,h[1]])
             #else: track.append([h[0],h[1],h,False])
+        # remove events that are too short, this can only happen
+        # at the start or the end, when an event got split by the trial window
+        rem=[]
+        for i in range(len(track)):
+            if track[i][1]-track[i][0]<8: 
+                print 'WARNING!: extractComplexEvents: s>=e, removing event'
+                rem.append(i)
+        for ri in rem[::-1]: track.pop(ri)
         self.track=track
         # identify tracked agents
         self.computeTrackedAgents()
@@ -790,17 +798,17 @@ def manualDC(vp,b,t):
     out=0
     if vp==1:
         if b==3 and t==25: out=-10
-        elif b==3 and t==34: out=-1
+        #elif b==3 and t==34: out=-1
         elif b==5 and t==10: out=50
         elif b==6 and t==19: out=20
         elif b==6 and t==24: out=20
         elif b==8 and t==14: out=50
-        elif b==11 and t==17: out=-1
-        elif b==12 and t==37: out=-1
-        elif b==14 and t==38: out=-1
-        elif b==18 and t==8: out=-1
-        elif b==19 and t==6: out=-1 
-    elif vp==2:
+        #elif b==11 and t==17: out=-1
+        elif b==12 and t==37: out=0
+        #elif b==14 and t==38: out=-1
+        #elif b==18 and t==8: out=-1
+        #elif b==19 and t==6: out=-1 
+    elif vp==20:
         if b==1 and t==4: out=-1
         elif b==1 and t==10: out=-1
         elif b==1 and t==15: out=-1
@@ -811,34 +819,36 @@ def manualDC(vp,b,t):
         elif b==5 and t==14: out=-1
         elif b==6 and t==7: out=-1
     return out
-def plotDC():
-    plt.interactive(False)
-    vp=2
+def plotDC(vp,block,trial):
     from readETData import readEyelink
-    for b in range(4,23):
-        print 'block ', b
-        data=readEyelink(vp,b)
-        for i in range(0,len(data)):
-            d=data[i]
-            gg=d.getGaze(phase=3)
-            plt.plot(gg[:,0],gg[:,1],'g--')
-            plt.plot(gg[:,0],gg[:,2],'r--')
-            plt.plot(gg[:,0],gg[:,4],'b--')
-            plt.plot(gg[:,0],gg[:,5],'k--')
-            d.extractBasicEvents()
-            d.driftCorrection(jump=manualDC(vp,b,i))
-            gg=d.getGaze(phase=3)
-            plt.plot(gg[:,0],gg[:,1],'g')
-            plt.plot(gg[:,0],gg[:,2],'r')
-            plt.plot(gg[:,0],gg[:,4],'b')
-            plt.plot(gg[:,0],gg[:,5],'k')
-            plt.plot([gg[0,0],gg[-1,0]],[0,0],'k')
-            plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
-            plt.grid()
-            plt.ylim([-0.5,0.5])
-            plt.savefig(os.getcwd()+'/pic/dc/vp%03db%02dtr%02d'%(vp,b,i))
-            plt.cla()
-            i+=1 
+    plt.interactive(False)
+#    vp=1
+#    from readETData import readEyelink
+#    for b in range(4,23):
+#        print 'block ', b
+#        data=readEyelink(vp,b)
+#        for i in range(0,len(data)):
+    b=block;i=trial
+    data=readEyelink(vp,b)
+    d=data[i]
+    gg=d.getGaze(phase=3)
+    plt.plot(gg[:,0],gg[:,1],'g--')
+    plt.plot(gg[:,0],gg[:,2],'r--')
+    plt.plot(gg[:,0],gg[:,4],'b--')
+    plt.plot(gg[:,0],gg[:,5],'k--')
+    d.extractBasicEvents()
+    d.driftCorrection(jump=manualDC(vp,b,i))
+    gg=d.getGaze(phase=3)
+    plt.plot(gg[:,0],gg[:,1],'g')
+    plt.plot(gg[:,0],gg[:,2],'r')
+    plt.plot(gg[:,0],gg[:,4],'b')
+    plt.plot(gg[:,0],gg[:,5],'k')
+    plt.plot([gg[0,0],gg[-1,0]],[0,0],'k')
+    plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
+    plt.grid()
+    plt.ylim([-0.5,0.5])
+    plt.savefig(PATH+'dc'+os.path.sep+'vp%03db%02dtr%02d'%(vp,b,i))
+    plt.cla()
 
 def plotMD():
     vp=1
@@ -851,7 +861,7 @@ def plotMD():
             d.driftCorrection(jump=manualDC(vp,b,i))
             d.plotMissingData()
         plt.show()
-        plt.savefig(os.getcwd()+'/pic/missingdata/fb%02d'%(d.block))
+        plt.savefig('fb%02d'%(d.block))
             
 if __name__ == '__main__':
-    plotDC()
+    plotDC(1,3,25)
