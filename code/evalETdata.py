@@ -379,7 +379,7 @@ class ETTrialData():
             print 'skipping drift correction'
         elif isinstance(jump,(int,long)):
             # find the latest fixation
-            print 'manual drift correction'
+            #print 'manual drift correction'
             isFix=self.getFixations(phase=1)
             isFix=np.concatenate([self.getFixations(phase=0),isFix[:50]])
             h= isFix.size-50-jump
@@ -455,7 +455,7 @@ class ETTrialData():
             lastA=copy(A) ;
             A= ev[2:-1]
             if ( ev[-1] in [FIX,OLPUR,CLPUR] and not trackon and len(set(lastA) & set(A)) # standard case
-                or ev[-1]==CLPUR and not len(set(lastA) & set(A)) and (ev[1]-ev[0])/self.hz>0.3 # no search but long pursuit
+                or ev[-1]==CLPUR and not len(set(lastA) & set(A)) and (ev[1]-ev[0])/self.hz>0.03 # no search but long pursuit
                 ): # start tracking event
                 if len(info):
                     if len(info[-1])==0: info.pop(-1)

@@ -120,10 +120,10 @@ class Trajectory():
                     #print key
                     if key=='space': playing= not playing
                     if key=='i': self.f=1
-                    if key==KL[RH][0]: self.f=self.f-15
+                    if key==KL[RH][0]: self.f=self.f-20
                     if key==KL[RH][1]: self.f=self.f-1
                     if key==KL[RH][2]: self.f=self.f+1
-                    if key==KL[RH][3]: self.f=self.f+15
+                    if key==KL[RH][3]: self.f=self.f+20
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
@@ -527,9 +527,10 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     #R.saveSelection(coderid=0)
     R.play(tlag=tlag)
     
-def replayBlock(vp,block,trial,tlag=0,coderid=0):
+def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     trialStart=trial
+    #win = Q.initDisplay((1280,1100))
     from readETData import readEyelink
     data=readEyelink(vp,block)
     #PATH+='coder%d'% coderid +os.path.sep
@@ -541,12 +542,13 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0):
         trl.extractComplexEvents()
         trl.importComplexEvents(coderid=coderid)
     for trial in range(trialStart,len(data)):
-        R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)
+        R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)#,wind=win)
         bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
         R.behsel= np.int32(behdata[bi,[-3,-5]])
-        #R.saveSelection(coderid=8)
-        #R.wind.close()
-        R.play(tlag=tlag)
+        if exportAlgo: 
+            R.saveSelection(coderid=coderid)
+            R.wind.close()
+        else: R.play(tlag=tlag)
 # coding verification routines       
 def compareCoding(vp,block,cids=[0,1,2]):
     import pylab as plt
@@ -580,7 +582,7 @@ def compareCoding(vp,block,cids=[0,1,2]):
     plt.grid()
     plt.savefig(PATH+'comparison'+os.path.sep+'vp%db%d.jpg'%(vp,block),format='jpg',dpi=100,bbox_inches='tight')
     #plt.show()
-    
+     
 def missingTEfiles():
     vp=1
     for b in range(1,22):
@@ -592,8 +594,8 @@ def missingTEfiles():
                     print vp,b,t,c+1
             
 if __name__ == '__main__':
-    RH=0 # set right handed or left handed layout
-    replayTrial(vp = 1,block = 12,trial=37,tlag=0.,coderid=2)
-    #compareCoding(block=11,vp=1,cids=[0,8])
+    RH=1 # set right handed or left handed layout
+    replayTrial(vp = 3,block = 2,trial=0,tlag=0.008,coderid=8)
+    #compareCoding(vp=3,block=2,cids=[0,8,1,2])
     #missingTEfiles()
 
