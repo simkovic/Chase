@@ -81,7 +81,7 @@ class Trajectory():
         try:
             self.wind.flip()
             playing=False
-            #t0=core.getTime()
+            t0=core.getTime()
             step=1000/float(Q.refreshRate)
             position=np.zeros((self.cond,2))
             sel=0; self.f=0
@@ -112,24 +112,22 @@ class Trajectory():
                 if playing and tlag>0: core.wait(tlag)
                 for key in event.getKeys():
                     if key in ['escape']:
-                        #try: self.saveSelection()
-                        #except: print 'selection could not be saved'
+                        #print self.f,core.getTime() - t0
                         self.wind.close()
                         return
                         #core.quit()
                     #print key
                     if key=='space': playing= not playing
                     if key=='i': self.f=1
-                    if key==KL[RH][0]: self.f=self.f-20
+                    if key==KL[RH][0]: self.f=self.f-30
                     if key==KL[RH][1]: self.f=self.f-1
                     if key==KL[RH][2]: self.f=self.f+1
-                    if key==KL[RH][3]: self.f=self.f+20
+                    if key==KL[RH][3]: self.f=self.f+30
                     if key=='s': self.save=True
                 if playing and self.f>=self.pos.shape[0]-1:  playing=False
                 if not playing: core.wait(0.01)
                 if playing: self.f+=2
             self.wind.flip()
-            #print core.getTime() - t0
             self.wind.close()
         except: 
             self.wind.close()
@@ -166,7 +164,7 @@ class GazePoint(Trajectory):
 class ETReplay(Trajectory):
     def __init__(self,gazeData,**kwargs):
         wind = kwargs.get('wind',None)
-        if wind is None: wind = Q.initDisplay((1280,1100))
+        if wind is None: wind = Q.initDisplay(sz=(1280,1100))
         Trajectory.__init__(self,gazeData,wind=wind,**kwargs)
         self.gazeData=gazeData
         self.mouse = event.Mouse(True,None,self.wind)
@@ -592,10 +590,29 @@ def missingTEfiles():
                     dat=Coder.loadSelection(vp,b,t,coder=c+1)
                 except IOError:
                     print vp,b,t,c+1
+def checkBehData():
+    vp=1
+    trajpath=os.getcwd().rstrip('code')+'behavioralOutput'+os.path.sep
+    traj=np.loadtxt(trajpath+'vp%03d.res'%vp)
+    for b in range(1,(traj.shape[0]-10)/40):
+        for t in range(40):
+            try:
+                dat=Coder.loadSelection(vp,b,t,coder=3)
+                ind=-30+t+b*40
+                if traj[ind,1]!=b or traj[ind,2]!=t: print 'Error', traj[ind,:3],b,t
+                if int(traj[ind,7])==-1: continue
+                ik=-1;hk=-1
+                for kk in range(len(dat)):
+                    if dat[kk][0]>hk: hk=dat[kk][0];ik=kk
+                if not int(traj[ind,7]) in dat[ik][6] or not int(traj[ind,9]) in dat[ik][6]:
+                    print b,t,[int(traj[ind,7]), int(traj[ind,9])],dat[ik][6]
+            except IOError:
+                print 'IO',vp,b,t
+    
             
 if __name__ == '__main__':
-    RH=1 # set right handed or left handed layout
-    replayTrial(vp = 3,block = 2,trial=0,tlag=0.008,coderid=8)
-    #compareCoding(vp=3,block=2,cids=[0,8,1,2])
+    RH=0 # set right handed or left handed layout
+    replayBlock(vp = 2,block = 3,trial=0,tlag=0.008,coderid=2)
+    #compareCoding(vp=3,block=2,cids=[8,1,2])
     #missingTEfiles()
-
+    #checkBehData()
