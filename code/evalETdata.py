@@ -377,6 +377,7 @@ class ETTrialData():
         if self.ts==-1: print  s, 'online dcorr failed'
         if isinstance(jump,(int,long)) and jump==-1: 
             print 'skipping drift correction'
+            self.dcfix=[0,0]
         elif isinstance(jump,(int,long)):
             # find the latest fixation
             #print 'manual drift correction'
@@ -792,33 +793,6 @@ class ETTrialData():
             out[t2f(tr[0]/float(self.hz)*1000,hz):t2f(tr[1]/float(self.hz)*1000,hz) ]=1
         return out
 
-
-def manualDC(vp,b,t):
-    """ do we need manual drift correction?"""
-    out=0
-    if vp==1:
-        if b==3 and t==25: out=-10
-        #elif b==3 and t==34: out=-1
-        elif b==5 and t==10: out=50
-        elif b==6 and t==19: out=20
-        elif b==6 and t==24: out=20
-        elif b==8 and t==14: out=50
-        #elif b==11 and t==17: out=-1
-        elif b==12 and t==37: out=0
-        #elif b==14 and t==38: out=-1
-        #elif b==18 and t==8: out=-1
-        #elif b==19 and t==6: out=-1 
-    elif vp==20:
-        if b==1 and t==4: out=-1
-        elif b==1 and t==10: out=-1
-        elif b==1 and t==15: out=-1
-        elif b==1 and t==19: out=-20
-        elif b==4 and t==32: out=-1
-        elif b==5 and t==20: out=-1
-        elif b==5 and t==9: out=-1
-        elif b==5 and t==14: out=-1
-        elif b==6 and t==7: out=-1
-    return out
 def plotDC(vp,block,trial):
     from readETData import readEyelink
     plt.interactive(False)
@@ -847,6 +821,7 @@ def plotDC(vp,block,trial):
     plt.plot(d.dcfix,[-0.45,-0.45],'k',lw=2)
     plt.grid()
     plt.ylim([-0.5,0.5])
+    plt.legend(['left x','left y','right x','right y'])
     plt.savefig(PATH+'dc'+os.path.sep+'vp%03db%02dtr%02d'%(vp,b,i))
     plt.cla()
 
@@ -862,6 +837,83 @@ def plotMD():
             d.plotMissingData()
         plt.show()
         plt.savefig('fb%02d'%(d.block))
+
+def manualDC(vp,b,t):
+    """ do we need manual drift correction?"""
+    out=0
+    if vp==1:
+        if b==3 and t==25: out=-10
+        #elif b==3 and t==34: out=-1
+        elif b==5 and t==10: out=50
+        elif b==6 and t==19: out=20
+        elif b==6 and t==24: out=20
+        elif b==8 and t==14: out=50
+        #elif b==11 and t==17: out=-1
+        elif b==12 and t==37: out=0
+        #elif b==14 and t==38: out=-1
+        #elif b==18 and t==8: out=-1
+        #elif b==19 and t==6: out=-1 
+    elif vp==2:
+        if b==7 or b==8 or b==22 or b==21 or b==10 or b==11 or (b>12 and b<20) or b<5: out=-1
+        if b==5 and t==1: out=-50
+        if b==5 and t==14: out=100
+        if b==5 and t==17: out=-1
+        if b==5 and t>18 and t<26: out=-1
+        if b==5 and t==26: out=50
+        if b==5 and t>=29: out=-1
+        if b==5 and t==32: out=50
+        if b==6 and t==2: out=-1
+        if b==6 and t==7: out=-1
+        if b==6 and t==22: out=-1
+        if b==6 and t==23: out=-1
+        if b==6 and t==25: out=-1
+        if b==6 and t>=27: out=-1
+        if b==6 and t==33: out=0
+        if b==9 and t==1: out=-20
+        if b==9 and t==5: out=100
+        if b==9 and t==13: out=100
+        if b==9 and t==14: out=-50
+        if b==9 and t==16: out=50
+        if b==9 and t==17: out=100
+        if b==9 and t==22: out=100
+        if b==9 and t==23: out=100
+        if b==9 and t==26: out=100
+        if b==9 and t==38: out=-50
+        if b==22 and t==23: out=-50
+        if b==20 and t==14: out=-1
+        if b==20 and t==17: out=100
+        if b==20 and t==24: out=100
+        if b==20 and t==37: out=-1
+        if b==19 and t==10: out=0
+        if b==19 and t==32: out=0
+        if b==18 and t==1: out=0
+        if b==18 and t==3: out=100
+        if b==18 and t==21: out=100
+        if b==18 and t==39: out=0
+        if b==11 and t==15: out=0
+        if b==12 and t==3: out=-50
+        if b==12 and t==13: out=100
+        if b==12 and t==22: out=-50
+        if b==12 and t==24: out=-50
+        if b==12 and t==29: out=100
+        if b==12 and t==33: out=100
+        if b==12 and t==37: out=100
+        if b==12 and t==38: out=-1
+        if b==12 and t==1: out=-1
+        if b==12 and t==11: out=-1
+        if b==12 and t==19: out=-1
+        if b==12 and t==27: out=-1
+        if b==13 and t==11: out=0
+        if b==14 and t==32: out=0
+        if b==4 and t==31: out=0
+        if b==3 and t==5: out=0
+    print out
+    return out
             
 if __name__ == '__main__':
-    plotDC(1,3,25)
+    plotDC(2,1,15)
+   
+  
+ 
+
+
