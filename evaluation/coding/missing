@@ -50,4 +50,43 @@ miss
 2 13 10 missing
 2 17 7 missing
 2 17 8 missing
-
+3 8 11 bad dc
+3 14 3 missing
+3 20 37 missing
+3 21 22 bad dc
+3 21 27 bad dc
+4 1 2 bad dc
+4 1 4 missing
+4 1 9 bad dc
+4 1 21 bad dc
+4 1 24 missing
+4 2 12 missing
+4 2 17 premature click?
+4 4 0 premature click?
+4 4 24 bad dc
+4 5 9 bad dc
+4 5 13 bad dc
+4 5 15 bad dc
+4 5 16 bad dc
+4 5 36 bad dc
+4 5 37 bad dc
+4 5 38 bad dc
+4 5 39 bad dc
+4 7 35 bad dc
+4 7 38 missing
+4 10 12 gaze jitter
+4 10 30 jitter
+4 12 13 bad dc
+4 12 22 bad dc
+4 12 23 jitter
+4 12 25 bad dc
+4 12 28 bad dc
+4 12 32 bad dc
+4 13 1 jitter
+4 17 14 jitter
+4 17 23 missing
+4 18 18 jitter
+4 18 33 bad dc
+4 21 29 jitter
+4 23 16 bad dc
+4 23 38 missing

@@ -201,7 +201,7 @@ class ETReplay(Trajectory):
             self.selrects=[];self.sacrects=[]; self.arects=[]
             for i in range(15): self.selrects.append(visual.Rect(self.wind,
                 height=self.spar[2],width=1,fillColor='red',opacity=0.5,lineColor='red'))
-            for i in range(15): self.sacrects.append(visual.Rect(self.wind,
+            for i in range(20): self.sacrects.append(visual.Rect(self.wind,
                 height=self.spar[2]+self.apar[2],width=2,fillColor='blue',opacity=0.5,lineColor='blue'))
             for i in range(30): self.arects.append(visual.Rect(self.wind,
                 height=self.apar[2],width=2,fillColor='green',opacity=0.5,lineColor='blue'))
@@ -514,6 +514,7 @@ class Coder(ETReplay):
         self.save=False
 
 def replayTrial(vp,block,trial,tlag=0,coderid=0):
+    behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     from readETData import readEyelink
     data=readEyelink(vp,block)
     trl=data[trial]
@@ -522,6 +523,8 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     trl.extractComplexEvents()
     trl.importComplexEvents(coderid=coderid)
     R=Coder(gazeData=trl,phase=1,eyes=1,coderid=coderid)
+    bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
+    R.behsel= np.int32(behdata[bi,[-3,-5]])
     #R.saveSelection(coderid=0)
     R.play(tlag=tlag)
     
@@ -539,7 +542,7 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
         trl.driftCorrection(jump=manualDC(vp,block,trial))
         trl.extractComplexEvents()
         trl.importComplexEvents(coderid=coderid)
-    for trial in range(trialStart,len(data)):
+    #for trial in range(trialStart,len(data)):
         R=Coder(gazeData=data[trial],phase=1,eyes=1,coderid=coderid)#,wind=win)
         bi=np.logical_and(block==np.int32(behdata[:,1]),trial==np.int32(behdata[:,2])).nonzero()[0][0]
         R.behsel= np.int32(behdata[bi,[-3,-5]])
@@ -602,17 +605,17 @@ def checkBehData():
                 if traj[ind,1]!=b or traj[ind,2]!=t: print 'Error', traj[ind,:3],b,t
                 if int(traj[ind,7])==-1: continue
                 ik=-1;hk=-1
-                for kk in range(len(dat)):
+                for k in range(len(dat)):
                     if dat[kk][0]>hk: hk=dat[kk][0];ik=kk
                 if not int(traj[ind,7]) in dat[ik][6] or not int(traj[ind,9]) in dat[ik][6]:
                     print b,t,[int(traj[ind,7]), int(traj[ind,9])],dat[ik][6]
             except IOError:
                 print 'IO',vp,b,t
     
-            
+           
 if __name__ == '__main__':
     RH=0 # set right handed or left handed layout
-    replayBlock(vp = 2,block = 3,trial=0,tlag=0.008,coderid=2)
-    #compareCoding(vp=3,block=2,cids=[8,1,2])
+    replayBlock(vp =4,block=5,trial=38,tlag=0.0,coderid=4)
+    #compareCoding(vp=2,block=20,cids=[0,1,2])
     #missingTEfiles()
     #checkBehData()

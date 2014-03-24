@@ -9,7 +9,6 @@ from psychopy import core,event,visual
 from scipy import signal
 from scipy.interpolate import interp1d
 from datetime import datetime
-from scipy.interpolate import interp1d
 from scipy.stats import nanmean
 from copy import copy
 import time,os
@@ -907,11 +906,40 @@ def manualDC(vp,b,t):
         if b==14 and t==32: out=0
         if b==4 and t==31: out=0
         if b==3 and t==5: out=0
+    elif vp==3:
+        out=-1
+        if b==1 and t==23: out=0
+        if b==4 and t==22: out=0
+        if b==7 and t==36: out=0
+        if b==9 and t==23: out=0
+        if b==11 and t==36: out=0
+        if b==14 and t==38: out=-50
+        if b==20 and t==27: out=0
+        if b==21 and t==27: out=-50
+        
+    elif vp==4:
+        out=-1
+        if b==1 and t==3: out=0
+        if b==1 and t==5: out=0
+        if b==1 and t==14: out=0
+        if b==1 and t==27: out=0
+        if b==1 and t==37: out=0
+        if b==3 and t==0: out=0
+        if b==5 and t==9: out=0
+        if b==11 and t==2: out=0
+        if b==15 and t==25: out=0
+        if b==15 and t==32: out=0
+        if b==16 and t==13: out=0
+        if b==17 and t==22: out=0
+        if b==18 and t==20: out=0
+        if b==19 and t==19: out=0
+        if b==20 and t==29: out=0
+        if b==5 and t==37: out=0
     print out
     return out
             
 if __name__ == '__main__':
-    plotDC(2,1,15)
+    plotDC(4,7,31)
    
   
  
