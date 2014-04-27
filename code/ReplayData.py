@@ -475,7 +475,7 @@ class Coder(ETReplay):
         return out
     @staticmethod
     def loadSelection(vp,block,trial,coder=1,prefix=''):
-        fname = PATH+prefix+os.path.sep+'coder%d'%coder+os.path.sep+'vp%03db%dtr%02d.trc'%(vp,block,trial)
+        fname = PATH+prefix+'coder%d'%coder+os.path.sep+'vp%03db%dtr%02d.trc'%(vp,block,trial)
         fin = open(fname,'r')
         out=[]
         for line in fin:

@@ -491,23 +491,40 @@ def sacInfoMergeBlocks(vp=1):
 
 
 def saveSacInfo(vp=1):
-    ''' output give, sac onset in f, sac onset in sec, sac onset posx, sac onset pos y,
-        sac end in f sac end in sec, sac end posx, sac end pos y, sac speed, sac dur,
-        event type of the consecutive event, start of tracking event in f,
-        trial dur, tracking event id within trial,
-        sac id within tracking event, block, trial
+    ''' output gives,
+            0- sac onset in f,
+            1- sac onset in sec,
+            2-sac onset posx,
+            3-sac onset pos y,
+            4-sac end in f,
+            5-sac end in sec,
+            6-sac end posx,
+            7-sac end posy,
+            8-sac speed,
+            9-sac dur,
+            10-event type of the consecutive event,
+            11-start of tracking event in f,
+            12-trial dur,
+            13-tracking event id within trial,
+            14-sac id within tracking event,
+            15-block,
+            16-trial
         doesnt include blinks as saccades
     '''
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+
     si=[]
-    for b in range(16,22):
-        data=readEyelink(vp,b)
-        for i in range(len(data)):
+    for b in range(1,24):
+        try: data=readEyelink(vp,b)
+        except:
+            print 'block %d is missing'%b
+            continue
+        for i in range(1,len(data)):
             if data[i].ts>=0:
-                print 'block ',b,'trial',i
+                print 'vp',vp,'block ',b,'trial',i
                 data[i].extractBasicEvents()
                 data[i].driftCorrection()
-                data[i].importComplexEvents()
+                data[i].importComplexEvents(coderid=4)
                 if  data[i].search!=None:
                     g=data[i].getGaze()
                     hh=0
@@ -517,7 +534,7 @@ def saveSacInfo(vp=1):
                             ev[4],np.nan,data[i].t0[1]-data[i].t0[0],hh,0,b,i]);hh+1
                     gg=0
                     for tr in data[i].track:
-                        if len(tr[4:])>0:
+                        if False:#len(tr[4:])>0:
                             # neg difference indicates missing initial saccades,
                             # i.e. tracking started with a blink or directly with pursuit 
                             print '\tdif', g[tr[0],0],g[tr[4][1],0],tr[0]-tr[4][1]
@@ -526,10 +543,9 @@ def saveSacInfo(vp=1):
                             si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                                 ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
-                        gg+=1
-                    
+                        gg+=1         
         np.save(path+'si%d.npy'%b,si)
-    #sacInfoMergeBlocks()
+    sacInfoMergeBlocks(vp=vp)
     
     
 if __name__ == '__main__':
@@ -537,9 +553,7 @@ if __name__ == '__main__':
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()
-    sacInfoMergeBlocks()
-
-        
+    saveSacInfo(vp=4) 
     
             
 ##    res=np.zeros(2549)

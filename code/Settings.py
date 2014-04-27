@@ -43,11 +43,11 @@ class Settings():
     def setAspeed(self,aSpeed):  self.aSpeed=aSpeed/self.refreshRate
   
     def initDisplay(self,sz=None):
-        if sz==None: sz=(1280,1280)
+        if sz==None: sz=(1280,1024)
         elif type(sz)==int: sz=(sz,sz)
         wind=visual.Window(monitor=self.monitor,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
-            winType='pyglet',screen=1)
+            winType='pyglet',screen=0)
         return wind
     def norm2pix(self,xy):
         return (np.array(xy)) * np.array(self.monitor.getSizePix())/2.0
@@ -75,7 +75,7 @@ smidell=monitors.Monitor('smiDell', width=47.5, distance=60);smidell.setSizePix(
 t60=monitors.Monitor('tobii', width=34, distance=50); t60.setSizePix((1280,1024))
 
 laptop={'monitor' :     dell,
-        'refreshRate':  75,                 # [hz]
+        'refreshRate':  60,                 # [hz]
         'os':           LINUX,              # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
@@ -176,7 +176,6 @@ gao10e4={'monitor' :     t60,
         'fullscr':      True}
 
 Q=Settings(**laptop)
-    
 #Q=Settings(**gao10e3)
 #Q=Settings(**tobiilab)
 #fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
