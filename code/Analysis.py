@@ -24,7 +24,7 @@ sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved
 fw=int(np.round((abs(sw)+ew)/1000.0*hz))
 radbins=np.arange(1,15)
 event=1 # 0 - search saccades; 1- 1st tracking saccade, 2-second tracking saccade
-dtos=['G','A','T','P']
+dtos=['G','A','T']
 
 def saveFigures(name):
     for i in range(1,plt.gcf().number-1):
@@ -191,7 +191,8 @@ def extractSaliency(channel='intensity'):
         inpath=getcwd().rstrip('code')+'input/'
         sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
         ef=sf+fw
-        valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
+        valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= np.minimum(si[:,12],30000))
+        print si.shape, valid.sum()
         si=si[valid,:]
         sf=sf[valid]
         ef=ef[valid]
@@ -202,23 +203,29 @@ def extractSaliency(channel='intensity'):
         #gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
         rt=np.random.permutation(si.shape[0])
         rp=np.random.permutation(si.shape[0])
-        #print si.shape[0]
         for h in range(si.shape[0]):
-            if si[h,-1]!=lastt:
+            if si[h,-2]>21: continue
+            if si[h,-1]!=lastt: # avoid reloading saliency map for the same trial 
                 order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
                 #traj=np.load(inpath+'vp%03d/vp%03db%dtrial%03d.npy'%(vp,vp,si[h,-2],order[si[h,-1]]))
                 fname=path.rstrip('vp%03d/'%vp)+'/saliency/vp001b%dtrial%03d%s-.%dx%d.mgrey'%(int(si[h,-2]),order[si[h,-1]],channel,dim,dim)
                 try: vid=Mraw(fname)
-                except: print 'missing saliency file',vp,int(si[h,-2]),order[si[h,-1]],fname
+                except IOError:
+                    print 'missing file: '+ fname
+            
+            #print sf[h],ef[h],ef[h]-sf[h],fw,si[h,12]
             temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
-            gridG+=temp1; radG+=temp2.T; lastt=si[h,-2];
-            if vp==1:
+            if not temp1 is None: gridG+=temp1; radG+=temp2.T;k+=1
+            else: print 'saccade ignored ',h,si[h,-2],si[h,-1]
+            lastt=si[h,-1]
+            if vp==4:
                 temp1,temp2=vid.computeSaliency(si[rt[h],[6,7]],[sf[rt[h]],ef[rt[h]]],rdb=radbins)
-                gridT+=temp1; radT+=temp2.T;
+                if not temp1 is None: gridT+=temp1; radT+=temp2.T;
             #temp1,temp2=vid.computeSaliency(traj[sf[h]+fw/2,2,:2],[sf[h],ef[h]],rdb=radbins)
             #gridA+=temp1; radA+=temp2.T;
             #temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
-            #gridP+=temp1; radP+=temp2.T;k+=1
+            #gridP+=temp1; radP+=temp2.T;
+            
 
     ##    grid=[gridG,gridT,gridP,gridA]
     ##    rad=[radG,radT,radP,radA]
@@ -229,45 +236,17 @@ def extractSaliency(channel='intensity'):
         gridG/=float(k);radG/=float(k)
         np.save(path+'E%d/grd%s.npy'%(event,channel),gridG)
         np.save(path+'E%d/rad%s.npy'%(event,channel),radG)
-        if vp==1:
+        if vp==4:
             gridT/=float(k);radT/=float(k)
-            np.save(path+'E%d/grdRT%s.npy'%(event,channel),gridT)
-            np.save(path+'E%d/radRT%s.npy'%(event,channel),radT)
+            np.save(path+'E%d/grdT%s.npy'%(event,channel),gridT)
+            np.save(path+'E%d/radT%s.npy'%(event,channel),radT)
     except:
-        print k,si[h,-2],si[h,-1]
+        print 'Error', h,si[h,-2],si[h,-1]
+        gridG/=float(k);radG/=float(k)
+        np.save(path+'E%d/grd%s.npy'%(event,channel),gridG)
+        np.save(path+'E%d/rad%s.npy'%(event,channel),radG)
+        raise
         
-
-def plotSaliency():
-    K=[];I=[]
-    for i in range(len(dtos)):
-        K.append(np.load(path+'E%d/grd%sS.npy'%(event,dtos[i])))
-        I.append(np.load(path+'E%d/rad%sS.npy'%(event,dtos[i])).T)
-
-    plt.figure();plot=False
-    if plot:
-        for q in I:
-            plt.imshow(q,extent=[sw,ew,radbins[0],radbins[-1]],
-                aspect=30,origin='lower',vmin=0.008, vmax=0.021)
-            plt.ylabel('radial distance from sac target')
-            plt.xlabel('time from sac onset')
-            plt.title('saliency')
-            plt.colorbar();plt.set_cmap('hot')
-            plt.figure()
-    for q in I: plt.plot(radbins,q.mean(1))
-    plt.xlabel('radial distance')
-    plt.ylabel('Average Saliency [0,1]')
-    plt.legend(['gaze','rand time','rand agent','rand pos'])
-    plt.figure()
-    x=np.linspace(sw,ew,I[0].shape[1])
-    hhh=3
-    for q in I: plt.plot(x,nanmean(q[:hhh,:],0))
-    plt.xlabel('time')
-    plt.title('Radius=%d deg'%hhh)
-    plt.ylabel('Average Saliency [0,1]')
-    plt.xlabel('time to saccade onset')
-    plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)
-    saveFigures('sa')
-    #plt.show()
 
 def pcaMotionSingleAgent(D,ag=3,plot=False):
     for q in range(len(D)):
@@ -374,20 +353,15 @@ def plotTraj(traj):
 
 
 
-
-
-   
-
 if __name__ == '__main__':
-##    for event in [0]:
-##        for vpl in [1]:#range(1,5):
-##            initVP(vpl=vpl)
-##            #extractTrajectories()
-##            #agentDensity()
-##            #extractDensity()
-##            #extractDirC()
-    initVP(vpl=4)
-    extractSaliency(channel='SOintensity')
+    for event in [0]:
+        for vpl in [3]:#range(1,5):
+            initVP(vpl=vpl)
+            #extractTrajectories()
+            #agentDensity()
+            #extractDensity()
+            #extractDirC()
+            extractSaliency(channel='SOintensity')
     
 
 

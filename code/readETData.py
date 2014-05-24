@@ -504,7 +504,7 @@ def saveSacInfo(vp=1):
             9-sac dur,
             10-event type of the consecutive event,
             11-start of tracking event in f,
-            12-trial dur,
+            12-trial dur in sec,
             13-tracking event id within trial,
             14-sac id within tracking event,
             15-block,
@@ -514,7 +514,7 @@ def saveSacInfo(vp=1):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 
     si=[]
-    for b in range(1,24):
+    for b in range(21,24):
         try: data=readEyelink(vp,b)
         except:
             print 'block %d is missing'%b
@@ -545,7 +545,7 @@ def saveSacInfo(vp=1):
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
                         gg+=1         
         np.save(path+'si%d.npy'%b,si)
-    sacInfoMergeBlocks(vp=vp)
+    #sacInfoMergeBlocks(vp=vp)
     
     
 if __name__ == '__main__':
@@ -553,7 +553,8 @@ if __name__ == '__main__':
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()
-    saveSacInfo(vp=4) 
+    #saveSacInfo(vp=4)
+    sacInfoMergeBlocks(vp=4)
     
             
 ##    res=np.zeros(2549)

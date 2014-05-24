@@ -8,10 +8,12 @@ import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
-from images2gif import writeGif
-event=2
+from matustools.images2gif import writeGif
+event=1
 vp=1
 path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+
+
 
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
@@ -38,7 +40,7 @@ def position2image(positions,elem=None,wind=None):
         if close: wind.close()
         raise
 def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
-               hz=85.0,SX=0.5,SY=0.5,ST=50):
+               hz=85.0,SX=0.3,SY=0.3,ST=20):
     ''' extracts window at position 0,0 of width WIDTH deg
         from trajectories and subsamples to OUTSIZExOUTSIZE pixels
         HZ - trajectory sampling frequency
@@ -93,12 +95,15 @@ def PFlist2gif(pf,fname='pf'):
     pf.append(np.zeros(pf[0].shape,dtype=np.float32))
     writeGif(fname,pf,duration=0.1)
 def PFextract(E,part=[0,1],wind=None,elem=None):
+    """ part[0] - current part
+        part[1] - total number of parts
+    """
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
     print start,ende,E.shape
-    os=64
-    rot=15
+    os=128
+    rot=1
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
         if type(wind)==type(None):
@@ -130,10 +135,14 @@ def PFsubsampleF():
         PF=PF[:,:,:,:,range(2,152,5)]
         PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
 def PFparallel():
-    ''' you can setup stack by np.save('stackPF.npy',range(601))'''
+    ''' please setup stack from python shell with
+        >>> np.save('stackPFvp1.npy',range(N+1))
+    '''
     E=np.load(path+'E%d/DG.npy'%event)
-    stack=np.load('stackPF.npy').tolist()
-    N=100
+    print E.shape
+    stack=np.load('stackPFvp%d.npy'%vp).tolist()
+    print stack
+    N=50
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
             nElements=E.shape[1], sizes=Q.agentSize,
@@ -141,17 +150,19 @@ def PFparallel():
     
     while len(stack):
         jobid=stack.pop(0)
-        np.save('stackPF.npy',stack)
+        np.save('stackPFvp%d.npy'%vp,stack)
         PFextract(E,[jobid,N],wind=wind, elem=elem)
         loaded=False
         while not loaded:
             try:
-                stack=np.load('stackPF.npy').tolist()
+                stack=np.load('stackPFvp%d.npy'%vp).tolist()
                 loaded=True
             except IOError:
                 print 'IOError'
                 core.wait(1)
     wind.close()
+#PFparallel()
+
 def Mcompute():
     ''' mean of the PF data'''
     inpath='cxx/similPix/TI/'
@@ -284,7 +295,6 @@ def Sparallel():
         os.system('./simil %d %d %d %d %d'%tuple(jobinfo))
     print 'finished'
 
-Sparallel()
 def Scheck():
     N=151
     stack=[]
@@ -637,14 +647,16 @@ def PtoS(P):
 
 def PF2X(merge=1):
     ''' merge - # of pf files to merge into one x file
-                by default 1 and no files are merged
+                by default merge=1 and no files are merged
     '''
     pfpath=inpath.rstrip('/X/')+'/PF/'
     fs=os.listdir(pfpath)
     fs.sort();k=0;x=[];h=0
     for f in fs:
         pf=np.load(pfpath+f)
-        pf=pf[:,:,:,0,:].squeeze()
+        print f, pf.shape
+        if pf.shape[0]==0: continue
+        pf=pf[:,32:-32,32:-32,0,:].squeeze()
         x.append(pf.reshape((pf.shape[0],pf.size/pf.shape[0])))
         if k%merge==merge-1:
             out=np.concatenate(x,0)
@@ -698,6 +710,7 @@ def Xleftmult(A,transpose=False):
     ''' OUT=X*A or OUT=X.T*A '''
     out=[];A=np.matrix(A)
     for i in range(N):
+        print 'Xleftmult: %d/%d'%(i,N)
         X=np.load(inpath+'X%d.npy'%i)
         if transpose: X=np.load(inpath+'XT%d.npy'%i)
         out.append(X*A)
@@ -882,30 +895,37 @@ def testPca():
     plt.show()
 
 inpath=path+'E%d/X/'%event
-##PF2X(merge=1)
-##C=Xcov()
-##np.save(inpath+'C',C)
-##
-##C=np.load(inpath+'C.npy')
-##[latent,coeff]=np.linalg.eig(C)
-##coeff=np.real(coeff)
-##latent/=latent.sum()
-##np.save(inpath+'latent',latent[:100])
-##
-##coeff=Xleftmult(coeff[:,:100],True)
-##np.save(inpath+'coeff.npy',coeff)
-##coeff=np.real(np.load(inpath+'coeff.npy'))
-##for h in range(coeff.shape[1]):
-##    pf=coeff[:,h].reshape((64,64,68))
-##    pf-= np.min(pf)
-##    pf/= np.max(pf)
-##    #pf*=255
-##    #pf=np.uint8(pf)
-##    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-##    for k in range(len(pf)): pf[k]=pf[k].squeeze()
-##    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-##    writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
-##
+
+import time
+
+PF2X(merge=5)
+C=Xcov()
+np.save(inpath+'C',C)
+
+
+C=np.load(inpath+'C.npy')
+print C.shape
+[latent,coeff]=np.linalg.eig(C)
+coeff=np.real(coeff)
+latent/=latent.sum()
+np.save(inpath+'latent',latent[:100])
+np.save(inpath+'coeff.npy',coeff[:,:100])
+
+coeff=np.real(np.load(inpath+'coeff.npy'))
+coeff=Xleftmult(coeff,True)
+np.save(inpath+'coeff.npy',coeff)
+coeff=np.load(inpath+'coeff.npy')
+for h in range(coeff.shape[1]):
+    pf=coeff[:,h].reshape((64,64,68))
+    pf-= np.min(pf)
+    pf/= np.max(pf)
+    #pf*=255
+    #pf=np.uint8(pf)
+    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
+    for k in range(len(pf)): pf[k]=pf[k].squeeze()
+    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
+    writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+
 ##latent=np.load(inpath+'latent.npy')
 ##fs=os.listdir(inpath)
 ##N=0

@@ -109,10 +109,11 @@ class Mraw():
         return out[:i,:,:]
     def computeSaliency(self,pos,twind,rdb,bins=range(-20,21),inpRes=1024):
         """ self - Mraw object, make sure the frame buffer is at the start
-            pos - in (deg,deg)
+            pos - in x,y (deg,deg)
             radius - radius of the circle within which the saliency at each
                 frame is computed, in deg
-            twindow - time window in ms
+            twindow - time window in frames
+            returns None if the pos is outside the screen
         """
         from Settings import eyelinklab, Settings
         Q=Settings(**eyelinklab)
@@ -129,7 +130,8 @@ class Mraw():
             return grid
         # less precise but fast, discards the requested BINS
         grid=np.zeros((twind[1]-twind[0],self.rows,self.cols))
-        pos=np.array((Q.deg2pix(pos[X]),Q.deg2pix(pos[Y])),dtype=np.float32)
+        # NB the Y-X switch below is correct
+        pos=np.array((Q.deg2pix(pos[Y]),Q.deg2pix(pos[X])),dtype=np.float32)
         pos+=inpRes/2
         pos/= (inpRes/self.rows)
         posi=np.int32(np.round(pos))
@@ -150,12 +152,11 @@ class Mraw():
             masks.append(np.zeros((1,self.rows,self.cols),dtype=np.int32))
             for x in range(self.rows):
                 for y in range(self.cols):
-                    masks[k][0,x,y]= (k==0 and (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2 or
-                        k>0 and (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2 and
-                        (x-pos[X])**2+(y-pos[Y])**2>=rdb[k-1]**2)  
+                    if k==0: masks[k][0,x,y]= (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2
+                    if k>0: masks[k][0,x,y]= (x-pos[X])**2+(y-pos[Y])**2<rdb[k]**2 and (x-pos[X])**2+(y-pos[Y])**2>=rdb[k-1]**2
+            if masks[k].sum()==0: return (None,None)
         rad=[]
         for m in masks:
-            if m.sum()==0: 'warning: mask.sum()==0'
             rad.append((self.vals[twind[0]:twind[1],:,:]*
                 np.repeat(m,grid.shape[0],axis=0)).sum(2).sum(1)/float(m.sum())/self.norm)
         return grid, np.array(rad)

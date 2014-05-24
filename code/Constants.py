@@ -64,6 +64,8 @@ ANAMES=('Chasee','Chaser','Distractor')
 # color stack
 COLORS=['r','g','b','y','k','c']
 
+del N,i,j,k,mid
+
 # evaluation
 LEFTEYE=1
 RIGHTEYE=2

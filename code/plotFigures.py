@@ -5,17 +5,17 @@ from matustools.matusplotlib import *
 import os
 plt.close('all')
 plt.ion()
-event=1
+event=0
 for vp in range(1,5):
     plt.figure(0)
     sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
     fw=int(np.round((abs(sw)+ew)/1000.0*hz))
-    bnR=np.arange(0,15,0.5)
+    bnR=np.arange(0,30,0.5)
     bnS=np.diff(np.pi*bnR**2)
     bnd= bnR+(bnR[1]-bnR[0])/2.0;bnd=bnd[:-1]
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     figpath=os.getcwd().rstrip('code')+'figures/Analysis/'
-    subplot(2,2,1)
+    subplot(4,2,1)
     I=np.load(path+'E%d/agdens.npy'%event)
     I/=float(bnR.size)
     print I.shape
@@ -31,14 +31,16 @@ for vp in range(1,5):
     plt.xlabel('Radial Distance')
     plt.ylabel('Agent Density')
     plt.legend(['S1','S2','S3','S4','RT'],loc=1)
-    plt.grid();plt.ylim([0,0.15]);plt.xlim([0,15])
+    plt.grid();#plt.ylim([0,0.15]);
+    plt.xlim([0,14])
 
-    subplot(2,2,2)
+    subplot(4,2,2)
     plt.grid()
     x=np.linspace(sw,ew,I[0].shape[1])/1000.
+    x=np.reshape(x,[x.size/2,2]).mean(1)
     hhh=0
-    plt.plot(x,I[0,hhh,:,0])
-    if vp==4: plt.plot(x,I[2,hhh,:,0])
+    plt.plot(x,np.reshape(I[0,hhh,:,0],[x.size,2]).mean(1))
+    if vp==4: plt.plot(x,np.reshape(I[2,hhh,:,0],[x.size,2]).mean(1))
     #plt.ylim([1,5])
     plt.xlim([-0.4,0.4])
     #plt.title('Radius=5 deg')
@@ -58,12 +60,13 @@ for vp in range(1,5):
     #plt.colorbar()
     ################
     plt.figure(0)
-    subplot(2,2,3)
+    subplot(4,2,3)
     hz=85.0
-    plt.plot(d,np.nansum(K[0][:,0,:],1)/ nK[0][:,0,:].sum(1))
+    mm=K[0].shape[1]/2
+    plt.plot(d,np.nansum(K[0][:,mm,:],1)/ nK[0][:,mm,:].sum(1)*hz)
     if vp==4:# confidence band assuming iid binomial
-        p=np.nansum(K[2][:,0,:],1)/ nK[2][:,0,:].sum(1)/hz
-        ci=1.96*np.sqrt(p*(1-p)/nK[2][:,0,:].sum(1))
+        p=np.nansum(K[2][:,mm,:],1)/ nK[2][:,mm,:].sum(1)
+        ci=1.96*np.sqrt(p*(1-p)/nK[2][:,mm,:].sum(1))
         l=(p-ci)*hz;h=(p+ci)*hz
         x=np.concatenate([d,d[::-1]])
         ci=np.concatenate([h,l[::-1]])
@@ -72,16 +75,19 @@ for vp in range(1,5):
         
     plt.ylabel('Direction Changes')
     plt.xlabel('Radial Distance')
-    plt.xlim([0,15]);plt.grid()
-    subplot(2,2,4)
+    plt.xlim([0,14]);plt.grid();plt.ylim([0,12])
+    subplot(4,2,4)
     x=np.linspace(sw,ew,K[0].shape[1])/1000.
+    x=np.reshape(x,[x.size/2,2]).mean(1)
     kk=0
-    plt.plot(x,np.nansum(K[0][kk,:,:],1)/ nK[0][kk,:,:].sum(1))
+    y=np.nansum(K[0][kk,:,:],1)/ nK[0][kk,:,:].sum(1)*hz
+    plt.plot(x,np.reshape(y,[x.size,2]).mean(1))
     if vp==4:
         #plt.plot(x,np.nansum(K[2][kk,:,:],1)/ nK[2][kk,:,:].sum(1))
-        p=np.nansum(K[2][kk,:,:],1)/ nK[2][kk,:,:].sum(1)/hz
+        p=np.nansum(K[2][kk,:,:],1)/ nK[2][kk,:,:].sum(1)
         ci=1.96*np.sqrt(p*(1-p)/nK[2][kk,:,:].sum(1))
         l=(p-ci)*hz;h=(p+ci)*hz
+        l=np.reshape(l,[x.size,2]).mean(1);h=np.reshape(h,[x.size,2]).mean(1)
         x=np.concatenate([x,x[::-1]])
         ci=np.concatenate([h,l[::-1]])
         
@@ -90,8 +96,51 @@ for vp in range(1,5):
     
     plt.ylabel('Direction Changes')
     plt.xlabel('Time to Saccade Onset')
+    plt.xlim([-0.4,0.4])
+    plt.ylim([0,12])
     #plt.title('Radius = 10 deg')
     plt.grid()
-    plt.savefig(figpath+'agdensE%d.png'%event)
+    
+    hh=-1
+    for chan in ['SOintensity','COmotion']:
+        hh+=1
+        K=np.load(path+'E%d/grd%s.npy'%(event,chan))
+        I=np.load(path+'E%d/rad%s.npy'%(event,chan)).T
+        if vp==4:IR=np.load(path+'E%d/radT%s.npy'%(event,chan)).T
+            
+        subplot(4,2,5+2*hh)
+        plt.plot(np.arange(1,15),I[:,I.shape[1]/2])
+        if vp==4: plt.plot(np.arange(1,15),IR[:,IR.shape[1]/2])
+        plt.xlabel('Radial Distance')
+        chan
+        plt.ylabel('%s Saliency'%chan[2:].capitalize())
+        plt.grid();plt.xlim([0,14])
+        subplot(4,2,6+2*hh)
+        x=np.linspace(sw,ew,I.shape[1])/1000.
+        hhh=3
+        #plt.plot(x,np.nanmean(I[:hhh,:],0))
+        plt.plot(x,I[0,:])
+        if vp==4: plt.plot(x,IR[0,:]) 
+        plt.xlabel('time')
+        plt.ylabel('%s Saliency'%chan[2:].capitalize())
+        plt.xlabel('Time to Saccade Onset')
+        plt.xlim([-0.4,0.4])
+        plt.grid()
+    #plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)
+    #plt.show()
+plt.savefig(figpath+'agdensE%d.png'%event)
 
-#plt.show()
+##    plt.figure()
+##    radbins=np.arange(1,15)
+##    plt.imshow(I,extent=[sw,ew,radbins[0],radbins[-1]],
+##        aspect=30,origin='lower',vmin=0.008, vmax=0.021)
+##    plt.ylabel('radial distance from sac target')
+##    plt.xlabel('time from sac onset')
+##    plt.title('saliency')
+##    plt.grid()
+##    plt.colorbar();#plt.set_cmap('hot')
+##    plt.show()
+    
+##    plt.figure()
+##    plt.imshow(K[34,:,:]);plt.grid()
+##    plt.show()
