@@ -656,7 +656,8 @@ def PF2X(merge=1):
         pf=np.load(pfpath+f)
         print f, pf.shape
         if pf.shape[0]==0: continue
-        pf=pf[:,32:-32,32:-32,0,:].squeeze()
+        #pf=pf[:,32:-32,32:-32,0,:].squeeze()
+        pf=pf[:,:,:,0,:].squeeze()
         x.append(pf.reshape((pf.shape[0],pf.size/pf.shape[0])))
         if k%merge==merge-1:
             out=np.concatenate(x,0)
@@ -706,11 +707,11 @@ def XgetColumn(k):
     return np.matrix(np.load(inpath+'XT%d.npy'%a)[b,:]).T
     
 
-def Xleftmult(A,transpose=False):
+def Xleftmult(A,transpose=False,verbose=False):
     ''' OUT=X*A or OUT=X.T*A '''
     out=[];A=np.matrix(A)
     for i in range(N):
-        print 'Xleftmult: %d/%d'%(i,N)
+        if verbose: print 'Xleftmult: %d/%d'%(i,N)
         X=np.load(inpath+'X%d.npy'%i)
         if transpose: X=np.load(inpath+'XT%d.npy'%i)
         out.append(X*A)
@@ -738,6 +739,7 @@ def XmeanCenter(axis=1):
     tot=0
     for i in range(N):
         X=np.load(inpath+'X%s%d.npy'%(ss[axis],i))
+        print i, X.shape
         if i==0: res=X.sum(0)
         else: res+=X.sum(0)
         tot+=X.shape[0]
@@ -764,7 +766,8 @@ def Xcov(transpose=False):
             C[i][j]= X1.dot(X2.T)
         C[i]=np.concatenate(C[i],1)
     return np.concatenate(C,0)/float(X1.shape[1]-1)
-    
+
+
 def pcaSVD(A,highdim=None):
     """ performs principal components analysis 
      (PCA) on the n-by-p data matrix A
@@ -896,35 +899,48 @@ def testPca():
 
 inpath=path+'E%d/X/'%event
 
-import time
+##import time
+##
+##PF2X(merge=4)
+##C=Xcov()
+##np.save(inpath+'C',C)
+##
+##
+##C=np.load(inpath+'C.npy')
+##print C.shape
+##[latent,coeff]=np.linalg.eig(C)
+##coeff=np.real(coeff)
+##latent/=latent.sum()
+##np.save(inpath+'latent',latent[:100])
+##np.save(inpath+'coeff.npy',coeff[:,:100])
+##
+##coeff=np.real(np.load(inpath+'coeff.npy'))
+##coeff=Xleftmult(coeff,True)
+##np.save(inpath+'coeff.npy',coeff)
 
-PF2X(merge=5)
-C=Xcov()
-np.save(inpath+'C',C)
-
-
-C=np.load(inpath+'C.npy')
-print C.shape
-[latent,coeff]=np.linalg.eig(C)
-coeff=np.real(coeff)
-latent/=latent.sum()
-np.save(inpath+'latent',latent[:100])
-np.save(inpath+'coeff.npy',coeff[:,:100])
-
-coeff=np.real(np.load(inpath+'coeff.npy'))
-coeff=Xleftmult(coeff,True)
-np.save(inpath+'coeff.npy',coeff)
 coeff=np.load(inpath+'coeff.npy')
+rows=1
+cols=1
+offset=0
+R=np.zeros(((64+offset)*rows,(64+offset)*cols,69),dtype=np.float32)
 for h in range(coeff.shape[1]):
     pf=coeff[:,h].reshape((64,64,68))
     pf-= np.min(pf)
     pf/= np.max(pf)
     #pf*=255
     #pf=np.uint8(pf)
-    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-    for k in range(len(pf)): pf[k]=pf[k].squeeze()
-    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-    writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+    if h>=rows*cols:continue
+    c= h%cols;r= h/cols
+    s=(offset/2*r,offset/2*c)
+    R[s[0]:s[0]+64,s[1]:s[1]+64,1:]=pf.squeeze()
+    #pf=np.split(pf,range(1,pf.shape[2]),axis=2)
+    #for k in range(len(pf)): pf[k]=pf[k].squeeze()
+    #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
+    #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+
+R=np.split(R,range(1,R.shape[2]),axis=2)
+for k in range(len(R)): R[k]=R[k].squeeze()
+writeGif(inpath+'pcAll.gif',R,duration=0.1)
 
 ##latent=np.load(inpath+'latent.npy')
 ##fs=os.listdir(inpath)
