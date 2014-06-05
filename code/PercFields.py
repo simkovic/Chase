@@ -8,9 +8,9 @@ import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
-from matustools.images2gif import writeGif
-event=1
-vp=1
+
+event=0
+vp=2
 path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 
 
@@ -39,7 +39,7 @@ def position2image(positions,elem=None,wind=None):
     except:
         if close: wind.close()
         raise
-def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
+def traj2movie(traj,width=6,outsize=64,elem=None,wind=None,rot=2,
                hz=85.0,SX=0.3,SY=0.3,ST=20):
     ''' extracts window at position 0,0 of width WIDTH deg
         from trajectories and subsamples to OUTSIZExOUTSIZE pixels
@@ -89,11 +89,7 @@ def traj2movie(traj,width=10,outsize=64,elem=None,wind=None,rot=2,
     except:
         if close: wind.close()
         raise
-def PFlist2gif(pf,fname='pf'):
-    pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-    for k in range(len(pf)): pf[k]=pf[k].squeeze()
-    pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-    writeGif(fname,pf,duration=0.1)
+
 def PFextract(E,part=[0,1],wind=None,elem=None):
     """ part[0] - current part
         part[1] - total number of parts
@@ -102,8 +98,8 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
     print start,ende,E.shape
-    os=128
-    rot=1
+    os=64
+    rot=15
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
         if type(wind)==type(None):
@@ -906,23 +902,23 @@ inpath=path+'E%d/X/'%event
 ##np.save(inpath+'C',C)
 ##
 ##
-##C=np.load(inpath+'C.npy')
-##print C.shape
-##[latent,coeff]=np.linalg.eig(C)
-##coeff=np.real(coeff)
-##latent/=latent.sum()
-##np.save(inpath+'latent',latent[:100])
-##np.save(inpath+'coeff.npy',coeff[:,:100])
-##
-##coeff=np.real(np.load(inpath+'coeff.npy'))
-##coeff=Xleftmult(coeff,True)
-##np.save(inpath+'coeff.npy',coeff)
+C=np.load(inpath+'C.npy')[:10000,:10000]
+print C.shape
+[latent,coeff]=np.linalg.eig(C)
+coeff=np.real(coeff)
+latent/=latent.sum()
+np.save(inpath+'latent',latent[:100])
+np.save(inpath+'coeff.npy',coeff[:,:100])
+
+coeff=np.real(np.load(inpath+'coeff.npy'))
+coeff=Xleftmult(coeff,True)
+np.save(inpath+'coeff.npy',coeff)
 
 coeff=np.load(inpath+'coeff.npy')
-rows=1
-cols=1
-offset=0
-R=np.zeros(((64+offset)*rows,(64+offset)*cols,69),dtype=np.float32)
+rows=4
+cols=5
+offset=8
+R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
 for h in range(coeff.shape[1]):
     pf=coeff[:,h].reshape((64,64,68))
     pf-= np.min(pf)
@@ -931,16 +927,15 @@ for h in range(coeff.shape[1]):
     #pf=np.uint8(pf)
     if h>=rows*cols:continue
     c= h%cols;r= h/cols
-    s=(offset/2*r,offset/2*c)
-    R[s[0]:s[0]+64,s[1]:s[1]+64,1:]=pf.squeeze()
+    s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
+    R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=pf.squeeze().T
     #pf=np.split(pf,range(1,pf.shape[2]),axis=2)
     #for k in range(len(pf)): pf[k]=pf[k].squeeze()
     #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
     #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
 
-R=np.split(R,range(1,R.shape[2]),axis=2)
-for k in range(len(R)): R[k]=R[k].squeeze()
-writeGif(inpath+'pcAll.gif',R,duration=0.1)
+from matustools.matusplotlib import ndarray2gif
+ndarray2gif(inpath+'pcAll',np.uint8(R*255),duration=0.1)
 
 ##latent=np.load(inpath+'latent.npy')
 ##fs=os.listdir(inpath)
