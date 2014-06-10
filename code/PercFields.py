@@ -8,12 +8,15 @@ import random, Image,ImageFilter, os
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
+from matustools.matusplotlib import ndarray2gif
+import pyglet
+import pickle
 
-event=0
-vp=2
-path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-
-
+def initPath(vpp,eventt):
+    global event,vp,path,inpath
+    event=eventt;vp=vpp
+    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    inpath=path+'E%d/'%event
 
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
@@ -32,14 +35,15 @@ def position2image(positions,elem=None,wind=None):
         wind.getMovieFrame(buffer='back')
         ret=wind.movieFrames[0]
         wind.movieFrames=[]
-        visual.GL.glClear(visual.GL.GL_COLOR_BUFFER_BIT | visual.GL.GL_DEPTH_BUFFER_BIT)
+        pyglet.gl.glClear(pyglet.gl.GL_COLOR_BUFFER_BIT | pyglet.gl.GL_DEPTH_BUFFER_BIT)
         wind._defDepth=0.0
         if close: wind.close()
         return grayscale(ret)# make grey, convert to npy
     except:
         if close: wind.close()
         raise
-def traj2movie(traj,width=6,outsize=64,elem=None,wind=None,rot=2,
+
+def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
                hz=85.0,SX=0.3,SY=0.3,ST=20):
     ''' extracts window at position 0,0 of width WIDTH deg
         from trajectories and subsamples to OUTSIZExOUTSIZE pixels
@@ -64,8 +68,8 @@ def traj2movie(traj,width=6,outsize=64,elem=None,wind=None,rot=2,
         Ims=[]
         for f in range(0,traj.shape[0]):
             Im=position2image(traj[f,:,:],wind=wind)
-            bb=int(Im.size[0]/2.0)
-            Im=Im.crop(np.int32((bb-1.5*w,bb-1.5*w,bb+1.5*w,bb+1.5*w)))
+            cx=int(Im.size[0]/2.0);cy=int(Im.size[1]/2.0)
+            Im=Im.crop(np.int32((cx-1.5*w,cy-1.5*w,cx+1.5*w,cy+1.5*w)))
             Im=np.asarray(Im,dtype=np.float32)
             Ims.append(Im)
         Ims=np.array(Ims)
@@ -90,16 +94,18 @@ def traj2movie(traj,width=6,outsize=64,elem=None,wind=None,rot=2,
         if close: wind.close()
         raise
 
+
+
 def PFextract(E,part=[0,1],wind=None,elem=None):
     """ part[0] - current part
         part[1] - total number of parts
     """
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
     print start,ende,E.shape
-    os=64
-    rot=15
+    os=dat['os'];rot=dat['rot']
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
         if type(wind)==type(None):
@@ -110,12 +116,12 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
                 nElements=E.shape[1], sizes=Q.agentSize,
                 elementMask=RING,elementTex=None,colors='white')
         for i in range(ende-start):
-            #print i
             D[i,:,:,:,:]=traj2movie(E[i+start,:,:,:],outsize=os,
-                        elem=elem,wind=wind,rot=rot)
+                elem=elem,wind=wind,rot=rot,width=dat['width'],
+                hz=dat['hz'],SX=dat['SX'],SY=dat['SY'],ST=dat['ST'])
         if close: wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save(path+'E%d/PF/PF%02d.npy'%(event,part[0]),PF)
+        if len(part)==2: np.save(inpath+'PF/PF%03d.npy'%(part[0]),PF)
         else: np.save('PF.npy',PF)
     except:
         if close: wind.close()
@@ -130,33 +136,42 @@ def PFsubsampleF():
         PF=np.load('cxx/similPix/data/PF%d.npy'%i)
         PF=PF[:,:,:,:,range(2,152,5)]
         PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
+
+def PFinit():
+    dat={'N':[100,30][event],'os':64,'rot':1,
+         'width':10,'hz':85.0,'SX':0.3,'SY':0.3,'ST':40}
+    np.save(inpath+'stackPF.npy',range(dat['N']+1))
+    Q.save(inpath+'PF.q')
+    f=open(inpath+'PF.pars','w')
+    pickle.dump(dat,f)
+    f.close()
+    
 def PFparallel():
-    ''' please setup stack from python shell with
-        >>> np.save('stackPFvp1.npy',range(N+1))
+    ''' please run PFinit() first
     '''
-    E=np.load(path+'E%d/DG.npy'%event)
+    E=np.load(inpath+'DG.npy')
     print E.shape
-    stack=np.load('stackPFvp%d.npy'%vp).tolist()
-    print stack
-    N=50
+    stack=np.load(inpath+'stackPF.npy').tolist()
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
+    N=dat['N']
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
             nElements=E.shape[1], sizes=Q.agentSize,
             elementMask=RING,elementTex=None,colors='white')
-    
     while len(stack):
         jobid=stack.pop(0)
-        np.save('stackPFvp%d.npy'%vp,stack)
+        np.save(inpath+'stackPF.npy',stack)
         PFextract(E,[jobid,N],wind=wind, elem=elem)
         loaded=False
         while not loaded:
             try:
-                stack=np.load('stackPFvp%d.npy'%vp).tolist()
+                stack=np.load(inpath+'stackPF.npy').tolist()
                 loaded=True
             except IOError:
                 print 'IOError'
                 core.wait(1)
     wind.close()
+#PFinit()
 #PFparallel()
 
 def Mcompute():
@@ -641,16 +656,17 @@ def PtoS(P):
 #                                                       #
 #########################################################
 
-def PF2X(merge=1):
+def PF2X(merge=1,verbose=True):
     ''' merge - # of pf files to merge into one x file
                 by default merge=1 and no files are merged
     '''
     pfpath=inpath.rstrip('/X/')+'/PF/'
     fs=os.listdir(pfpath)
     fs.sort();k=0;x=[];h=0
+
+    if verbose: print 'PF2X: merging'
     for f in fs:
         pf=np.load(pfpath+f)
-        print f, pf.shape
         if pf.shape[0]==0: continue
         #pf=pf[:,32:-32,32:-32,0,:].squeeze()
         pf=pf[:,:,:,0,:].squeeze()
@@ -663,13 +679,11 @@ def PF2X(merge=1):
     if len(x)>0:
         out=np.concatenate(x,0)
         np.save(inpath+'X%d'%h,out);h+=1
-    global N
-    N=h
-    print 'h=',h
+    assert h==N
     inc=int(np.ceil(out.shape[1]/float(h)))
     for g in range(h):
         out=[]
-        print g
+        if verbose: print 'PF2X: computing transpose %d/%d'%(g+1,h)
         for j in range(h):
             x=np.load(inpath+'X%d.npy'%j)
             out.append(x[:,g*inc:(g+1)*inc].copy())
@@ -703,11 +717,11 @@ def XgetColumn(k):
     return np.matrix(np.load(inpath+'XT%d.npy'%a)[b,:]).T
     
 
-def Xleftmult(A,transpose=False,verbose=False):
+def Xleftmult(A,transpose=False,verbose=True):
     ''' OUT=X*A or OUT=X.T*A '''
     out=[];A=np.matrix(A)
     for i in range(N):
-        if verbose: print 'Xleftmult: %d/%d'%(i,N)
+        if verbose: print 'Xleftmult: %d/%d'%(i+1,N)
         X=np.load(inpath+'X%d.npy'%i)
         if transpose: X=np.load(inpath+'XT%d.npy'%i)
         out.append(X*A)
@@ -729,35 +743,37 @@ def XminusOuterProduct(A,B):
         X= X- (A*B[:,s:e]).T
         np.save(inpath+'XT%d.npy'%i,X)
         s=e
-def XmeanCenter(axis=1):
+def XmeanCenter(axis=1,verbose=True):
     #compute mean
+    if verbose: print 'XmeanCenter: computing mean'
     ss=['','T']
     tot=0
     for i in range(N):
         X=np.load(inpath+'X%s%d.npy'%(ss[axis],i))
-        print i, X.shape
         if i==0: res=X.sum(0)
         else: res+=X.sum(0)
         tot+=X.shape[0]
     res/=tot
     np.save(inpath+'X%smean.npy'%ss[axis],res.squeeze())
+    if verbose: print 'XmeanCenter: subtracting mean from X'
     for i in range(N):
         X=np.load(inpath+'X%s%d.npy'%(ss[axis],i))
         np.save(inpath+'X%s%d.npy'%(ss[axis],i),X-np.matrix(res))
     inc=int(np.ceil(X.shape[1]/float(N)))
+    if verbose: print 'XmeanCenter: subtracting mean from XT'
     for i in range(N):
         X=np.load(inpath+'X%s%d.npy'%(ss[1-axis],i))
         np.save(inpath+'X%s%d.npy'%(ss[1-axis],i),X-np.matrix(res[i*inc:(i*inc+X.shape[0])]).T)  
 
-def Xcov(transpose=False):
+def Xcov(transpose=False,verbose=True):
     transpose=int(transpose)
-    XmeanCenter(1-transpose)
+    XmeanCenter(axis=1-transpose)
     ss=['','T']
     C=[[0]*N]*N
     for i in range(N):
         X1=np.load(inpath+'X%s%d.npy'%(ss[transpose],i))
         for j in range(N):
-            print i,j, X1.shape
+            print 'Xcov: Computing element [%d,%d]/%d'%(i,j,N)
             X2=np.load(inpath+'X%s%d.npy'%(ss[transpose],j))
             C[i][j]= X1.dot(X2.T)
         C[i]=np.concatenate(C[i],1)
@@ -893,68 +909,79 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-inpath=path+'E%d/X/'%event
 
-##import time
-##
-##PF2X(merge=4)
-##C=Xcov()
-##np.save(inpath+'C',C)
-##
-##
-C=np.load(inpath+'C.npy')[:10000,:10000]
-print C.shape
-[latent,coeff]=np.linalg.eig(C)
-coeff=np.real(coeff)
-latent/=latent.sum()
-np.save(inpath+'latent',latent[:100])
-np.save(inpath+'coeff.npy',coeff[:,:100])
+def pcaScript():
+    global inpath,N
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
+    inpath=inpath+'X/'
+    mrg=4;N=dat['N']/mrg+1
+    PF2X(merge=mrg)
 
-coeff=np.real(np.load(inpath+'coeff.npy'))
-coeff=Xleftmult(coeff,True)
-np.save(inpath+'coeff.npy',coeff)
+    C=Xcov()
+    np.save(inpath+'C',C)
 
-coeff=np.load(inpath+'coeff.npy')
-rows=4
-cols=5
-offset=8
-R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-for h in range(coeff.shape[1]):
-    pf=coeff[:,h].reshape((64,64,68))
-    pf-= np.min(pf)
-    pf/= np.max(pf)
-    #pf*=255
-    #pf=np.uint8(pf)
-    if h>=rows*cols:continue
-    c= h%cols;r= h/cols
-    s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
-    R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=pf.squeeze().T
-    #pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-    #for k in range(len(pf)): pf[k]=pf[k].squeeze()
-    #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-    #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+    C=np.load(inpath+'C.npy')
+    print 'shape of Cov matrix is ',C.shape
+    print 'computing eigenvalue decomposition'
+    [latent,coeff]=np.linalg.eig(C)
+    print 'eig finished'
+    coeff=np.real(coeff)
+    latent/=latent.sum()
+    np.save(inpath+'latent',latent[:100])
+    np.save(inpath+'coeff.npy',coeff[:,:100])
 
-from matustools.matusplotlib import ndarray2gif
-ndarray2gif(inpath+'pcAll',np.uint8(R*255),duration=0.1)
+    coeff=np.real(np.load(inpath+'coeff.npy'))
+    coeff=Xleftmult(coeff,True)
+    np.save(inpath+'coeff.npy',coeff)
 
+    coeff=np.load(inpath+'coeff.npy')
+    rows=8
+    cols=5
+    offset=8
+    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
+    for h in range(coeff.shape[1]):
+        pf=coeff[:,h].reshape((64,64,68))
+        pf-= np.min(pf)
+        pf/= np.max(pf)
+        #pf*=255
+        #pf=np.uint8(pf)
+        if h>=rows*cols:continue
+        c= h%cols;r= h/cols
+        s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=pf.squeeze().T
+        #pf=np.split(pf,range(1,pf.shape[2]),axis=2)
+        #for k in range(len(pf)): pf[k]=pf[k].squeeze()
+        #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
+        #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+    ndarray2gif(inpath+'pcAll',np.uint8(R*255),duration=0.1)
+
+for ivp in range(1,5):
+    for iev in [1,0]:
+        if ivp==1 and iev==1: continue
+        print 'vp = %d, ev = %d'%(ivp,iev)
+        initPath(ivp,iev)
+        pcaScript()
 ##latent=np.load(inpath+'latent.npy')
 ##fs=os.listdir(inpath)
 ##N=0
 ##for f in fs: N+= f.startswith('coeff')
 ##coeff=mergeT('coeff')
 
-
-    
+###N=21
+###XmeanCenter(axis=0)
+##m=np.load(inpath+'Xmean.npy')
+##m-= np.min(m)
+##m/= np.max(m)
+##m=m.reshape(64,64,68)
+##ndarray2gif(inpath+'mean',m.T,duration=0.1,addblank=True)   
 
 def controlSimulationsPIX():
-    P=32;T=20
+    P=64;T=20
     I=np.random.rand(P,P,T)*1e-2
     for t in range(T):
-        I[[t,t+1],P/2,t] = 1
-        I[[t,t+1],P/2+1,t] = 1
-        I[[t+10,t+11],P/2,t] = 1
-        I[[t+10,t+11],P/2+1,t] = 1
-
+        I[t:t+3,P/2-2:P/2+2,t] = 1
+        #I[[t+10,t+11],P/2,t] = 1
+        #I[[t+10,t+11],P/2+1,t] = 1
     it=10
     D=[np.matrix((1-I).flatten())]
     for phi in range(it,360,it):
@@ -966,12 +993,16 @@ def controlSimulationsPIX():
             Im[:,:,t]=np.asarray(M)
         D.append(np.matrix((1-Im).flatten()))
     D=np.concatenate(D)
-
+    ndarray2gif('dat',1-I.T,addblank=True)
     D=D-np.matrix(D.mean(0))
 
     coeff,score,latent=pcaSVD(D)
+    coeff-=np.min(coeff)
+    coeff/=np.max(coeff)
     for k in range(coeff.shape[1]):
-        PFlist2gif(coeff[:,k].reshape((P,P,T)),'pc%02d'%k)
+        ndarray2gif('pc%02d'%k,coeff[:,k].reshape((P,P,T)).T,addblank=True)
+
+
 def controlSimulationsXY():
     def rotate(x,phi):
         phi=phi/180.0*np.pi

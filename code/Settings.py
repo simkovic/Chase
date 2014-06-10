@@ -43,7 +43,7 @@ class Settings():
     def setAspeed(self,aSpeed):  self.aSpeed=aSpeed/self.refreshRate
   
     def initDisplay(self,sz=None):
-        if sz==None: sz=(1280,1024)
+        if sz==None: sz=(1024,1024)
         elif type(sz)==int: sz=(sz,sz)
         wind=visual.Window(monitor=self.monitor,fullscr=self.fullscr,
             size=sz,units='deg',color=self.bckgCLR,pos=self.winPos,
