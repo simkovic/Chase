@@ -803,12 +803,11 @@ def pcaSVD(A,highdim=None):
     if highdim==None: highdim=n<m
     M = (A-np.array(A.mean(1),ndmin=2).T) # mean-center data
     if highdim:
-        [latent,coeff] = np.linalg.eig(np.cov(M))
+        [latent,coeff] = np.linalg.eigh(np.cov(M))
         coeff=M.T.dot(coeff)
     else:
-        [latent,coeff] = np.linalg.eig(np.cov(M.T))
+        [latent,coeff] = np.linalg.eigh(np.cov(M.T))
     score = M.dot(coeff).T
-    latent=np.abs(latent)
     coeff/=np.sqrt(A.shape[int(highdim==False)]*np.array(latent,ndmin=2)) #unit vector length
     latent/=latent.sum()
     # sort the data
@@ -909,30 +908,30 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-
 def pcaScript():
     global inpath,N
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inpath=inpath+'X/'
     mrg=4;N=dat['N']/mrg+1
-    PF2X(merge=mrg)
+##    PF2X(merge=mrg)
+##
+##    C=Xcov()
+##    np.save(inpath+'C',C)
 
-    C=Xcov()
-    np.save(inpath+'C',C)
-
-    C=np.load(inpath+'C.npy')
-    print 'shape of Cov matrix is ',C.shape
-    print 'computing eigenvalue decomposition'
-    [latent,coeff]=np.linalg.eig(C)
-    print 'eig finished'
-    coeff=np.real(coeff)
-    latent/=latent.sum()
-    np.save(inpath+'latent',latent[:100])
-    np.save(inpath+'coeff.npy',coeff[:,:100])
-
-    coeff=np.real(np.load(inpath+'coeff.npy'))
-    coeff=Xleftmult(coeff,True)
-    np.save(inpath+'coeff.npy',coeff)
+##    C=np.load(inpath+'C.npy')
+##    print 'shape of Cov matrix is ',C.shape
+##    print 'computing eigenvalue decomposition'
+##    [latent,coeff]=np.linalg.eigh(C)
+##    print 'eig finished'
+##    latent=latent[::-1]
+##    coeff=coeff[:,::-1]
+##    latent/=latent.sum()
+##    np.save(inpath+'latent',latent[:100])
+##    np.save(inpath+'coeff.npy',coeff[:,:100])
+##
+##    coeff=np.load(inpath+'coeff.npy')
+##    coeff=Xleftmult(coeff,True)
+##    np.save(inpath+'coeff.npy',coeff)
 
     coeff=np.load(inpath+'coeff.npy')
     rows=8
@@ -953,14 +952,14 @@ def pcaScript():
         #for k in range(len(pf)): pf[k]=pf[k].squeeze()
         #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
         #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
-    ndarray2gif(inpath+'pcAll',np.uint8(R*255),duration=0.1)
+    ndarray2gif('pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
 
-for ivp in range(1,5):
-    for iev in [1,0]:
-        if ivp==1 and iev==1: continue
-        print 'vp = %d, ev = %d'%(ivp,iev)
-        initPath(ivp,iev)
-        pcaScript()
+##for iev in [1,0]:
+##    for ivp in range(1,5):
+##        print 'vp = %d, ev = %d'%(ivp,iev)
+##        initPath(ivp,iev)
+##        pcaScript()
+    
 ##latent=np.load(inpath+'latent.npy')
 ##fs=os.listdir(inpath)
 ##N=0
@@ -976,7 +975,7 @@ for ivp in range(1,5):
 ##ndarray2gif(inpath+'mean',m.T,duration=0.1,addblank=True)   
 
 def controlSimulationsPIX():
-    P=64;T=20
+    P=64;T=50
     I=np.random.rand(P,P,T)*1e-2
     for t in range(T):
         I[t:t+3,P/2-2:P/2+2,t] = 1
@@ -997,11 +996,11 @@ def controlSimulationsPIX():
     D=D-np.matrix(D.mean(0))
 
     coeff,score,latent=pcaSVD(D)
-    coeff-=np.min(coeff)
-    coeff/=np.max(coeff)
     for k in range(coeff.shape[1]):
-        ndarray2gif('pc%02d'%k,coeff[:,k].reshape((P,P,T)).T,addblank=True)
-
+        cff=coeff[:,k].reshape((P,P,T)).T
+        cff-=np.min(cff)
+        cff/=np.max(cff)
+        ndarray2gif('pc%02d'%k,cff,addblank=True)
 
 def controlSimulationsXY():
     def rotate(x,phi):
