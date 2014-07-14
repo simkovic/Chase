@@ -83,10 +83,10 @@ def extractTrajectories():
     Np=100;rp=[]; # number of random replications for DP CI calculation
     valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     print 'proportion of utilized samples is', valid.mean()
-    D=np.zeros((valid.sum(),fw,14,2))*np.nan
-    DG=np.zeros((valid.sum(),fw,14,2))*np.nan
+    D=np.zeros((valid.sum(),fw,14,3))*np.nan
+    DG=np.zeros((valid.sum(),fw,14,3))*np.nan
     DT=np.zeros((valid.sum(),fw,14,2))*np.nan
-    DP=np.zeros((valid.sum(),fw,14,2))*np.nan
+    #DP=np.zeros((valid.sum(),fw,14,2))*np.nan
     DA=np.zeros((valid.sum(),fw,14,2))*np.nan
     temp=np.zeros((valid.sum(),Np))*np.nan
     k=0; lastt=-1;
@@ -96,7 +96,7 @@ def extractTrajectories():
         if si[h,-1]!=lastt:
             order=np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
             traj=np.load(inpath+'vp001/vp001b%dtrial%03d.npy'%(si[h,-2],order[si[h,-1]]) )
-        D[k,:,:,:]=traj[sf[h]:ef[h],:,:2]
+        D[k,:,:,:]=traj[sf[h]:ef[h],:,:]
         DT[k,:,:,:]=traj[sf[rt[k]]:ef[rt[k]],:,:2]
         k+=1; lastt=si[h,-2]
     for k in range(Np): rp.append(np.random.permutation(valid.nonzero()[0]))
@@ -108,12 +108,15 @@ def extractTrajectories():
                 DG[:,f,a,q]= D[:,f,a,q] - si[valid,6+q]
                 DT[:,f,a,q]-= si[rt,6+q]
                 DA[:,f,a,q]= D[:,f,a,q] - D[:,D.shape[1]/2,2,q]
-    for k in range(Np):
-        for a in range(14):
-            for f in range(fw):
-                for q in range(2):
-                    DP[:,f,a,q]= D[:,f,a,q] - si[rp[k],6+q]
-        np.save(path+'E%d/DP%02d.npy'%(event,k),DP)
+            DG[:,f,a,2]= D[:,f,a,2]
+# DP was used to compute random level with bootstrapping
+# was abandoned because it takes too long to compute the CI from samples
+##    for k in range(Np):
+##        for a in range(14):
+##            for f in range(fw):
+##                for q in range(2):
+##                    DP[:,f,a,q]= D[:,f,a,q] - si[rp[k],6+q]
+##        np.save(path+'E%d/DP%02d.npy'%(event,k),DP)
     D=[DG,DA,DT]       
     for d in range(len(D)): np.save(path+'E%d/D%s.npy'%(event,dtos[d]),D[d])
 def extractDensity():
@@ -354,14 +357,14 @@ def plotTraj(traj):
 
 
 if __name__ == '__main__':
-    for event in [0]:
-        for vpl in [3]:#range(1,5):
+    for event in [1]:
+        for vpl in [4]:#range(1,5):
             initVP(vpl=vpl)
-            #extractTrajectories()
+            extractTrajectories()
             #agentDensity()
             #extractDensity()
             #extractDirC()
-            extractSaliency(channel='SOintensity')
+            #extractSaliency(channel='SOintensity')
     
 
 
