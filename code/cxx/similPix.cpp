@@ -39,17 +39,19 @@
 
 
 int main(int argc, char** argv){
+	// usage: simil <pffnumA> <pffnumB> <subject> <eventA> <eventB>
+	
 	//for (int i=0;i<argc;i++){printf("ta %s\n",argv[i]);}
 	char buffer [50];
 	
-	sprintf(buffer,"vp%03d/E%s/PF/PF%02d.npy",atoi(argv[3]),argv[4],atoi(argv[1]));
+	sprintf(buffer,"vp%03d/E%s/PFB/PF%02d.npy",atoi(argv[3]),argv[4],atoi(argv[1]));
 	cnpy::NpyArray arr = cnpy::npy_load(buffer);
 	//printf("dim = %d %u\n",arr1.shape.size(),arr1.word_size);
 	//for (int a=0;a<arr.shape.size();a++){printf("pfsize, %u\n",arr.shape[a]);}
 	const unsigned int N1= arr.shape[0];
 	unsigned char* D1 = reinterpret_cast<unsigned char*>(arr.data);
 	
-	sprintf(buffer,"vp%03d/E%s/PF/PF%02d.npy",atoi(argv[3]),argv[5],atoi(argv[2]));
+	sprintf(buffer,"vp%03d/E%s/PFB/PF%02d.npy",atoi(argv[3]),argv[5],atoi(argv[2]));
 	cnpy::NpyArray arr2 = cnpy::npy_load(buffer);
 	const unsigned int N2= arr2.shape[0];
 	unsigned char* D2 = reinterpret_cast<unsigned char*>(arr2.data);
@@ -72,8 +74,6 @@ int main(int argc, char** argv){
 	
 	//printf("D1[0]= %u", D1[0]);
 	//printf("D1[1]= %u", D1[234*m1+12*m2+12*m3+0*m4+45]);
-	
-	
 	double res1,res2,temp;
 	double test=0;
 	int n2start;
@@ -124,7 +124,7 @@ int main(int argc, char** argv){
 	//printf("res1= %f\n", sqrt(res1));
 	}}}}}//}}
 	//printf("S[0]= %f\n", S[0*N*N+0*N+3]);
-	sprintf(buffer,"vp%03d/E%s/Scross/S%03dx%03d.npy",atoi(argv[3]),argv[4],atoi(argv[1]),atoi(argv[2]));
+	sprintf(buffer,"vp%03d/E%s/S/S%03dx%03d.npy",atoi(argv[3]),argv[4],atoi(argv[1]),atoi(argv[2]));
     cnpy::npy_save(buffer,S,shape,4,"w");
 	//printf("finished\n");
 }	
