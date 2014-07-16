@@ -226,15 +226,13 @@ def Scompute(vp,evA,evB,pfn='PFB'):
     mid=(P-1)/2.0
     mask=np.zeros((P,P,F),dtype=np.bool8)
     suf=['ev%d'%evB,''][int(evA==evB)]
-    #S=np.zeros([dga,dgb])*np.nan
-    S=np.load(inpa+'S'+suf+'.npy')
+    S=np.zeros([dga,dgb])*np.nan
     for i in range(P):
         for j in range(P):
             if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
     # compute similarity
     for pf1 in range(0,N1):
         for pf2 in range(pf1*int(evA==evB),N2):
-            if pf1<N1-1 and pf2<N2-1: continue
             D1=np.load(inpa+'%s/%s%03d.npy'%(pfn,pfn,pf1))
             D2=np.load(inpb+'%s/%s%03d.npy'%(pfn,pfn,pf2))
             Spart=np.zeros((D1.shape[0],D2.shape[0]))*np.nan
@@ -247,7 +245,7 @@ def Scompute(vp,evA,evB,pfn='PFB'):
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
     np.save(inpa+'S'+suf,S)
-Scompute(3,0,0)
+#Scompute(3,0,0)
 
 def Smerge(vp,ev):
     ''' obsolete, remove '''
@@ -570,40 +568,53 @@ def pcaScript():
     coeff=Xleftmult(coeff,True)
     np.save(inpath+'coeff.npy',coeff)
 
-    coeff=np.load(inpath+'coeff.npy')
-    rows=8
-    cols=5
-    offset=8
+def _getPC(pf,h):
+    if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
+    pf-= np.min(pf)
+    pf/= np.max(pf)
+    return pf.squeeze().T
+
+def plotCoeff(rows=8,cols=5):
+    coeff=np.load(inpath+'XB/coeff.npy')
+    offset=8 # nr pixels for border padding
     R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
     for h in range(coeff.shape[1]):
-        pf=coeff[:,h].reshape((64,64,68))
-        pf-= np.min(pf)
-        pf/= np.max(pf)
-        #pf*=255
-        #pf=np.uint8(pf)
         if h>=rows*cols:continue
         c= h%cols;r= h/cols
         s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=pf.squeeze().T
-        #pf=np.split(pf,range(1,pf.shape[2]),axis=2)
-        #for k in range(len(pf)): pf[k]=pf[k].squeeze()
-        #pf.append(np.zeros(pf[0].shape,dtype=np.float32))
-        #writeGif(inpath+'pcN%d.gif'%h,pf,duration=0.1)
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
     ndarray2gif('pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
-    
-##latent=np.load(inpath+'latent.npy')
-##fs=os.listdir(inpath)
-##N=0
-##for f in fs: N+= f.startswith('coeff')
-##coeff=mergeT('coeff')
 
-###N=21
-###XmeanCenter(axis=0)
-##m=np.load(inpath+'Xmean.npy')
-##m-= np.min(m)
-##m/= np.max(m)
-##m=m.reshape(64,64,68)
-##ndarray2gif(inpath+'mean',m.T,duration=0.1,addblank=True)   
+def plotLatent():
+    for ev in range(2):
+        for vp in range(1,5):
+            initPath(vp,ev)
+            plt.plot(np.load(inpath+'XB/latent.npy')[:20],['r','g'][ev])
+    plt.show()
+
+def plotScore(pcs=5,scs=3):
+    score=np.load(inpath+'XB/score.npy')
+    coeff=np.load(inpath+'XB/coeff.npy')
+    offset=8 # nr pixels for border padding
+    rows=scs*2+1; cols=pcs
+    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
+    f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
+    bd=score.shape[0]/dat['N']
+    for h in range(pcs):
+        s=((offset+64)*0+offset/2,(offset+64)*h+offset/2)
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
+        
+        ns=np.argsort(score[:,h])[range(scs)+range(-scs,0)]
+        for i in range(len(ns)):
+            pf=np.load(inpath+'PFB/PFB%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
+            s=((offset+64)*(i+1)+offset/2,(offset+64)*h+offset/2)
+            print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
+            R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
+    ndarray2gif('scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
+
+initPath(1,1)
+plotScore()  
+
 
 def controlSimulationsPIX():
     P=64;T=50
@@ -718,7 +729,7 @@ def computeRotation():
 
 ##
 ##for iev in [0]:
-##    for ivp in [1]:#range(1,5):
+##    for ivp in range(1,5):
 ##        print 'vp = %d, ev = %d'%(ivp,iev)
 ##        initPath(ivp,iev)
 ##        #computeRotation()

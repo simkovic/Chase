@@ -476,16 +476,6 @@ def checkEyelinkDatasets():
             except:
                 print 'missing ', vp, block
 
-def sacInfoMergeBlocks(vp=1):
-    """ puts saveSacInfo output into a single file"""
-    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    N=0
-    for f in os.listdir(path): N+=f.startswith('si')
-    si=[]
-    for b in range(1,N+1): si.append(np.load(path+'si%d.npy'%b))
-    si=np.concatenate(si,0)
-    np.save(path+'si.npy',si)
-    for b in range(1,N+1): os.remove(path+'si%d.npy'%b)
     
         
 
@@ -514,7 +504,7 @@ def saveSacInfo(vp=1):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
 
     si=[]
-    for b in range(21,24):
+    for b in range(1,24):
         try: data=readEyelink(vp,b)
         except:
             print 'block %d is missing'%b
@@ -544,8 +534,7 @@ def saveSacInfo(vp=1):
                                 ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
                         gg+=1         
-        np.save(path+'si%d.npy'%b,si)
-    #sacInfoMergeBlocks(vp=vp)
+    np.save(path+'si.npy',si)
     
     
 if __name__ == '__main__':
@@ -553,8 +542,8 @@ if __name__ == '__main__':
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()
-    #saveSacInfo(vp=4)
-    sacInfoMergeBlocks(vp=4)
+    saveSacInfo(vp=1)
+    #sacInfoMergeBlocks(vp=1)
     
             
 ##    res=np.zeros(2549)

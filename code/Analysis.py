@@ -36,11 +36,11 @@ def plotSearchInfo(plot=True):
     D=D[D[:,14]==event,:]
     if event==1:
         # discard tracking events initiated by tracking or blink
-        sel=np.logical_or(np.isnan(D[:,11]),D[:,11]-D[:,4]>=0)
+        
+        sel=np.logical_and(~np.isnan(D[:,11]),D[:,11]-D[:,4]>=0)
         D=D[sel,:]
     if plot:
         #plt.close('all')
-
         plt.figure()
         lim=12
         bn=np.linspace(-lim,lim,21)
@@ -82,7 +82,7 @@ def extractTrajectories():
     ef=sf+fw
     Np=100;rp=[]; # number of random replications for DP CI calculation
     valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
-    print 'proportion of utilized samples is', valid.mean()
+    print 'proportion of utilized samples is', valid.mean(),' total = ',valid.sum()
     D=np.zeros((valid.sum(),fw,14,3))*np.nan
     DG=np.zeros((valid.sum(),fw,14,3))*np.nan
     DT=np.zeros((valid.sum(),fw,14,2))*np.nan
@@ -132,10 +132,9 @@ def extractDensity():
     for i in range(len(D)+3): I.append(np.zeros((bnS.size,shape[1],3)))
     g=1;n=shape[0]*shape[2]
     for f in range(0,shape[1]):
-        print f
         H=[]
         for q in range(len(D)):
-            H.append(D[q][:,f,:,:].reshape([n,1,1,2]).squeeze())
+            H.append(D[q][:,f,:,:2].reshape([n,1,1,2]).squeeze())
             a,b,l,u=histCI(np.sqrt(np.power(H[q],2).sum(axis=1)),bins=bnR,plot=False)
             I[q][:,f,0]=a/np.float32(shape[0]*bnS)
             I[q][:,f,1]=l/np.float32(shape[0]*bnS)
@@ -172,7 +171,7 @@ def extractDirC():
                 np.abs(np.diff(D[:,:,a,0],n=2,axis=1))>tol)
         # compute 
         for f in range(shape[1]-2):
-            print f,q
+            #print f,q
             for i in range(d.size):
                 for a in range(shape[2]):
                     if i==len(bn)-1:
@@ -357,14 +356,14 @@ def plotTraj(traj):
 
 
 if __name__ == '__main__':
-    for event in [1]:
+    for event in [0]:
         for vpl in [4]:#range(1,5):
             initVP(vpl=vpl)
             extractTrajectories()
-            #agentDensity()
-            #extractDensity()
-            #extractDirC()
-            #extractSaliency(channel='SOintensity')
+            extractDensity()
+            extractDirC()
+            extractSaliency(channel='COmotion')
+            extractSaliency(channel='SOintensity')
     
 
 
