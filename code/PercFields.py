@@ -4,13 +4,11 @@ from psychopy import visual,core
 from psychopy.misc import deg2pix
 from Constants import *
 from Settings import Q
-import random, Image,ImageFilter, os
+import random, Image,ImageFilter, os,pyglet, pickle,commands
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
 from matustools.matusplotlib import ndarray2gif
-import pyglet
-import pickle
 
 def initPath(vpp,eventt):
     global event,vp,path,inpath
@@ -79,7 +77,7 @@ def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
             Im=np.asarray(Im,dtype=np.float32)
             Ims.append(Im)
         Ims=np.array(Ims)
-        Ims=gaussian_filter(Ims,sig)
+        #Ims=gaussian_filter(Ims,sig)
         if np.any(Ims>255): print 'warning, too large'
         if np.any(Ims<0): print 'warning, too small'
         Ims=np.uint8(np.round(Ims))
@@ -100,8 +98,10 @@ def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
         if close: wind.close()
         raise
 
-
-
+def traj2avi(traj):
+    pass
+def pf2avi(pf):
+    pass
 def PFextract(E,part=[0,1],wind=None,elem=None):
     """ part[0] - current part
         part[1] - total number of parts
@@ -133,44 +133,35 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
                 elem=elem,wind=wind,rot=rot,width=dat['width'],
                 hz=dat['hz'],SX=dat['SX'],SY=dat['SY'],ST=dat['ST'])
             #from matustools.matusplotlib import ndarray2gif
-            #ndarray2gif('test%d'%i,D[i,:,:,:,0].T*6)
-            #if i==10: bla
+            #outt=np.float32(D[i,:,:,:,0].T)
+            #outt-= np.min(outt)
+            #outt/= np.max(outt)
+            #ndarray2gif('test%d'%i,outt)
+            #if i==3: bla
         if close: wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save(inpath+'PF/PFB%03d.npy'%(part[0]),PF)
-        else: np.save('PF.npy',PF)
+        if len(part)==2: np.save(inpath+'PFC/PFC%03d.npy'%(part[0]),PF)
+        else: np.save('PFC.npy',PF)
     except:
         if close: wind.close()
         raise
 
-
-def PFsubsampleF():
-    ''' subsample PF files from 500 hz to 100hz
-        to make computeSimilarity run faster'''
-    for i in range(0,601):
-        print i
-        PF=np.load('cxx/similPix/data/PF%d.npy'%i)
-        PF=PF[:,:,:,:,range(2,152,5)]
-        PF=np.save('cxx/similPix/dataRedux/PF%d.npy'%i,PF)
-
 def PFinit():
-    dat={'N':[100,30,10,4][event],'os':64,'rot':1,
-         'width':10,'hz':85.0,'SX':0.3,'SY':0.3,'ST':40}
+    dat={'N':[50,15,8,2][event],'os':64,'rot':1,
+         'width':10,'hz':85.0,'SX':0.01,'SY':0.01,'ST':0.01}
     np.save(inpath+'stackPF.npy',range(dat['N']+1))
-    Q.save(inpath+'PFB.q')
-    f=open(inpath+'PFB.pars','w')
+    Q.save(inpath+'PFC.q')
+    f=open(inpath+'PFC.pars','w')
     pickle.dump(dat,f)
     f.close()
-
-
     
 def PFparallel():
     ''' please run PFinit() first
     '''
-    E=np.load(inpath+'DG.npy')
+    E=np.load(inpath+'DG.npy')[:,:,:,:2]
     print E.shape
     stack=np.load(inpath+'stackPF.npy').tolist()
-    f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PFC.pars','r');dat=pickle.load(f);f.close()
     N=dat['N']
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
@@ -189,10 +180,9 @@ def PFparallel():
                 print 'IOError'
                 core.wait(1)
     wind.close()
-#initPath(1,2)
-#PFinit()
-#PFparallel()
-
+initPath(1,0)
+PFinit()
+PFparallel()
 #########################################################
 #                                                       #
 #                SVM                                    #
@@ -200,7 +190,7 @@ def PFparallel():
 #########################################################
     
 
-def Scompute(vp,evA,evB,pfn='PFB'):
+def Scompute(vp,evA,evB,pfn='PF'):
     ''' compute similarity matrix between perceptive fields
         vp - subject id
         evA - id of event A
@@ -245,36 +235,78 @@ def Scompute(vp,evA,evB,pfn='PFB'):
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
     np.save(inpa+'S'+suf,S)
-#Scompute(3,0,0)
 
-def Smerge(vp,ev):
-    ''' obsolete, remove '''
-    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    inpath=path+'E%d/'%ev
-    N=31
-    D=np.load(inpath+'S/S000x000.npy')
-    ds=D.shape[0]; 
-    S=np.zeros([ds*N]*2)*np.nan
-    for i in range(N):
-        for j in range(i,N):
-            D=np.load(inpath+'S/S%03dx%03d.npy'%(i,j))
-            S[i*ds:(i*ds+D.shape[0]),j*ds:(j*ds+D.shape[1])]=D
-            S[j*ds:(j*ds+D.shape[1]),i*ds:(i*ds+D.shape[0])]=D.T
-            os.system('rm '+inpath+'S/S%03dx%03d.npy'%(i,j))
-    dg=np.load(inpath+'DG.npy')
-    np.save(inpath+'S.npy',S[:dg.shape[0],:dg.shape[0]])
+def SexportSvm(vp,ev,beta=1):
+    ''' beta on log scale '''
+    print 'Exporting'
+    e1=ev; e2=ev+1
+    fn1=range(0,602,5);fn2=range(152)
+    pth=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    S1=np.load(pth+'E%d/S.npy'%(e1))
+    S2=np.load(pth+'E%d/S.npy'%(e2))
+    Scross=np.load(pth+'E%d/Sev%d.npy'%(e1,e2))
+    n1=S1.shape[0];n2=S2.shape[0]
+    S=np.zeros((n1+n2,n1+n2))*np.nan
+    #print S[:n1,:n1].shape, S1.shape, n1/float(n1+n2)
+    S[:n1,:n1]=S1
+    S[:n1,n1:]=Scross
+    #print S[:n1,n1:].shape,Scross.shape
+    S[n1:,:n1]=Scross.T
+    S[n1:,n1:]=S2
+    del S1,S2,Scross
+    ##print np.any(np.isnan(S)), np.min(S), np.max(S)
+    ##ks=[0.125,0.25,0.5,1,2,4,8]
+    ##ms=[100,500,1000,5000,10000]
+    ##for k in range(len(ks)):
+    ##    for m in range(len(ms)):
+    ##        plt.subplot(5,7, m*7+k+1)
+    ##        plt.hist(np.exp(-np.power(S.flatten()/float(ms[m]),ks[k])),1000)
 
-#def SexportSvm():
-##e1=0;e2=1
-##fn1=range(0,602,5);fn2=range(152)
-##n1=np.load(path+'E%d/S/S000x000.npy'%(e1))
-##n11=np.load(path+'E%d/S/S000x%03d.npy'%(e1,fn1[-1]))
-##
-##n1=np.load(path+'E%d/S/S001x%03d.npy'%(e2,fn2[-1]))
-##n2=np.load(path+'E%d/S/S%03dx%03d.npy'%(e2,fn2[-1],fn2[-1]))
-##
-##f=open(inpath+'svm/e0e1.in','w')
-##f.close()
+    # use radial basis function, note values in S are already squared
+    S=np.exp(-np.exp(beta)*S/5000.)
+    #print np.any(np.isnan(S)),np.min(S),np.max(S)
+    #print np.any(np.isinf(S))
+    f=open(pth+'E%d/svm/e%de%d.in'%(e1,e1,e2),'w')
+    for row in range(n1+n2):
+        s='%d 0:%d'%(int(row<n1),row+1)
+        for col in range(n1+n2):
+            s+=' %d:%.4f'%(col+1,S[row,col])
+        s+='\n'
+        f.write(s)
+        f.flush()
+    f.close()
+    print 'Export Finished'
+def svmGrid(fn,betas=None, cs=None):
+    
+    logf=open(fn+'.log','w')
+    if betas is None: betas=np.arange(-5,15,1)
+    if cs is None: cs=np.arange(-5,15,1)
+    logf.write('betas = '+str(betas)+'\ncs = '+str(cs)+'\n');
+    res=[]
+    for b in betas:
+        res.append([])
+        SexportSvm(beta=b)
+        for c in cs:
+            print 'beta = %.3f, C = %f'%(b,c)
+            #print 'svm-train -s'+' 0 -v 5 -t 4 -c %f -m 6000 %s.in %s.model'%(c,fn,fn)
+            status,output=commands.getstatusoutput('svm-train -s '+
+                '0 -v 5 -t 4 -c %f -m 6000 %s.in'%(np.exp(c),fn))
+            if status:
+                print output
+                raise RuntimeError(output)
+            logf.write(output+'\n')
+            logf.flush()
+            #print output
+            temp=float(output.rsplit(' ')[-1].rstrip('%'))/100.
+            print temp
+            res[-1].append(temp)
+    res=np.array(res)
+    logf.close()
+    return res
+#initPath(3,0)
+#fname=inpath+'svm'+os.path.sep+'e%de%d'%(event,event+1)
+#res=svmGrid(fname)       
+#np.save(fname+'.npy',res)
 
 #########################################################
 #                                                       #
@@ -286,7 +318,7 @@ def PF2X(merge=1,verbose=True):
     ''' merge - # of pf files to merge into one x file
                 by default merge=1 and no files are merged
     '''
-    pfpath=inpath.rstrip('/XB/')+'/PFB/'
+    pfpath=inpath.rstrip('/X/')+'/PF/'
     fs=os.listdir(pfpath)
     fs.sort();k=0;x=[];h=0
 
@@ -352,14 +384,6 @@ def Xleftmult(A,transpose=False,verbose=True):
         if transpose: X=np.load(inpath+'XT%d.npy'%i)
         out.append(X*A)
     return np.concatenate(out,0)
-
-##initPath(3,1)
-##f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
-##inpath=inpath+'XB/'
-##mrg=4;N=dat['N']/mrg+1
-##coeff=np.load(inpath+'coeff.npy')
-##score=Xleftmult(coeff)
-##np.save(inpath+'score',score)
 
 def XminusOuterProduct(A,B):
     ''' X=X-A*B.T todo save XT also'''
@@ -546,18 +570,19 @@ def testPca():
 def pcaScript():
     global inpath,N
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
-    inpath=inpath+'XB/'
+    inpath=inpath+'X/'
     mrg=4;N=dat['N']/mrg+1
-    PF2X(merge=mrg)
-
-    C=Xcov()
-    np.save(inpath+'C',C)
+##    PF2X(merge=mrg)
+##
+##    C=Xcov()
+##    np.save(inpath+'C',C)
 
     C=np.load(inpath+'C.npy')
     print 'shape of Cov matrix is ',C.shape
     print 'computing eigenvalue decomposition'
     [latent,coeff]=np.linalg.eigh(C)
     print 'eig finished'
+    print coeff.shape
     latent=latent[::-1]
     coeff=coeff[:,::-1]
     latent/=latent.sum()
@@ -566,7 +591,11 @@ def pcaScript():
 
     coeff=np.load(inpath+'coeff.npy')
     coeff=Xleftmult(coeff,True)
+    print coeff.shape
     np.save(inpath+'coeff.npy',coeff)
+
+    score=Xleftmult(coeff)
+    np.save(inpath+'score',score)
 
 def _getPC(pf,h):
     if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
@@ -575,7 +604,7 @@ def _getPC(pf,h):
     return pf.squeeze().T
 
 def plotCoeff(rows=8,cols=5):
-    coeff=np.load(inpath+'XB/coeff.npy')
+    coeff=np.load(inpath+'X/coeff.npy')
     offset=8 # nr pixels for border padding
     R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
     for h in range(coeff.shape[1]):
@@ -589,16 +618,16 @@ def plotLatent():
     for ev in range(2):
         for vp in range(1,5):
             initPath(vp,ev)
-            plt.plot(np.load(inpath+'XB/latent.npy')[:20],['r','g'][ev])
+            plt.plot(np.load(inpath+'X/latent.npy')[:20],['r','g'][ev])
     plt.show()
 
 def plotScore(pcs=5,scs=3):
-    score=np.load(inpath+'XB/score.npy')
-    coeff=np.load(inpath+'XB/coeff.npy')
+    score=np.load(inpath+'X/score.npy')
+    coeff=np.load(inpath+'X/coeff.npy')
     offset=8 # nr pixels for border padding
     rows=scs*2+1; cols=pcs
     R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     bd=score.shape[0]/dat['N']
     for h in range(pcs):
         s=((offset+64)*0+offset/2,(offset+64)*h+offset/2)
@@ -606,14 +635,11 @@ def plotScore(pcs=5,scs=3):
         
         ns=np.argsort(score[:,h])[range(scs)+range(-scs,0)]
         for i in range(len(ns)):
-            pf=np.load(inpath+'PFB/PFB%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
+            pf=np.load(inpath+'PF/PF%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
             s=((offset+64)*(i+1)+offset/2,(offset+64)*h+offset/2)
             print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
             R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
     ndarray2gif('scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
-
-initPath(1,1)
-plotScore()  
 
 
 def controlSimulationsPIX():
@@ -713,12 +739,13 @@ def radialkde(x,y,weights=None,bandwidth=np.pi/6,kernel=None):
     return out
 
 def computeRotation():
-    D=np.load(inpath+'DG.npy')
+    D=np.load(inpath+'DG.npy')[:,:,:,:2]
     x=np.linspace(-1,1,3601)*np.pi
     phis=np.zeros(D.shape[0])
     dd=np.diff(D,axis=1)
     movdir=np.arctan2(dd[:,:,:,1],dd[:,:,:,0])
     w=weight(D)
+    print 'Computing Rotation'
     for n in range(D.shape[0]):
         pr=D.shape[0]/10
         if n%pr==0: print '%d/10 finished'%(n/pr)
@@ -726,11 +753,12 @@ def computeRotation():
         phis[n]=x[np.argmax(a)]
     np.save(inpath+'phi',phis)
 
-
-##
-##for iev in [0]:
+##for iev in [1,0]:
 ##    for ivp in range(1,5):
 ##        print 'vp = %d, ev = %d'%(ivp,iev)
 ##        initPath(ivp,iev)
 ##        #computeRotation()
-##        pcaScript()
+##        #PFinit()
+##        #PFparallel()
+##        #pcaScript()
+##        plotCoeff()
