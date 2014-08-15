@@ -83,6 +83,8 @@ def extractTrajectories():
     Np=100;rp=[]; # number of random replications for DP CI calculation
     valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
     print 'proportion of utilized samples is', valid.mean(),' total = ',valid.sum()
+    np.save(path+'E%d/si.npy'%(event),si[valid])
+    return
     D=np.zeros((valid.sum(),fw,14,3))*np.nan
     DG=np.zeros((valid.sum(),fw,14,3))*np.nan
     DT=np.zeros((valid.sum(),fw,14,2))*np.nan
@@ -164,7 +166,7 @@ def extractDirC():
         for a in range(shape[2]):
             for f in range(1,shape[1]-1):
                 # compute distance from saccade center
-                P[:,f-1,a]=np.sqrt(np.power(D[:,f,a,:],2).sum(1))
+                P[:,f-1,a]=np.sqrt(np.power(D[:,f,a,:2],2).sum(1))
             # compute 2nd order differential of position for each agent, event
             # non-zero 2nd order diff - direction change 
             J[:,:,a]= np.logical_or(np.abs(np.diff(D[:,:,a,1],n=2,axis=1))>tol,
@@ -356,8 +358,8 @@ def plotTraj(traj):
 
 
 if __name__ == '__main__':
-    for event in [0]:
-        for vpl in [4]:#range(1,5):
+    for event in range(5):
+        for vpl in range(1,5):
             initVP(vpl=vpl)
             extractTrajectories()
             extractDensity()

@@ -5,7 +5,8 @@ from matustools.matusplotlib import *
 import os
 plt.close('all')
 plt.ion()
-event=0
+event=1
+lim=[[0.0025,0.025],[0.0037,0.025]]
 for vp in range(1,5):
     plt.figure(0)
     sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
@@ -30,8 +31,8 @@ for vp in range(1,5):
                     alpha=0.2,fill=True,fc='red',ec='red'))
     plt.xlabel('Radial Distance')
     plt.ylabel('Agent Density')
-    plt.legend(['S1','S2','S3','S4','RT'],loc=1)
-    plt.grid();#plt.ylim([0,0.15]);
+    plt.legend(['S1','S2','S3','S4','RT'],loc=1,fontsize=7)
+    plt.grid();plt.ylim([0,lim[event][0]]);
     plt.xlim([0,14])
 
     subplot(4,2,2)
@@ -41,7 +42,7 @@ for vp in range(1,5):
     hhh=0
     plt.plot(x,np.reshape(I[0,hhh,:,0],[x.size,2]).mean(1))
     if vp==4: plt.plot(x,np.reshape(I[2,hhh,:,0],[x.size,2]).mean(1))
-    #plt.ylim([1,5])
+    plt.ylim([0,lim[event][0]]);
     plt.xlim([-0.4,0.4])
     #plt.title('Radius=5 deg')
     plt.ylabel('Agent Density')#[a per deg^2]
@@ -78,16 +79,17 @@ for vp in range(1,5):
     plt.xlim([0,14]);plt.grid();plt.ylim([0,12])
     subplot(4,2,4)
     x=np.linspace(sw,ew,K[0].shape[1])/1000.
-    x=np.reshape(x,[x.size/2,2]).mean(1)
+    ss=2
+    x=np.reshape(x,[x.size/ss,ss]).mean(1)
     kk=0
     y=np.nansum(K[0][kk,:,:],1)/ nK[0][kk,:,:].sum(1)*hz
-    plt.plot(x,np.reshape(y,[x.size,2]).mean(1))
+    plt.plot(x,np.reshape(y,[x.size,ss]).mean(1))
     if vp==4:
         #plt.plot(x,np.nansum(K[2][kk,:,:],1)/ nK[2][kk,:,:].sum(1))
-        p=np.nansum(K[2][kk,:,:],1)/ nK[2][kk,:,:].sum(1)
+        p=np.nansum(K[2][kk,:,:],1)/nK[2][kk,:,:].sum(1)
         ci=1.96*np.sqrt(p*(1-p)/nK[2][kk,:,:].sum(1))
         l=(p-ci)*hz;h=(p+ci)*hz
-        l=np.reshape(l,[x.size,2]).mean(1);h=np.reshape(h,[x.size,2]).mean(1)
+        l=np.reshape(l,[x.size,ss]).mean(1);h=np.reshape(h,[x.size,ss]).mean(1)
         x=np.concatenate([x,x[::-1]])
         ci=np.concatenate([h,l[::-1]])
         
@@ -112,8 +114,8 @@ for vp in range(1,5):
         plt.plot(np.arange(1,15),I[:,I.shape[1]/2])
         if vp==4: plt.plot(np.arange(1,15),IR[:,IR.shape[1]/2])
         plt.xlabel('Radial Distance')
-        chan
-        plt.ylabel('%s Saliency'%chan[2:].capitalize())
+        plt.ylim([0.008,lim[event][1]])
+        plt.ylabel(['Light Contrast','Motion'][hh]+' Saliency')
         plt.grid();plt.xlim([0,14])
         subplot(4,2,6+2*hh)
         x=np.linspace(sw,ew,I.shape[1])/1000.
@@ -122,8 +124,9 @@ for vp in range(1,5):
         plt.plot(x,I[0,:])
         if vp==4: plt.plot(x,IR[0,:]) 
         plt.xlabel('time')
-        plt.ylabel('%s Saliency'%chan[2:].capitalize())
+        plt.ylabel(['Light Contrast','Motion'][hh]+' Saliency')
         plt.xlabel('Time to Saccade Onset')
+        plt.ylim([0.008,lim[event][1]])
         plt.xlim([-0.4,0.4])
         plt.grid()
     #plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)

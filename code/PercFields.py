@@ -592,28 +592,32 @@ def plotLatent():
             plt.plot(np.load(inpath+'XB/latent.npy')[:20],['r','g'][ev])
     plt.show()
 
-def plotScore(pcs=5,scs=3):
-    score=np.load(inpath+'XB/score.npy')
-    coeff=np.load(inpath+'XB/coeff.npy')
+def plotScore(pcs=10,scs=3):
+    score=np.load(inpath+'X/score.npy')
+    coeff=np.load(inpath+'X/coeff.npy')
     offset=8 # nr pixels for border padding
     rows=scs*2+1; cols=pcs
     R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     bd=score.shape[0]/dat['N']
     for h in range(pcs):
-        s=((offset+64)*0+offset/2,(offset+64)*h+offset/2)
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
+        s=((offset+64)*scs+offset/2,(offset+64)*h+offset/2)
+        pc=_getPC(coeff,h)
+        print pc.mean()
+        if False and pc.mean()>=0.4: invert= -1
+        else: invert= 1
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=invert*pc
         
-        ns=np.argsort(score[:,h])[range(scs)+range(-scs,0)]
+        ns=np.argsort(invert*score[:,h])[range(-scs,0)+range(scs)]
         for i in range(len(ns)):
-            pf=np.load(inpath+'PFB/PFB%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
-            s=((offset+64)*(i+1)+offset/2,(offset+64)*h+offset/2)
-            print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
+            pf=np.load(inpath+'PF/PF%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
+            s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
+            #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
             R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
     ndarray2gif('scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
 
 initPath(1,1)
-plotScore()  
+plotScore(pcs=21)  
 
 
 def controlSimulationsPIX():
