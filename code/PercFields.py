@@ -77,7 +77,7 @@ def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
             Im=np.asarray(Im,dtype=np.float32)
             Ims.append(Im)
         Ims=np.array(Ims)
-        #Ims=gaussian_filter(Ims,sig)
+        if np.any(np.array(sig)!=0):Ims=gaussian_filter(Ims,sig)
         if np.any(Ims>255): print 'warning, too large'
         if np.any(Ims<0): print 'warning, too small'
         Ims=np.uint8(np.round(Ims))
@@ -106,7 +106,7 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
     """ part[0] - current part
         part[1] - total number of parts
     """
-    f=open(inpath+'PFB.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
@@ -140,18 +140,18 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
             #if i==3: bla
         if close: wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save(inpath+'PFC/PFC%03d.npy'%(part[0]),PF)
-        else: np.save('PFC.npy',PF)
+        if len(part)==2: np.save(inpath+'PF/PF%03d.npy'%(part[0]),PF)
+        else: np.save('PF.npy',PF)
     except:
         if close: wind.close()
         raise
 
 def PFinit():
     dat={'N':[50,15,8,2][event],'os':64,'rot':1,
-         'width':10,'hz':85.0,'SX':0.01,'SY':0.01,'ST':0.01}
+         'width':10,'hz':85.0,'SX':0.3,'SY':0.3,'ST':40}
     np.save(inpath+'stackPF.npy',range(dat['N']+1))
-    Q.save(inpath+'PFC.q')
-    f=open(inpath+'PFC.pars','w')
+    Q.save(inpath+'PF.q')
+    f=open(inpath+'PF.pars','w')
     pickle.dump(dat,f)
     f.close()
     
@@ -161,7 +161,7 @@ def PFparallel():
     E=np.load(inpath+'DG.npy')[:,:,:,:2]
     print E.shape
     stack=np.load(inpath+'stackPF.npy').tolist()
-    f=open(inpath+'PFC.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     N=dat['N']
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
@@ -180,8 +180,7 @@ def PFparallel():
                 print 'IOError'
                 core.wait(1)
     wind.close()
-initPath(1,0)
-PFinit()
+initPath(3,0)
 PFparallel()
 #########################################################
 #                                                       #
