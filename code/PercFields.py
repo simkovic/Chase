@@ -9,6 +9,7 @@ from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
 from matustools.matusplotlib import ndarray2gif
+from time import time
 
 def initPath(vpp,eventt):
     global event,vp,path,inpath
@@ -98,10 +99,32 @@ def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
         if close: wind.close()
         raise
 
-def traj2avi(traj):
-    pass
-def pf2avi(pf):
-    pass
+def traj2avi(traj,fn='test'):
+    for f in range(traj.shape[0]):
+        plt.plot(traj[f,:,0],traj[f,:,1],'o')
+        plt.xlim([-5,5]);plt.ylim([-5,5])
+        ax=plt.gca();
+        ax.set_aspect(1); 
+        ax.set_xticks([])
+        ax.set_yticks([]);
+        plt.savefig('fig%03d.png'%f,bbox_inches='tight')
+        plt.cla()
+    commands.getstatusoutput('ffmpeg -i fig%03d.png -r 50 -y '+fn+'.avi')
+    commands.getstatusoutput('rm fig***.png');
+
+def pf2avi(pf,fn='test'):
+    for f in range(pf.shape[2]):
+        plt.imshow(pf[:,:,f],vmax=255,vmin=0)
+        plt.grid()
+        ax=plt.gca();
+        ax.set_aspect(1); 
+        ax.set_xticks([])
+        ax.set_yticks([]);
+        plt.savefig('fig%03d.png'%f,bbox_inches='tight')
+        plt.cla()
+    commands.getstatusoutput('ffmpeg -i fig%03d.png -r 50 -y '+fn+'.avi')
+    commands.getstatusoutput('rm fig***.png');
+
 def PFextract(E,part=[0,1],wind=None,elem=None):
     """ part[0] - current part
         part[1] - total number of parts
@@ -180,8 +203,7 @@ def PFparallel():
                 print 'IOError'
                 core.wait(1)
     wind.close()
-initPath(3,0)
-PFparallel()
+
 #########################################################
 #                                                       #
 #                SVM                                    #
@@ -262,10 +284,10 @@ def SexportSvm(vp,ev,beta=1):
     ##        plt.hist(np.exp(-np.power(S.flatten()/float(ms[m]),ks[k])),1000)
 
     # use radial basis function, note values in S are already squared
-    S=np.exp(-np.exp(beta)*S/5000.)
+    S=np.exp(-beta*S/5000.)
     #print np.any(np.isnan(S)),np.min(S),np.max(S)
     #print np.any(np.isinf(S))
-    f=open(pth+'E%d/svm/e%de%d.in'%(e1,e1,e2),'w')
+    f=open(pth+'E%d/svm/svm.in'%(e1),'w')
     for row in range(n1+n2):
         s='%d 0:%d'%(int(row<n1),row+1)
         for col in range(n1+n2):
@@ -275,16 +297,16 @@ def SexportSvm(vp,ev,beta=1):
         f.flush()
     f.close()
     print 'Export Finished'
-def svmGrid(fn,betas=None, cs=None):
-    
+def svmGridSearch(betas=None, cs=None):
+    fn=inpath+'svm/svm'
     logf=open(fn+'.log','w')
-    if betas is None: betas=np.arange(-5,15,1)
-    if cs is None: cs=np.arange(-5,15,1)
+    if betas is None: betas=np.arange(-5,10,0.5)
+    if cs is None: cs=np.arange(-5,15,0.5)
     logf.write('betas = '+str(betas)+'\ncs = '+str(cs)+'\n');
     res=[]
     for b in betas:
         res.append([])
-        SexportSvm(beta=b)
+        SexportSvm(vp,event,beta=np.exp(b))
         for c in cs:
             print 'beta = %.3f, C = %f'%(b,c)
             #print 'svm-train -s'+' 0 -v 5 -t 4 -c %f -m 6000 %s.in %s.model'%(c,fn,fn)
@@ -301,12 +323,153 @@ def svmGrid(fn,betas=None, cs=None):
             res[-1].append(temp)
     res=np.array(res)
     logf.close()
-    return res
-#initPath(3,0)
-#fname=inpath+'svm'+os.path.sep+'e%de%d'%(event,event+1)
-#res=svmGrid(fname)       
-#np.save(fname+'.npy',res)
+    np.save(inpath+'svm/grid.npy',res)
+    X,Y=np.meshgrid(cs,betas)
+    print X.shape,Y.shape,res.shape
+    plt.pcolor(X,Y,res);
+    am=np.nonzero(res==np.max(res))
+    beta=betas[am[0][0]]
+    c=cs[am[1][0]]
+    plt.xlabel('cs'); plt.ylabel('betas')
+    plt.savefig('grid.png')
+    print 'beta=',beta, ',c=',c
+    print np.max(res),np.min(res)
+    np.savetxt(inpath+'svm/opt.par',[beta,c])
+    
 
+def svmFindSvs():
+    [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
+    # compute the model
+    SexportSvm(vp,event,beta)
+    fn=inpath+'svm/svm'
+    status,output=commands.getstatusoutput('svm-train -s '+
+            '0 -t 4 -c %f %s.in %s.model'%(np.exp(c),fn,fn))
+    if status: print output
+    # save support vectors to npy file for later use
+    f=open(fn+'.model','r')
+    svs=[]
+    weights=[]
+    svon=False
+    k=0
+    for line in f.readlines():
+        words=line.rstrip('\n')
+        if words == 'SV':
+            svon=True
+            continue
+        words=words.rsplit(' ')
+        if words[0] == 'rho': weights.append(float(words[1]))
+        if svon:
+            weights.append(float(words[0]))
+            words=words[1].rsplit(':')[1]
+            svs.append(int(words))
+    f.close()
+    weights=np.array(weights)
+    svs=np.array(svs)-1
+    print svs.shape, weights.shape
+    np.save(inpath+'svm/weights.npy',weights)
+    np.save(inpath+'svm/svs.npy',svs)
+
+def pfSubsample(s=4):
+    ''' s - multiplicative subsampling factor'''
+    f=open(inpath+'PF.pars','r');
+    dat=pickle.load(f);f.close();N=dat['N']+1
+    print N
+    out=[]
+    for h in range(0,N):
+        D=np.load(inpath+'PF/PF%03d.npy'%h)
+        P=D.shape[1]; F=D.shape[4]
+        pfnew=np.zeros([D.shape[0],P/s,P/s,F/s])*np.nan
+        for n in range(D.shape[0]):
+            pf=D[n,:,:,0,:]
+            for i in range(pfnew.shape[1]):
+                for j in range(pfnew.shape[2]):
+                    for f in range(pfnew.shape[3]):
+                        temp=pf[i*s:(i+1)*s,j*s:(j+1)*s,f*s:(f+1)*s].mean()
+                        pfnew[n,i,j,f]=temp
+        out.append(pfnew)
+        print h
+    print out[0].shape,out[-1].shape
+    out=np.concatenate(out,axis=0)
+    print out.shape
+    np.save(inpath+'sPF.npy',out)
+
+def hillClimb(seed=-1,invert=True):
+    def svmObjFun(x,SMAX=128):
+        '''
+        compute similarity between x and the selected perc fields
+        then compute the svm objective function i.e. (w^T K(x,svs) - b)
+        weights[1:] are w and b is in weights[0]
+        svs gives the indices of selected perc fields
+        '''
+        x=np.reshape(x,[P,P,F])
+        S=np.zeros(D.shape[0])*np.nan
+        for n in range(S.size):
+            if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float32(x)*SMAX)
+        S=S[~np.isnan(S)]
+        #print np.max(D),np.min(D)
+        #print np.max(S),np.min(S),beta, np.max(weights),np.min(weights)
+        K=np.exp(-np.exp(beta)*S/5000.)
+        res=ww.dot(K)-weights[0]
+        #print 'res=',res
+        return (-1)**int(invert) *res
+
+    D0=np.load(inpath+'sPF.npy')
+    D1=np.load(path+'E%d/sPF.npy'%(event+1))
+    D=np.float32(np.concatenate([D0,D1],axis=0))
+    print D.shape
+    P=D.shape[1];F=D.shape[3]
+    # create mask with circular aperture
+    mid=(P-1)/2.0
+    try: mask=np.load('mask.npy')
+    except IOError:
+        mask=np.zeros((P,P,F),dtype=np.bool8)
+        for i in range(P):
+            for j in range(P):
+                if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
+        np.save('mask',mask)
+
+    #ww=np.zeros(dga+dgb)
+    weights=np.load(inpath+'svm/weights.npy')
+    svs=np.load(inpath+'svm/svs.npy')
+    ww=weights[1:]
+    svvs=np.zeros(D.shape[0])
+    svvs[svs]=1
+    svvs=svvs>0.5
+    [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
+
+    if seed==-1: x=np.zeros(P*P*F)>0
+    else:
+        np.random.seed(seed)
+        xmin=np.random.rand(P*P*F)>0.9
+        t0=time()
+        fmin=svmObjFun(xmin)
+        for k in range(1000):
+            x=np.random.rand(P*P*F)>0.9
+            f=svmObjFun(x)
+            if f<fmin: xmin=x
+        print 'start', fmin, time()-t0
+    fmin=svmObjFun(x)
+    loops=100
+    t0=time()
+    fk=np.inf
+    for k in range(loops):
+        for h in np.random.permutation(x.size).tolist():
+            x[h]= not x[h]
+            f=svmObjFun(x)
+            if fmin>f:  fmin=f
+            else: x[h]=not x[h]
+        if fk==fmin:
+            print 'converged, f=',fmin
+            break
+        fk=fmin
+        print k,np.round((time()-t0)/3600.,3),fmin
+        np.save(inpath+'svm/hc%dSeed%d'%(int(invert),seed),x)
+
+#svmGridSearch()       
+#svmFindSvs()
+initPath(4,0)
+#pfSubsample(s=2)
+hillClimb(-1)
 #########################################################
 #                                                       #
 #                       PCA                             #
@@ -571,10 +734,10 @@ def pcaScript():
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inpath=inpath+'X/'
     mrg=4;N=dat['N']/mrg+1
-##    PF2X(merge=mrg)
-##
-##    C=Xcov()
-##    np.save(inpath+'C',C)
+    PF2X(merge=mrg)
+
+    C=Xcov()
+    np.save(inpath+'C',C)
 
     C=np.load(inpath+'C.npy')
     print 'shape of Cov matrix is ',C.shape
@@ -595,6 +758,8 @@ def pcaScript():
 
     score=Xleftmult(coeff)
     np.save(inpath+'score',score)
+#initPath(3,0)
+#pcaScript()
 
 def _getPC(pf,h):
     if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
