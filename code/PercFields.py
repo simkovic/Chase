@@ -12,10 +12,11 @@ from matustools.matusplotlib import ndarray2gif
 from time import time
 
 def initPath(vpp,eventt):
-    global event,vp,path,inpath
+    global event,vp,path,inpath,figpath
     event=eventt;vp=vpp
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpath=path+'E%d/'%event
+    figpath=os.getcwd().rstrip('code')+'figures/PercFields/'
 
 #########################################################
 #                                                       #
@@ -393,7 +394,7 @@ def pfSubsample(s=4):
     print out.shape
     np.save(inpath+'sPF.npy',out)
 
-def hillClimb(seed=-1,invert=True):
+def hillClimb(seed=-1,invert=False):
     def svmObjFun(x,SMAX=128):
         '''
         compute similarity between x and the selected perc fields
@@ -467,9 +468,9 @@ def hillClimb(seed=-1,invert=True):
 
 #svmGridSearch()       
 #svmFindSvs()
-initPath(4,0)
+#initPath(4,0)
 #pfSubsample(s=2)
-hillClimb(-1)
+#hillClimb(0)
 #########################################################
 #                                                       #
 #                       PCA                             #
@@ -758,6 +759,7 @@ def pcaScript():
 
     score=Xleftmult(coeff)
     np.save(inpath+'score',score)
+    inpath=inpath.rstrip('X/')
 #initPath(3,0)
 #pcaScript()
 
@@ -776,7 +778,7 @@ def plotCoeff(rows=8,cols=5):
         c= h%cols;r= h/cols
         s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
         R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
-    ndarray2gif('pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
+    ndarray2gif(figpath+'pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
 
 def plotLatent():
     for ev in range(2):
@@ -923,12 +925,12 @@ def computeRotation():
         phis[n]=x[np.argmax(a)]
     np.save(inpath+'phi',phis)
 
-##for iev in [1,0]:
-##    for ivp in range(1,5):
-##        print 'vp = %d, ev = %d'%(ivp,iev)
-##        initPath(ivp,iev)
-##        #computeRotation()
-##        #PFinit()
-##        #PFparallel()
-##        #pcaScript()
-##        plotCoeff()
+for iev in [2]:
+    for ivp in range(1,5):
+        print 'vp = %d, ev = %d'%(ivp,iev)
+        initPath(ivp,iev)
+        #computeRotation()
+        #PFinit()
+        #PFparallel()
+        #pcaScript()
+        plotCoeff()
