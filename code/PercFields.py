@@ -8,7 +8,7 @@ import random, Image,ImageFilter, os,pyglet, pickle,commands
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
-from matustools.matusplotlib import ndarray2gif
+from matustools.matusplotlib import ndarray2gif,plotGifGrid
 from time import time
 
 def initPath(vpp,eventt):
@@ -405,7 +405,7 @@ def hillClimb(seed=-1,invert=False):
         x=np.reshape(x,[P,P,F])
         S=np.zeros(D.shape[0])*np.nan
         for n in range(S.size):
-            if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float32(x)*SMAX)
+            if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float64(x)*SMAX)
         S=S[~np.isnan(S)]
         #print np.max(D),np.min(D)
         #print np.max(S),np.min(S),beta, np.max(weights),np.min(weights)
@@ -416,7 +416,7 @@ def hillClimb(seed=-1,invert=False):
 
     D0=np.load(inpath+'sPF.npy')
     D1=np.load(path+'E%d/sPF.npy'%(event+1))
-    D=np.float32(np.concatenate([D0,D1],axis=0))
+    D=np.float64(np.concatenate([D0,D1],axis=0))
     print D.shape
     P=D.shape[1];F=D.shape[3]
     # create mask with circular aperture
@@ -450,7 +450,7 @@ def hillClimb(seed=-1,invert=False):
             if f<fmin: xmin=x
         print 'start', fmin, time()-t0
     fmin=svmObjFun(x)
-    loops=100
+    loops=20
     t0=time()
     fk=np.inf
     for k in range(loops):
@@ -464,13 +464,29 @@ def hillClimb(seed=-1,invert=False):
             break
         fk=fmin
         print k,np.round((time()-t0)/3600.,3),fmin
-        np.save(inpath+'svm/hc%dSeed%d'%(int(invert),seed),x)
+        np.save(inpath+'svm/hc/hc%dSeed%d'%(int(invert),seed),x)
+    #x=np.reshape(x,[P,P,F])
+    #fn=os.getcwd().rstrip('code')+'figures/PercFields/vp%de%dhc%dseed%d.npy'%(vp,event,int(invert),seed)
+    #pf2avi(np.float32(x)*255,fn=fn)
 
-#svmGridSearch()       
-#svmFindSvs()
-#initPath(4,0)
-#pfSubsample(s=2)
-#hillClimb(0)
+def svmPlotExtrema(event=0):
+    P=16;F=17
+    dat=[]
+    print len(dat)
+    for vp in range(1,5):
+        fn='/home/matus/Desktop/Chase/evaluation/'+ \
+            'vp%03d/E%d/svm/hc/hc'%(vp,event)
+        for g in range(2):
+            dat.append([])
+            for k in range(6):
+                try:temp=np.load(fn+'%dSeed%d.npy'%(g,k))
+                except IOError: temp=np.ones(P*P*F)
+                temp=np.reshape(temp,[P,P,F])
+                dat[-1].append(temp)
+    plotGifGrid(dat,fn=figpath+'svmExtrema')
+
+
+
 #########################################################
 #                                                       #
 #                       PCA                             #
@@ -760,8 +776,6 @@ def pcaScript():
     score=Xleftmult(coeff)
     np.save(inpath+'score',score)
     inpath=inpath.rstrip('X/')
-#initPath(3,0)
-#pcaScript()
 
 def _getPC(pf,h):
     if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
@@ -925,12 +939,25 @@ def computeRotation():
         phis[n]=x[np.argmax(a)]
     np.save(inpath+'phi',phis)
 
-for iev in [2]:
-    for ivp in range(1,5):
-        print 'vp = %d, ev = %d'%(ivp,iev)
-        initPath(ivp,iev)
-        #computeRotation()
-        #PFinit()
-        #PFparallel()
-        #pcaScript()
-        plotCoeff()
+if __name__ == '__main__':
+    if False:
+        for iev in [2]:
+            for ivp in range(1,5):
+                print 'vp = %d, ev = %d'%(ivp,iev)
+                initPath(ivp,iev)
+                #computeRotation()
+                #PFinit()
+                #PFparallel()
+                #pcaScript()
+                plotCoeff()
+    else:
+        initPath(2,1)
+        svmGridSearch()       
+        svmFindSvs()
+        pfSubsample(s=2)
+        event+=1
+        pfSubsample(s=2)
+        event-=1
+        for sd in range(-1,7): hillClimb(sd,invert=False)
+        for sd in range(-1,7): hillClimb(sd,invert=True)
+        svmPlotExtrema()
