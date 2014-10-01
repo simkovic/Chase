@@ -9,7 +9,8 @@ from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
 from psychopy import core
 from matustools.matusplotlib import ndarray2gif,plotGifGrid
-from time import time
+from time import time, sleep
+from multiprocessing import Process
 
 def initPath(vpp,eventt):
     global event,vp,path,inpath,figpath
@@ -17,6 +18,7 @@ def initPath(vpp,eventt):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpath=path+'E%d/'%event
     figpath=os.getcwd().rstrip('code')+'figures/PercFields/'
+    print 'initPath: vp=%d, ev=%d'%(vp,event)
 
 #########################################################
 #                                                       #
@@ -329,8 +331,10 @@ def svmGridSearch(betas=None, cs=None):
     print X.shape,Y.shape,res.shape
     plt.pcolor(X,Y,res);
     am=np.nonzero(res==np.max(res))
-    beta=betas[am[0][0]]
-    c=cs[am[1][0]]
+    iam=np.argmax(am[1])
+    
+    beta=betas[am[0][iam]]
+    c=cs[am[1][iam]]
     plt.xlabel('cs'); plt.ylabel('betas')
     plt.savefig('grid.png')
     print 'beta=',beta, ',c=',c
@@ -392,30 +396,11 @@ def pfSubsample(s=4):
     print out[0].shape,out[-1].shape
     out=np.concatenate(out,axis=0)
     print out.shape
-    np.save(inpath+'sPF.npy',out)
+    np.save(inpath+'sPF%d.npy'%s,out)
 
-def hillClimb(seed=-1,invert=True):
-    def svmObjFun(x,SMAX=128):
-        '''
-        compute similarity between x and the selected perc fields
-        then compute the svm objective function i.e. (w^T K(x,svs) - b)
-        weights[1:] are w and b is in weights[0]
-        svs gives the indices of selected perc fields
-        '''
-        x=np.reshape(x,[P,P,F])
-        S=np.zeros(D.shape[0])*np.nan
-        for n in range(S.size):
-            if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float64(x)*SMAX)
-        S=S[~np.isnan(S)]
-        #print np.max(D),np.min(D)
-        #print np.max(S),np.min(S),beta, np.max(weights),np.min(weights)
-        K=np.exp(-np.exp(beta)*S/5000.)
-        res=ww.dot(K)-weights[0]
-        #print 'res=',res
-        return (-1)**int(invert) *res
-
-    D0=np.load(inpath+'sPF.npy')
-    D1=np.load(path+'E%d/sPF.npy'%(event+1))
+def hillClimb(nworkers=8,s=4): 
+    D0=np.load(inpath+'sPF%d.npy'%s)
+    D1=np.load(path+'E%d/sPF%d.npy'%(event+1,s))
     D=np.float64(np.concatenate([D0,D1],axis=0))
     print D.shape
     P=D.shape[1];F=D.shape[3]
@@ -437,37 +422,62 @@ def hillClimb(seed=-1,invert=True):
     svvs[svs]=1
     svvs=svvs>0.5
     [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
-
-    if seed==-1: x=np.zeros(P*P*F)>0
-    else:
-        np.random.seed(seed)
-        xmin=np.random.rand(P*P*F)>0.9
+    def worker(*args):
+        # these are read-only vars
+        [wid,np,P,F,svvs,beta,ww,D,mask]=args
+        def svmObjFun(x,SMAX=128):
+            '''
+            compute similarity between x and the selected perc fields
+            then compute the svm objective function i.e. (w^T K(x,svs) - b)
+            weights[1:] are w and b is in weights[0]
+            svs gives the indices of selected perc fields
+            '''
+            x=np.reshape(x,[P,P,F])
+            S=np.zeros(D.shape[0])*np.nan
+            for n in range(S.size):
+                if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float64(x)*SMAX)
+            S=S[~np.isnan(S)]
+            #print np.max(D),np.min(D)
+            #print np.max(S),np.min(S),beta, np.max(weights),np.min(weights)
+            K=np.exp(-np.exp(beta)*S/5000.)
+            res=ww.dot(K)-weights[0]
+            #print 'res=',res
+            return (-1)**invert *res 
+        seed=wid/2-1
+        invert=wid%2
+        print 'worker %d: running, seed=%d,invert=%d' % (wid,seed, invert)
+        if seed==-1: x=np.zeros(P*P*F)>0
+        else:
+            np.random.seed(seed)
+            xmin=np.random.rand(P*P*F)>0.9
+            t0=time()
+            fmin=svmObjFun(xmin)
+            for k in range(1000):
+                x=np.random.rand(P*P*F)>0.9
+                f=svmObjFun(x)
+                if f<fmin: xmin=x
+            print 'worker %d: prelim grid search finished: fmin='%(wid), fmin, time()-t0
+        fmin=svmObjFun(x)
+        loops=20
         t0=time()
-        fmin=svmObjFun(xmin)
-        for k in range(1000):
-            x=np.random.rand(P*P*F)>0.9
-            f=svmObjFun(x)
-            if f<fmin: xmin=x
-        print 'start', fmin, time()-t0
-    fmin=svmObjFun(x)
-    loops=20
-    t0=time()
-    fk=np.inf
-    for k in range(loops):
-        for h in np.random.permutation(x.size).tolist():
-            x[h]= not x[h]
-            f=svmObjFun(x)
-            if fmin>f:  fmin=f
-            else: x[h]=not x[h]
-        if fk==fmin:
-            print 'converged, f=',fmin
-            break
-        fk=fmin
-        print k,np.round((time()-t0)/3600.,3),fmin
-        np.save(inpath+'svm/hc/hc%dSeed%d'%(int(invert),seed),x)
-    #x=np.reshape(x,[P,P,F])
-    #fn=os.getcwd().rstrip('code')+'figures/PercFields/vp%de%dhc%dseed%d.npy'%(vp,event,int(invert),seed)
-    #pf2avi(np.float32(x)*255,fn=fn)
+        fk=np.inf
+        for k in range(loops):
+            for h in np.random.permutation(x.size).tolist():
+                x[h]= not x[h]
+                f=svmObjFun(x)
+                if fmin>f:  fmin=f
+                else: x[h]=not x[h]
+            if fk==fmin:
+                print 'worker %d: converged, f=%f'%(wid,fmin)
+                break
+            fk=fmin
+            print 'worker %d: loop=%d, t=%.3f, fmin=%f'%(wid,k,np.round((time()-t0)/3600.,3),fmin)
+            np.save(inpath+'svm/hc/hcWorker%d'%(wid),x)
+    ps=[]
+    for wid in range(0,nworkers):
+        p=Process(target=worker,args=(wid,np,P,F,svvs,beta,ww,D,mask))
+        p.start();ps.append(p)
+    for p in ps: p.join()
 
 def svmPlotExtrema(event=0):
     P=16;F=17
@@ -485,14 +495,25 @@ def svmPlotExtrema(event=0):
                 dat[-1].append(temp)
     plotGifGrid(dat,fn=figpath+'svmExtrema')
 
-#svmGridSearch()       
-#svmFindSvs()
-#initPath(2,1)
-#pfSubsample(s=2)
-initPath(1,0)
-#pfSubsample(s=4)
-#for sd in range(-1,7): hillClimb(sd,invert=False)
-svmPlotExtrema()
+
+
+#Scompute(sid,ev,ev+1)
+##Scompute(sid,ev+1,ev+1)
+##sid=1
+##ev=1
+##initPath(sid,ev)
+##svmGridSearch()       
+##svmFindSvs()
+##for ev in [0]:
+##    initPath(sid,ev)
+##    pfSubsample(s=2)
+    
+##for sid in range(1,5):
+##    initPath(sid,1)
+##    hillClimb(nworkers=8,s=2)
+initPath(3,0)
+hillClimb(nworkers=8,s=2)
+##svmPlotExtrema()
 #########################################################
 #                                                       #
 #                       PCA                             #
