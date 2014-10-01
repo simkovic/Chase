@@ -480,20 +480,20 @@ def hillClimb(nworkers=8,s=4):
     for p in ps: p.join()
 
 def svmPlotExtrema(event=0):
-    P=16;F=17
+    P=32;F=34
     dat=[]
     print len(dat)
     for vp in range(1,5):
-        fn='/home/matus/Desktop/Chase/evaluation/'+ \
-            'vp%03d/E%d/svm/hc/hc'%(vp,event)
+        initPath(vp,event)
+        fn= inpath+'svm/hc/hcWorker'
         for g in range(2):
             dat.append([])
-            for k in range(6):
-                try:temp=np.load(fn+'%dSeed%d.npy'%(g,k))
-                except IOError: temp=np.ones(P*P*F)
+            for k in range(4):
+                try:temp=np.load(fn+'%d.npy'%(k*2+g))
+                except IOError:temp=np.ones(P*P*F)
                 temp=np.reshape(temp,[P,P,F])
                 dat[-1].append(temp)
-    plotGifGrid(dat,fn=figpath+'svmExtrema')
+    plotGifGrid(dat,fn=figpath+'svmExtremaE%d'%event)
 
 
 
@@ -508,12 +508,13 @@ def svmPlotExtrema(event=0):
 ##    initPath(sid,ev)
 ##    pfSubsample(s=2)
     
-##for sid in range(1,5):
+
+##for sid py range(1,5):
 ##    initPath(sid,1)
 ##    hillClimb(nworkers=8,s=2)
-initPath(3,0)
-hillClimb(nworkers=8,s=2)
-##svmPlotExtrema()
+#initPath(2,1)
+#hillClimb(nworkers=8,s=2)
+svmPlotExtrema(0)
 #########################################################
 #                                                       #
 #                       PCA                             #
