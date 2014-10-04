@@ -10,16 +10,16 @@ from ImageOps import grayscale
 from psychopy import core
 from matustools.matusplotlib import ndarray2gif,plotGifGrid
 from time import time, sleep
-from multiprocessing import Process
+from multiprocessing import Process,Pool
 
 def initPath(vpp,eventt):
-    global event,vp,path,inpath,figpath
+    #global event,vp,path,inpath,figpath
     event=eventt;vp=vpp
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpath=path+'E%d/'%event
     figpath=os.getcwd().rstrip('code')+'figures/PercFields/'
-    print 'initPath: vp=%d, ev=%d'%(vp,event)
-
+    #print 'initPath: vp=%d, ev=%d'%(vp,event)
+    return path,inpath,figpath
 #########################################################
 #                                                       #
 #   Translate Coordinates to Perceptive Fields          #
@@ -212,7 +212,14 @@ def PFparallel():
 #                SVM                                    #
 #                                                       #
 #########################################################
-    
+def createMask(P,F):
+    # create mask with circular aperture
+    mid=(P-1)/2.0
+    mask=np.zeros((P,P,F),dtype=np.bool8)
+    for i in range(P):
+        for j in range(P):
+            if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
+    return mask 
 
 def Scompute(vp,evA,evB,pfn='PF'):
     ''' compute similarity matrix between perceptive fields
@@ -220,7 +227,8 @@ def Scompute(vp,evA,evB,pfn='PF'):
         evA - id of event A
         evB - id of event B
     '''
-    print 'Scompute: vp=%d, evA=%d, evB=%d'%(vp,evA,evB)
+    strid ='Scompute, vp=%d, evA=%d, evB=%d: '%(vp,evA,evB)
+    print strid+'started'
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpa=path+'E%d/'%evA
     inpb=path+'E%d/'%evB
@@ -235,15 +243,10 @@ def Scompute(vp,evA,evB,pfn='PF'):
     P=D1.shape[1];F=D1.shape[4]
     dga=np.load(inpa+'DG.npy').shape[0]
     dgb=np.load(inpb+'DG.npy').shape[0]
-    print dga,dgb,ds1,ds2
-    # create mask with circular aperture
-    mid=(P-1)/2.0
-    mask=np.zeros((P,P,F),dtype=np.bool8)
     suf=['ev%d'%evB,''][int(evA==evB)]
+    #print dga,dgb,ds1,ds2
     S=np.zeros([dga,dgb])*np.nan
-    for i in range(P):
-        for j in range(P):
-            if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
+    mask=createMask(P,F)
     # compute similarity
     for pf1 in range(0,N1):
         for pf2 in range(pf1*int(evA==evB),N2):
@@ -259,37 +262,70 @@ def Scompute(vp,evA,evB,pfn='PF'):
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
     np.save(inpa+'S'+suf,S)
+    print strid+'finished'
+
+def pfSubsample(vp,ev,s=2):
+    ''' s - multiplicative subsampling factor'''
+    strid='pfSubsample vp=%d, ev=%d,s=%d: '%(vp,ev,s)
+    print strid+'started'
+    path,inpath,figpath=initPath(vp,ev)
+    f=open(inpath+'PF.pars','r');
+    dat=pickle.load(f);f.close();N=dat['N']+1
+    out=[]
+    for h in range(0,N):
+        D=np.load(inpath+'PF/PF%03d.npy'%h)
+        P=D.shape[1]; F=D.shape[4]
+        pfnew=np.zeros([D.shape[0],P/s,P/s,F/s])*np.nan
+        for n in range(D.shape[0]):
+            pf=D[n,:,:,0,:]
+            for i in range(pfnew.shape[1]):
+                for j in range(pfnew.shape[2]):
+                    for f in range(pfnew.shape[3]):
+                        temp=pf[i*s:(i+1)*s,j*s:(j+1)*s,f*s:(f+1)*s].mean()
+                        pfnew[n,i,j,f]=temp
+        out.append(pfnew)
+        print strid+'h=%d finished'%h
+    out=np.concatenate(out,axis=0)
+    np.save(inpath+'sPF%d.npy'%s,out)
+    print strid+'finished'
+
+
+def svmObjFun(*args):
+    [wid,np,P,F,svvs,beta,weights,D,invert,x]=args
+    SMAX=128
+    '''
+    compute similarity between x and the selected perc fields
+    then compute the svm objective function i.e. (w^T K(x,svs) - b)
+    weights[1:] are w and b is in weights[0]
+    svs gives the indices of selected perc fields
+    '''
+    x=np.reshape(x,[P,P,F])
+    mask=createMask(P,F)
+    S=np.zeros(D.shape[0],dtype=np.float64)*np.nan
+    for n in range(S.size):
+        if svvs[n]: S[n]=np.linalg.norm(mask*(D[n,:,:,:]-np.float64(x)*SMAX))
+    S=S[~np.isnan(S)]
+    K=np.exp(-np.exp(beta)*S/5000.)
+    res=weights[1:].dot(K)-weights[0]
+    return  (-1)**invert * res 
 
 def SexportSvm(vp,ev,beta=1):
     ''' beta on log scale '''
     print 'Exporting'
     e1=ev; e2=ev+1
-    fn1=range(0,602,5);fn2=range(152)
     pth=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     S1=np.load(pth+'E%d/S.npy'%(e1))
     S2=np.load(pth+'E%d/S.npy'%(e2))
     Scross=np.load(pth+'E%d/Sev%d.npy'%(e1,e2))
     n1=S1.shape[0];n2=S2.shape[0]
     S=np.zeros((n1+n2,n1+n2))*np.nan
-    #print S[:n1,:n1].shape, S1.shape, n1/float(n1+n2)
     S[:n1,:n1]=S1
     S[:n1,n1:]=Scross
-    #print S[:n1,n1:].shape,Scross.shape
     S[n1:,:n1]=Scross.T
     S[n1:,n1:]=S2
     del S1,S2,Scross
-    ##print np.any(np.isnan(S)), np.min(S), np.max(S)
-    ##ks=[0.125,0.25,0.5,1,2,4,8]
-    ##ms=[100,500,1000,5000,10000]
-    ##for k in range(len(ks)):
-    ##    for m in range(len(ms)):
-    ##        plt.subplot(5,7, m*7+k+1)
-    ##        plt.hist(np.exp(-np.power(S.flatten()/float(ms[m]),ks[k])),1000)
-
     # use radial basis function, note values in S are already squared
-    S=np.exp(-beta*S/5000.)
-    #print np.any(np.isnan(S)),np.min(S),np.max(S)
-    #print np.any(np.isinf(S))
+    S=np.exp(-np.exp(beta)*S/5000.)
     f=open(pth+'E%d/svm/svm.in'%(e1),'w')
     for row in range(n1+n2):
         s='%d 0:%d'%(int(row<n1),row+1)
@@ -300,16 +336,18 @@ def SexportSvm(vp,ev,beta=1):
         f.flush()
     f.close()
     print 'Export Finished'
+
+
 def svmGridSearch(betas=None, cs=None):
     fn=inpath+'svm/svm'
     logf=open(fn+'.log','w')
     if betas is None: betas=np.arange(-5,10,0.5)
-    if cs is None: cs=np.arange(-5,15,0.5)
+    if cs is None: cs=np.arange(-10,10,0.5)
     logf.write('betas = '+str(betas)+'\ncs = '+str(cs)+'\n');
     res=[]
     for b in betas:
         res.append([])
-        SexportSvm(vp,event,beta=np.exp(b))
+        SexportSvm(vp,event,beta=b)
         for c in cs:
             print 'beta = %.3f, C = %f'%(b,c)
             #print 'svm-train -s'+' 0 -v 5 -t 4 -c %f -m 6000 %s.in %s.model'%(c,fn,fn)
@@ -327,25 +365,12 @@ def svmGridSearch(betas=None, cs=None):
     res=np.array(res)
     logf.close()
     np.save(inpath+'svm/grid.npy',res)
-    X,Y=np.meshgrid(cs,betas)
-    print X.shape,Y.shape,res.shape
-    plt.pcolor(X,Y,res);
-    am=np.nonzero(res==np.max(res))
-    iam=np.argmax(am[1])
-    
-    beta=betas[am[0][iam]]
-    c=cs[am[1][iam]]
-    plt.xlabel('cs'); plt.ylabel('betas')
-    plt.savefig('grid.png')
-    print 'beta=',beta, ',c=',c
-    print np.max(res),np.min(res)
-    np.savetxt(inpath+'svm/opt.par',[beta,c])
     
 
 def svmFindSvs():
     [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
     # compute the model
-    SexportSvm(vp,event,beta)
+    SexportSvm(vp,event,beta=np.exp(beta))
     fn=inpath+'svm/svm'
     status,output=commands.getstatusoutput('svm-train -s '+
             '0 -t 4 -c %f %s.in %s.model'%(np.exp(c),fn,fn))
@@ -374,97 +399,48 @@ def svmFindSvs():
     np.save(inpath+'svm/weights.npy',weights)
     np.save(inpath+'svm/svs.npy',svs)
 
-def pfSubsample(s=4):
-    ''' s - multiplicative subsampling factor'''
-    f=open(inpath+'PF.pars','r');
-    dat=pickle.load(f);f.close();N=dat['N']+1
-    print N
-    out=[]
-    for h in range(0,N):
-        D=np.load(inpath+'PF/PF%03d.npy'%h)
-        P=D.shape[1]; F=D.shape[4]
-        pfnew=np.zeros([D.shape[0],P/s,P/s,F/s])*np.nan
-        for n in range(D.shape[0]):
-            pf=D[n,:,:,0,:]
-            for i in range(pfnew.shape[1]):
-                for j in range(pfnew.shape[2]):
-                    for f in range(pfnew.shape[3]):
-                        temp=pf[i*s:(i+1)*s,j*s:(j+1)*s,f*s:(f+1)*s].mean()
-                        pfnew[n,i,j,f]=temp
-        out.append(pfnew)
-        print h
-    print out[0].shape,out[-1].shape
-    out=np.concatenate(out,axis=0)
-    print out.shape
-    np.save(inpath+'sPF%d.npy'%s,out)
 
-def hillClimb(nworkers=8,s=4): 
+def inithc(s):
     D0=np.load(inpath+'sPF%d.npy'%s)
     D1=np.load(path+'E%d/sPF%d.npy'%(event+1,s))
     D=np.float64(np.concatenate([D0,D1],axis=0))
     print D.shape
     P=D.shape[1];F=D.shape[3]
-    # create mask with circular aperture
-    mid=(P-1)/2.0
-    try: mask=np.load('mask.npy')
-    except IOError:
-        mask=np.zeros((P,P,F),dtype=np.bool8)
-        for i in range(P):
-            for j in range(P):
-                if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
-        np.save('mask',mask)
-
-    #ww=np.zeros(dga+dgb)
     weights=np.load(inpath+'svm/weights.npy')
     svs=np.load(inpath+'svm/svs.npy')
-    ww=weights[1:]
     svvs=np.zeros(D.shape[0])
     svvs[svs]=1
     svvs=svvs>0.5
     [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
+    return [0,np,P,F,svvs,beta,weights,D]
+
+def hillClimb(nworkers=8,s=4): 
     def worker(*args):
         # these are read-only vars
-        [wid,np,P,F,svvs,beta,ww,D,mask]=args
-        def svmObjFun(x,SMAX=128):
-            '''
-            compute similarity between x and the selected perc fields
-            then compute the svm objective function i.e. (w^T K(x,svs) - b)
-            weights[1:] are w and b is in weights[0]
-            svs gives the indices of selected perc fields
-            '''
-            x=np.reshape(x,[P,P,F])
-            S=np.zeros(D.shape[0])*np.nan
-            for n in range(S.size):
-                if svvs[n]: S[n]=np.linalg.norm(D[n,:,:,:]-np.float64(x)*SMAX)
-            S=S[~np.isnan(S)]
-            #print np.max(D),np.min(D)
-            #print np.max(S),np.min(S),beta, np.max(weights),np.min(weights)
-            K=np.exp(-np.exp(beta)*S/5000.)
-            res=ww.dot(K)-weights[0]
-            #print 'res=',res
-            return (-1)**invert *res 
+        [wid,np,P,F,svvs,beta,ww,D]=args
         seed=wid/2-1
         invert=wid%2
+        args=list(args)+[invert]
         print 'worker %d: running, seed=%d,invert=%d' % (wid,seed, invert)
         if seed==-1: x=np.zeros(P*P*F)>0
         else:
             np.random.seed(seed)
             xmin=np.random.rand(P*P*F)>0.9
             t0=time()
-            fmin=svmObjFun(xmin)
+            fmin=svmObjFun(*tuple(args+[xmin]))
             for k in range(1000):
                 x=np.random.rand(P*P*F)>0.9
-                f=svmObjFun(x)
+                f=svmObjFun(*tuple(args+[x]))
                 if f<fmin: xmin=x
             print 'worker %d: prelim grid search finished: fmin='%(wid), fmin, time()-t0
-        fmin=svmObjFun(x)
+        fmin=svmObjFun(*tuple(args+[x]))
         loops=20
         t0=time()
         fk=np.inf
         for k in range(loops):
             for h in np.random.permutation(x.size).tolist():
                 x[h]= not x[h]
-                f=svmObjFun(x)
+                f=svmObjFun(*tuple(args+[x]))
                 if fmin>f:  fmin=f
                 else: x[h]=not x[h]
             if fk==fmin:
@@ -473,13 +449,15 @@ def hillClimb(nworkers=8,s=4):
             fk=fmin
             print 'worker %d: loop=%d, t=%.3f, fmin=%f'%(wid,k,np.round((time()-t0)/3600.,3),fmin)
             np.save(inpath+'svm/hc/hcWorker%d'%(wid),x)
+    ags=inithc(s)
     ps=[]
     for wid in range(0,nworkers):
-        p=Process(target=worker,args=(wid,np,P,F,svvs,beta,ww,D,mask))
+        ags[0]=wid
+        p=Process(target=worker,args=ags)
         p.start();ps.append(p)
     for p in ps: p.join()
 
-def svmPlotExtrema(event=0):
+def svmPlotExtrema(event=0,plot=True):
     P=32;F=34
     dat=[]
     print len(dat)
@@ -493,27 +471,94 @@ def svmPlotExtrema(event=0):
                 except IOError:temp=np.ones(P*P*F)
                 temp=np.reshape(temp,[P,P,F])
                 dat[-1].append(temp)
-    plotGifGrid(dat,fn=figpath+'svmExtremaE%d'%event)
+    if plot: plotGifGrid(dat,fn=figpath+'svmExtremaE%d'%event)
+    return dat
 
+##dat=svmPlotExtrema(1)
+##initPath(3,1)
+##args=inithc(s=2)
+##invert=1
+##xx=dat[4][0].flatten()
+##
+##svs=args[-1][args[4],:,:,:]
+##out=np.zeros(svs.shape[0],dtype=np.float128)
+##for si in range(svs.shape[0]):
+##    xx=svs[si].flatten()
+##    #xx=np.random.rand(32*32*34)>0.9
+##    out[si]= svmObjFun(*tuple(args+[xx]))
+##    #print out[si],type(out[si])
+##np.save('out',out)
 
+pool=Pool(processes=8)
+vps=[2,1]; 
+for ev in [0,1,2]:
+    for vp in vps:
+        pool.apply_async(pfSubsample,[vp,ev,2])
+for ags in [[0,0],[0,1],[1,1],[1,2],[2,2]]:
+    for vp in vps:
+        pool.apply_async(Scompute,[vp]+ags)      
+pool.close()
+pool.join()
 
-#Scompute(sid,ev,ev+1)
-##Scompute(sid,ev+1,ev+1)
-##sid=1
-##ev=1
 ##initPath(sid,ev)
-##svmGridSearch()       
-##svmFindSvs()
-##for ev in [0]:
-##    initPath(sid,ev)
-##    pfSubsample(s=2)
+###svmGridSearch()       
+###svmFindSvs()    
+##hillClimb(nworkers=8,s=2)
+#svmPlotExtrema(0)
+
+def printSvmInfo(event=1):
+    def _readstuff(d):
+        temp=d.rsplit('[')[1].rsplit(']')[0].rsplit(' ')
+        out=[]
+        for b in range(len(temp)): 
+            try: out.append(float(temp[b]))
+            except: pass
+        return np.array(out)
     
-##for sid py range(1,5):
-##    initPath(sid,1)
-##    hillClimb(nworkers=8,s=2)
-#initPath(2,1)
-#hillClimb(nworkers=8,s=2)
-svmPlotExtrema(0)
+    nfo=[]
+    for vp in range(1,5):
+        initPath(vp,event)
+        #inpath='/home/matus/Desktop/chase/evaluation/vp%03d/E%d/'%(vp,event)
+        #path='/home/matus/Desktop/chase/evaluation/vp%03d/'%vp
+        f=open(inpath+'svm/svm.log')
+        txt=f.read()
+        f.close()
+        txt=txt.replace('\n','')
+        [betas,cs]=txt.rsplit('cs = ')
+        betas=_readstuff(betas)
+        cs=_readstuff(cs)
+        #[betas,cs]=np.meshgrid(betas,cs)
+        D=np.load(inpath+'svm/grid.npy')
+        inc=(betas[1]-betas[0])/2.
+        plt.subplot(2,2,vp)
+        plt.pcolor(betas-inc,cs-inc,D.T,cmap='hot')
+        plt.xlabel('beta');plt.ylabel('c')
+        plt.xlim([betas[0]-inc,betas[-1]-inc])
+        plt.ylim([cs[0]-inc,cs[-1]-inc])
+        [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
+        plt.plot(beta,c,'o')
+        am=np.nonzero(D==np.max(D))
+        iam=np.argmin(am[1])
+        plt.plot(betas[am[0][iam]],cs[am[1][iam]],'rx',mew=2)
+        #print betas[am[0][iam]],cs[am[1][iam]]
+        print vp,event, np.max(D),D[betas.tolist().index(beta),cs.tolist().index(c)]
+        info=[vp]
+        sPF=np.load(inpath+'sPF2.npy')
+        info.append(sPF.shape[0])
+        sPF=np.load(path+'E%d/sPF2.npy'%(event+1))
+        info.append(sPF.shape[0])
+        del sPF
+        svs=np.load(inpath+'svm/svs.npy')
+        info.append(svs.size)
+        info.append(info[3]/float(info[2]+info[1]))
+        info.append(info[1]/float(info[2]+info[1]))
+        info.extend([np.max(D),beta,c])
+        nfo.append(info)
+    nfo=np.array(nfo)
+    np.set_printoptions(precision=2)
+    for i in range(nfo.shape[1]): print nfo[:,i]
+    return nfo
+
 #########################################################
 #                                                       #
 #                       PCA                             #
