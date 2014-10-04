@@ -559,6 +559,7 @@ def printSvmInfo(event=1):
     for i in range(nfo.shape[1]): print nfo[:,i]
     return nfo
 
+
 #########################################################
 #                                                       #
 #                       PCA                             #
