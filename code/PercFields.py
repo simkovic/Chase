@@ -221,13 +221,13 @@ def createMask(P,F):
             if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
     return mask 
 
-def Scompute(vp,evA,evB,pfn='PF'):
+def pfExport(vp,evA,evB,pfn='PF'):
     ''' compute similarity matrix between perceptive fields
         vp - subject id
         evA - id of event A
         evB - id of event B
     '''
-    strid ='Scompute, vp=%d, evA=%d, evB=%d: '%(vp,evA,evB)
+    strid ='pfExport, vp=%d, evA=%d, evB=%d: '%(vp,evA,evB)
     print strid+'started'
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpa=path+'E%d/'%evA
@@ -261,6 +261,7 @@ def Scompute(vp,evA,evB,pfn='PF'):
             Spart=np.sqrt(Spart);sps=Spart.shape
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
+        print strid + 'pf1=%d'%pf1
     np.save(inpa+'S'+suf,S)
     print strid+'finished'
 
@@ -288,7 +289,132 @@ def pfSubsample(vp,ev,s=2):
     out=np.concatenate(out,axis=0)
     np.save(inpath+'sPF%d.npy'%s,out)
     print strid+'finished'
+    
+def exportScript():
+    pool=Pool(processes=8)
+    vps=[2,1];
+    for ags in [[0,0],[0,1],[1,1],[1,2],[2,2]]:
+        for vp in vps:
+            pool.apply_async(pfExport,[vp]+ags)       
+    for ev in [0,1,2]:
+        for vp in vps:
+            pool.apply_async(pfSubsample,[vp,ev,2])
+         
+    pool.close()
+    pool.join()
 
+
+def SexportSvm(vp,ev,beta,fn):
+    ''' beta on log scale '''
+    strid='SexportSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,beta)
+    #print strid+'started'
+    e1=ev; e2=ev+1
+    pth=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    S1=np.load(pth+'E%d/S.npy'%(e1))
+    S2=np.load(pth+'E%d/S.npy'%(e2))
+    Scross=np.load(pth+'E%d/Sev%d.npy'%(e1,e2))
+    n1=S1.shape[0];n2=S2.shape[0]
+    S=np.zeros((n1+n2,n1+n2))*np.nan
+    S[:n1,:n1]=S1
+    S[:n1,n1:]=Scross
+    S[n1:,:n1]=Scross.T
+    S[n1:,n1:]=S2
+    del S1,S2,Scross
+    # use radial basis function, note values in S are already squared
+    S=np.exp(-np.exp(beta)*S/5000.)
+    f=open(pth+'E%d/svm/svm%d.in'%(e1,int(beta*10)),'w')
+    for row in range(n1+n2):
+        s='%d 0:%d'%(int(row<n1),row+1)
+        for col in range(n1+n2):
+            s+=' %d:%.4f'%(col+1,S[row,col])
+        s+='\n'
+        f.write(s)
+        f.flush()
+    f.close()
+    print strid+'finished'
+
+def SevalSvm(vp,ev,b,fn):
+    strid='SevalSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,b)
+    print strid+'started'
+    cs=np.arange(-10,10,0.5)
+    SexportSvm(vp,ev,b,fn)
+    fn= fn+'%d'%int(b*10)
+    logf=open(fn+'.log','w')
+    for c in cs:
+        status,output=commands.getstatusoutput('svm-train -s '+
+            '0 -v 5 -t 4 -c %f -m 6000 %s.in'%(np.exp(c),fn))
+        if status:
+            print output
+            raise RuntimeError(output)
+        logf.write('b=%.1f\nC=%.1f\n'%(b,c))
+        logf.write(output+'\n')
+        logf.flush()
+        #temp=float(output.rsplit(' ')[-1].rstrip('%'))/100.
+    logf.close()
+    print strid+'finished'
+    
+def gridSearchScript():   
+    pool=Pool(processes=6)
+    vps=[2,1]
+    betas=np.arange(-5,10,0.5)
+
+    for ev in [1]:
+        for vp in vps:
+            path,inpath,figpath=initPath(vp,ev)
+            fn=inpath+'svm/svm'
+            for beta in betas:
+                pool.apply_async(SevalSvm,[vp,ev,beta,fn])      
+    pool.close()
+    pool.join()
+
+def printSvmInfo(event=1):
+    
+    nfo=[]
+    for vp in range(1,5):
+        path,inpath,figpath=initPath(vp,event)
+        #inpath='/home/matus/Desktop/chase/evaluation/vp%03d/E%d/'%(vp,event)
+        #path='/home/matus/Desktop/chase/evaluation/vp%03d/'%vp
+        f=open(inpath+'svm/svm.log')
+        txt=f.read()
+        f.close()
+        txt=txt.replace('\n','')
+        [betas,cs]=txt.rsplit('cs = ')
+        betas=_readstuff(betas)
+        cs=_readstuff(cs)
+        #[betas,cs]=np.meshgrid(betas,cs)
+        D=np.load(inpath+'svm/grid.npy')
+        inc=(betas[1]-betas[0])/2.
+        plt.subplot(2,2,vp)
+        plt.pcolor(betas-inc,cs-inc,D.T,cmap='hot')
+        plt.xlabel('beta');plt.ylabel('c')
+        plt.xlim([betas[0]-inc,betas[-1]-inc])
+        plt.ylim([cs[0]-inc,cs[-1]-inc])
+        [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
+        plt.plot(beta,c,'o')
+        am=np.nonzero(D==np.max(D))
+        iam=np.argmin(am[1])
+        plt.plot(betas[am[0][iam]],cs[am[1][iam]],'rx',mew=2)
+        #print betas[am[0][iam]],cs[am[1][iam]]
+        print vp,event, np.max(D),D[betas.tolist().index(beta),cs.tolist().index(c)]
+        info=[vp]
+        sPF=np.load(inpath+'sPF2.npy')
+        info.append(sPF.shape[0])
+        sPF=np.load(path+'E%d/sPF2.npy'%(event+1))
+        info.append(sPF.shape[0])
+        del sPF
+        svs=np.load(inpath+'svm/svs.npy')
+        info.append(svs.size)
+        info.append(info[3]/float(info[2]+info[1]))
+        info.append(info[1]/float(info[2]+info[1]))
+        info.extend([np.max(D),beta,c])
+        nfo.append(info)
+    nfo=np.array(nfo)
+    np.set_printoptions(precision=2)
+    for i in range(nfo.shape[1]): print nfo[:,i]
+    return nfo
+
+#exportScript()
+gridSearchScript()
 
 def svmObjFun(*args):
     [wid,np,P,F,svvs,beta,weights,D,invert,x]=args
@@ -307,65 +433,7 @@ def svmObjFun(*args):
     S=S[~np.isnan(S)]
     K=np.exp(-np.exp(beta)*S/5000.)
     res=weights[1:].dot(K)-weights[0]
-    return  (-1)**invert * res 
-
-def SexportSvm(vp,ev,beta=1):
-    ''' beta on log scale '''
-    print 'Exporting'
-    e1=ev; e2=ev+1
-    pth=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    S1=np.load(pth+'E%d/S.npy'%(e1))
-    S2=np.load(pth+'E%d/S.npy'%(e2))
-    Scross=np.load(pth+'E%d/Sev%d.npy'%(e1,e2))
-    n1=S1.shape[0];n2=S2.shape[0]
-    S=np.zeros((n1+n2,n1+n2))*np.nan
-    S[:n1,:n1]=S1
-    S[:n1,n1:]=Scross
-    S[n1:,:n1]=Scross.T
-    S[n1:,n1:]=S2
-    del S1,S2,Scross
-    # use radial basis function, note values in S are already squared
-    S=np.exp(-np.exp(beta)*S/5000.)
-    f=open(pth+'E%d/svm/svm.in'%(e1),'w')
-    for row in range(n1+n2):
-        s='%d 0:%d'%(int(row<n1),row+1)
-        for col in range(n1+n2):
-            s+=' %d:%.4f'%(col+1,S[row,col])
-        s+='\n'
-        f.write(s)
-        f.flush()
-    f.close()
-    print 'Export Finished'
-
-
-def svmGridSearch(betas=None, cs=None):
-    fn=inpath+'svm/svm'
-    logf=open(fn+'.log','w')
-    if betas is None: betas=np.arange(-5,10,0.5)
-    if cs is None: cs=np.arange(-10,10,0.5)
-    logf.write('betas = '+str(betas)+'\ncs = '+str(cs)+'\n');
-    res=[]
-    for b in betas:
-        res.append([])
-        SexportSvm(vp,event,beta=b)
-        for c in cs:
-            print 'beta = %.3f, C = %f'%(b,c)
-            #print 'svm-train -s'+' 0 -v 5 -t 4 -c %f -m 6000 %s.in %s.model'%(c,fn,fn)
-            status,output=commands.getstatusoutput('svm-train -s '+
-                '0 -v 5 -t 4 -c %f -m 6000 %s.in'%(np.exp(c),fn))
-            if status:
-                print output
-                raise RuntimeError(output)
-            logf.write(output+'\n')
-            logf.flush()
-            #print output
-            temp=float(output.rsplit(' ')[-1].rstrip('%'))/100.
-            print temp
-            res[-1].append(temp)
-    res=np.array(res)
-    logf.close()
-    np.save(inpath+'svm/grid.npy',res)
-    
+    return  (-1)**invert * res
 
 def svmFindSvs():
     [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
@@ -489,16 +557,7 @@ def svmPlotExtrema(event=0,plot=True):
 ##    #print out[si],type(out[si])
 ##np.save('out',out)
 
-pool=Pool(processes=8)
-vps=[2,1]; 
-for ev in [0,1,2]:
-    for vp in vps:
-        pool.apply_async(pfSubsample,[vp,ev,2])
-for ags in [[0,0],[0,1],[1,1],[1,2],[2,2]]:
-    for vp in vps:
-        pool.apply_async(Scompute,[vp]+ags)      
-pool.close()
-pool.join()
+
 
 ##initPath(sid,ev)
 ###svmGridSearch()       
@@ -506,58 +565,7 @@ pool.join()
 ##hillClimb(nworkers=8,s=2)
 #svmPlotExtrema(0)
 
-def printSvmInfo(event=1):
-    def _readstuff(d):
-        temp=d.rsplit('[')[1].rsplit(']')[0].rsplit(' ')
-        out=[]
-        for b in range(len(temp)): 
-            try: out.append(float(temp[b]))
-            except: pass
-        return np.array(out)
-    
-    nfo=[]
-    for vp in range(1,5):
-        initPath(vp,event)
-        #inpath='/home/matus/Desktop/chase/evaluation/vp%03d/E%d/'%(vp,event)
-        #path='/home/matus/Desktop/chase/evaluation/vp%03d/'%vp
-        f=open(inpath+'svm/svm.log')
-        txt=f.read()
-        f.close()
-        txt=txt.replace('\n','')
-        [betas,cs]=txt.rsplit('cs = ')
-        betas=_readstuff(betas)
-        cs=_readstuff(cs)
-        #[betas,cs]=np.meshgrid(betas,cs)
-        D=np.load(inpath+'svm/grid.npy')
-        inc=(betas[1]-betas[0])/2.
-        plt.subplot(2,2,vp)
-        plt.pcolor(betas-inc,cs-inc,D.T,cmap='hot')
-        plt.xlabel('beta');plt.ylabel('c')
-        plt.xlim([betas[0]-inc,betas[-1]-inc])
-        plt.ylim([cs[0]-inc,cs[-1]-inc])
-        [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
-        plt.plot(beta,c,'o')
-        am=np.nonzero(D==np.max(D))
-        iam=np.argmin(am[1])
-        plt.plot(betas[am[0][iam]],cs[am[1][iam]],'rx',mew=2)
-        #print betas[am[0][iam]],cs[am[1][iam]]
-        print vp,event, np.max(D),D[betas.tolist().index(beta),cs.tolist().index(c)]
-        info=[vp]
-        sPF=np.load(inpath+'sPF2.npy')
-        info.append(sPF.shape[0])
-        sPF=np.load(path+'E%d/sPF2.npy'%(event+1))
-        info.append(sPF.shape[0])
-        del sPF
-        svs=np.load(inpath+'svm/svs.npy')
-        info.append(svs.size)
-        info.append(info[3]/float(info[2]+info[1]))
-        info.append(info[1]/float(info[2]+info[1]))
-        info.extend([np.max(D),beta,c])
-        nfo.append(info)
-    nfo=np.array(nfo)
-    np.set_printoptions(precision=2)
-    for i in range(nfo.shape[1]): print nfo[:,i]
-    return nfo
+
 
 
 #########################################################
