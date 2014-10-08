@@ -354,16 +354,17 @@ def SevalSvm(vp,ev,b,fn):
     print strid+'finished'
     
 def gridSearchScript():   
-    pool=Pool(processes=6)
-    vps=[2,1]
+    pool=Pool(processes=4)
+    vps=[2]
     betas=np.arange(-5,10,0.5)
 
-    for ev in [1]:
+    for ev in [0]:
         for vp in vps:
             path,inpath,figpath=initPath(vp,ev)
             fn=inpath+'svm/svm'
-            for beta in betas:
-                pool.apply_async(SevalSvm,[vp,ev,beta,fn])      
+            for beta in [-0.5]:#betas:
+                pool.apply_async(SevalSvm,[vp,ev,beta,fn])
+                sleep(20)
     pool.close()
     pool.join()
 
@@ -414,7 +415,51 @@ def printSvmInfo(event=1):
     return nfo
 
 #exportScript()
-gridSearchScript()
+#gridSearchScript()
+
+def getWeights(vp,event):
+    # validate the model and save it
+    path,inpath,fp=initPath(vp,event)
+    opt=np.load(inpath+'svm/opt.npy')
+    fnm=inpath+'svm/svm';fn=fnm+'%d'%int(opt[0]*10)
+    status,output=commands.getstatusoutput('svm-train -s '+
+        '0 -t 4 -c %f %s.in %s.model'%(np.exp(opt[1]),fn,fnm))
+    if status: print output
+    # save support vector indices to npy file for later use
+    f=open(fnm+'.model','r')
+    svs=[]
+    weights=[]
+    svon=False
+    k=0
+    for line in f.readlines():
+        words=line.rstrip('\n')
+        if words == 'SV':
+            svon=True
+            continue
+        words=words.rsplit(' ')
+        if words[0] == 'rho': weights.append(float(words[1]))
+        if svon:
+            weights.append(float(words[0]))
+            words=words[1].rsplit(':')[1]
+            svs.append(int(words))
+    f.close()
+    weights=np.array(weights)
+    svs=np.array(svs)-1
+    np.save(inpath+'svm/weights.npy',weights)
+    np.save(inpath+'svm/svs.npy',svs)
+    info=[]
+    sPF=np.load(inpath+'sPF2.npy')
+    info.append(sPF.shape[0])
+    sPF=np.load(path+'E%d/sPF2.npy'%(event+1))
+    info.append(sPF.shape[0])
+    del sPF
+    svs=np.load(inpath+'svm/svs.npy')
+    info.append(svs.size)
+    np.save(inpath+'svm/info',info)
+
+for vp in [1,2]:
+    for ev in [0,1]:
+        getWeights(vp,ev)
 
 def svmObjFun(*args):
     [wid,np,P,F,svvs,beta,weights,D,invert,x]=args
@@ -434,39 +479,6 @@ def svmObjFun(*args):
     K=np.exp(-np.exp(beta)*S/5000.)
     res=weights[1:].dot(K)-weights[0]
     return  (-1)**invert * res
-
-def svmFindSvs():
-    [beta,c]=np.loadtxt(inpath+'svm/opt.par').tolist()
-    # compute the model
-    SexportSvm(vp,event,beta=np.exp(beta))
-    fn=inpath+'svm/svm'
-    status,output=commands.getstatusoutput('svm-train -s '+
-            '0 -t 4 -c %f %s.in %s.model'%(np.exp(c),fn,fn))
-    if status: print output
-    # save support vectors to npy file for later use
-    f=open(fn+'.model','r')
-    svs=[]
-    weights=[]
-    svon=False
-    k=0
-    for line in f.readlines():
-        words=line.rstrip('\n')
-        if words == 'SV':
-            svon=True
-            continue
-        words=words.rsplit(' ')
-        if words[0] == 'rho': weights.append(float(words[1]))
-        if svon:
-            weights.append(float(words[0]))
-            words=words[1].rsplit(':')[1]
-            svs.append(int(words))
-    f.close()
-    weights=np.array(weights)
-    svs=np.array(svs)-1
-    print svs.shape, weights.shape
-    np.save(inpath+'svm/weights.npy',weights)
-    np.save(inpath+'svm/svs.npy',svs)
-
 
 def inithc(s):
     D0=np.load(inpath+'sPF%d.npy'%s)
