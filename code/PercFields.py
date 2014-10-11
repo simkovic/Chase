@@ -472,7 +472,7 @@ def plotSvm():
 
 
 def svmObjFun(*args):
-    [wid,np,P,F,svvs,beta,weights,D,invert,x]=args
+    [wid,np,P,F,svvs,beta,weights,D,inpath,invert,x]=args
     SMAX=128
     '''
     compute similarity between x and the selected perc fields
@@ -504,13 +504,13 @@ def inithc(vp,event,s):
     svvs[svs]=1
     svvs=svvs>0.5
     [beta,c]=np.load(inpath+'svm/opt.npy').tolist()
-    return [0,np,P,F,svvs,beta,weights,D]
+    return [0,np,P,F,svvs,beta,weights,D,inpath]
 
 
 
 def hillClimb(*args): 
     # these are read-only vars
-    [wid,np,P,F,svvs,beta,ww,D]=args
+    [wid,np,P,F,svvs,beta,ww,D,inpath]=args
     seed=wid/2-1
     invert=wid%2
     args=list(args)+[invert]
