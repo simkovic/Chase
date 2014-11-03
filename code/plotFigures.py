@@ -5,11 +5,13 @@ from matustools.matusplotlib import *
 import os
 plt.close('all')
 plt.ion()
-event=1
+event=-1
 lim=[[0.0025,0.025],[0.0037,0.025]]
 for vp in range(1,5):
     plt.figure(0)
-    sw=-400; ew=400;hz=85.0 # start, end (in ms) and sampling frequency of the saved window
+    if event>0: sw=-400; ew=400
+    else: sw=-800; ew=0
+    hz=85.0 # start, end (in ms) and sampling frequency of the saved window
     fw=int(np.round((abs(sw)+ew)/1000.0*hz))
     bnR=np.arange(0,30,0.5)
     bnS=np.diff(np.pi*bnR**2)

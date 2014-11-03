@@ -11,7 +11,7 @@ from psychopy import core
 from matustools.matusplotlib import ndarray2gif,plotGifGrid
 from time import time, sleep
 from multiprocessing import Process,Pool
-
+import os as oss
 def initPath(vpp,eventt):
     #global event,vp,path,inpath,figpath
     event=eventt;vp=vpp
@@ -128,18 +128,18 @@ def pf2avi(pf,fn='test'):
     commands.getstatusoutput('ffmpeg -i fig%03d.png -r 50 -y '+fn+'.avi')
     commands.getstatusoutput('rm fig***.png');
 
-def PFextract(E,part=[0,1],wind=None,elem=None):
+def PFextract(E,part=[0,1],wind=None,elem=None,inpath='',suf=''):
     """ part[0] - current part
         part[1] - total number of parts
     """
-    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF%s.pars'%suf,'r');dat=pickle.load(f);f.close()
     inc=E.shape[0]/part[1]
     start=part[0]*inc
     ende=min((part[0]+1)*inc,E.shape[0])
     print start,ende,E.shape
     os=dat['os'];rot=dat['rot']
 
-    phis=np.load(inpath+'phi.npy')
+    phis=np.load(inpath+'phi%s.npy'%suf)
     D=np.zeros((ende-start,E.shape[1],os,os,rot),dtype=np.uint8)
     try:
         if type(wind)==type(None):
@@ -166,28 +166,34 @@ def PFextract(E,part=[0,1],wind=None,elem=None):
             #if i==3: bla
         if close: wind.close()
         PF=np.rollaxis(D,1,5)
-        if len(part)==2: np.save(inpath+'PF/PF%03d.npy'%(part[0]),PF)
+        if not oss.path.exists(inpath+'PF%s/'%suf):
+            oss.makedirs(inpath+'PF%s/'%suf)
+        if len(part)==2: np.save(inpath+'PF%s/PF%03d.npy'%(suf,part[0]),PF)
         else: np.save('PF.npy',PF)
     except:
         if close: wind.close()
         raise
 
-def PFinit():
-    dat={'N':[50,15,8,2][event],'os':64,'rot':1,
+def PFinit(vp,event,suf=''):
+    path,inpath,fp=initPath(vp,event)
+    if event>=0: N=[50,15,8,2][event]
+    else: N=1
+    dat={'N':N,'os':64,'rot':1,
          'width':10,'hz':85.0,'SX':0.3,'SY':0.3,'ST':40}
     np.save(inpath+'stackPF.npy',range(dat['N']+1))
-    Q.save(inpath+'PF.q')
-    f=open(inpath+'PF.pars','w')
+    Q.save(inpath+'PF%s.q'%suf)
+    f=open(inpath+'PF%s.pars'%suf,'w')
     pickle.dump(dat,f)
     f.close()
     
-def PFparallel():
+def PFparallel(vp,event,suf=''):
     ''' please run PFinit() first
     '''
+    path,inpath,fp=initPath(vp,event)
     E=np.load(inpath+'DG.npy')[:,:,:,:2]
     print E.shape
     stack=np.load(inpath+'stackPF.npy').tolist()
-    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
+    f=open(inpath+'PF%s.pars'%suf,'r');dat=pickle.load(f);f.close()
     N=dat['N']
     wind=Q.initDisplay()
     elem=visual.ElementArrayStim(wind,fieldShape='sqr',
@@ -196,7 +202,7 @@ def PFparallel():
     while len(stack):
         jobid=stack.pop(0)
         np.save(inpath+'stackPF.npy',stack)
-        PFextract(E,[jobid,N],wind=wind, elem=elem)
+        PFextract(E,[jobid,N],wind=wind, elem=elem,inpath=inpath,suf=suf)
         loaded=False
         while not loaded:
             try:
@@ -206,6 +212,11 @@ def PFparallel():
                 print 'IOError'
                 core.wait(1)
     wind.close()
+##vp=4
+##PFinit(vp,2,suf='2')
+##PFparallel(vp,2,suf='2')
+##PFinit(vp,1,suf='2')
+##PFparallel(vp,1,suf='2')
 
 #########################################################
 #                                                       #
@@ -411,6 +422,7 @@ def getWeights(vp,event):
     return np.array(info)
 
 def plotSvm():
+    print 'plotSvm started'
     for event in [0,1]:
         plt.figure()
         for vp in range(1,5):
@@ -464,7 +476,7 @@ def plotSvm():
             
 
         plt.savefig(figpath+'svmfitEv%d.png'%event)
-
+    print 'plotSvm finished'
 
 #exportScript()
 #gridSearchScript()
@@ -559,7 +571,7 @@ def hcscript(vp,event,nworkers=8,s=2):
         p.start();ps.append(p)
     for p in ps: p.join()
 
-hcscript(1,0)
+#hcscript(2,1)
 
 
 def svmPlotExtrema(event=0,plot=True):
@@ -567,7 +579,7 @@ def svmPlotExtrema(event=0,plot=True):
     dat=[]
     print len(dat)
     for vp in range(1,5):
-        initPath(vp,event)
+        path,inpath,figpath=initPath(vp,event)
         fn= inpath+'svm/hc/hcWorker'
         for g in range(2):
             dat.append([])
@@ -579,7 +591,7 @@ def svmPlotExtrema(event=0,plot=True):
     if plot: plotGifGrid(dat,fn=figpath+'svmExtremaE%d'%event)
     return dat
 
-##dat=svmPlotExtrema(1)
+#dat=svmPlotExtrema(0)
 ##initPath(3,1)
 ##args=inithc(s=2)
 ##invert=1
@@ -600,10 +612,26 @@ def svmPlotExtrema(event=0,plot=True):
 ###svmGridSearch()       
 ###svmFindSvs()    
 ##hillClimb(nworkers=8,s=2)
-#svmPlotExtrema(0)
 
+#########################################################
+#                                                       #
+#                  Button press                         #
+#                                                       #
+#########################################################
 
+def plotBTmean(MAX=16):
+    dat=[]
+    for vp in range(1,5):
+        dat.append([])
+        for event in range(-6,0):
+            path,inpath,figpath=initPath(vp,event)
+            d=np.squeeze(np.load(inpath+'PF/PF000.npy'))
+            #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
+            dat[-1].append(d.mean(axis=0)/float(MAX))
+    plotGifGrid(dat,fn=figpath+'buttonPressMean')
+    return dat
 
+##dat=plotBTmean()
 
 #########################################################
 #                                                       #
@@ -1043,7 +1071,8 @@ def radialkde(x,y,weights=None,bandwidth=np.pi/6,kernel=None):
     out=np.sum(weights*kernel(dif/bandwidth),axis=0)/bandwidth/x.size
     return out
 
-def computeRotation():
+def computeRotation(vp,event):
+    path,inpath,fp=initPath(ivp,iev)
     D=np.load(inpath+'DG.npy')[:,:,:,:2]
     x=np.linspace(-1,1,3601)*np.pi
     phis=np.zeros(D.shape[0])
@@ -1058,12 +1087,37 @@ def computeRotation():
         phis[n]=x[np.argmax(a)]
     np.save(inpath+'phi',phis)
 
-##for iev in [1,0]:
-##    for ivp in range(1,5):
+def plotTraj(D,clr='k',rad=5):
+    ax=plt.gca()
+    for a in range(D.shape[1]):
+        plt.plot(D[:,a,0],D[:,a,1],'-'+clr,linewidth=2)
+        ar=plt.arrow(D[-2,a,0],D[-2,a,1],D[-1,a,0]-D[-2,a,0],D[-1,a,1]-D[-2,a,1],
+              length_includes_head=False,head_width=0.2,fc=clr)
+        ax.add_patch(ar)
+    c=plt.Circle((0,0),rad,fc='r',alpha=0.1,ec=None)
+    ax.add_patch(c)
+    m=D.shape[0]/2
+    plt.plot(D[m,:,0],D[m,:,1],'or')
+    ax.set_aspect(1);lim=3*rad/2
+    plt.xlim([-lim,lim])
+    plt.ylim([-lim,lim])
+
+def rotateTraj(traj,phi,PLOT=False):
+    c=np.cos(phi);s=np.sin(phi)
+    R=np.array([[c,-s],[s,c]])
+    if PLOT:
+        plotTraj(traj)
+        plt.plot([4*c,-4*c],[4*s,-4*s],'g')
+        plt.figure()
+    for a in range(14): traj[:,a,:]=traj[:,a,:].dot(R) 
+    if PLOT: plotTraj(traj)
+    return traj
+
+##for iev in [-1,-2,-3,-4,-5,-6]:
+##    for ivp in [4]:#range(1,5):
 ##        print 'vp = %d, ev = %d'%(ivp,iev)
-##        initPath(ivp,iev)
-##        #computeRotation()
-##        #PFinit()
-##        #PFparallel()
+##        computeRotation(ivp,iev)
+##        PFinit(ivp,iev)
+##        PFparallel(ivp,iev)
 ##        #pcaScript()
 ##        plotCoeff()

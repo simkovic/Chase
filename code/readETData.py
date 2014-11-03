@@ -90,9 +90,9 @@ def readEyelink(vp,block):
             if len(words)>2 and words[2]=='START':
                 PHASE=1;t0[1]=float(words[1])
             if len(words)>2 and (words[2]=='DETECTION'):
-                PHASE=2; t0[2]= float(words[1])
+                PHASE=2; t0[2]= float(words[1]);msg=words[2]
             if len(words)>2 and words[2]=='OMISSION':
-                PHASE=2; t0[2]= float(words[1])
+                PHASE=2; t0[2]= float(words[1]);msg=words[2]
             #if len(words)>2 and words[2]=='POSTTRIAL':
             if len(words)>2 and (words[2]=='POSTTRIAL' and PHASE==2):
                 etdat = _reformat(etdat,t0[0],Qexp)
@@ -101,10 +101,9 @@ def readEyelink(vp,block):
                 if ftriggers.size>0: ftriggers[:,1] -= t0[1]
                 if etdat.size>0:
                     et=ETTrialData(etdat,calib,t0,
-                        [vp,block,t,hz,eye],fs=ftriggers)
+                        [vp,block,t,hz,eye],fs=ftriggers,msgs=msg)
                     #et.extractBasicEvents(etdat)
-                    data.append(et)
-                
+                    data.append(et)                
                 etdat=[];t0=[0,0,0];ftriggers=[];fr=0
                 calib=[];PHASE= -1
                 LBLINK=False; RBLINK=False
@@ -138,7 +137,7 @@ def readEyelink(vp,block):
                     meas=(float(words[0]),xleft,yleft,float(words[3]))
                     size=4
                 etdat.append(meas)
-            except: pass
+            except:pass
             #if len(trial)>0:print len(trial[0])
             #if len(dcorr)>1: print dcorr[-1]
         f.close()
@@ -500,10 +499,11 @@ def saveSacInfo(vp=1):
             15-block,
             16-trial
         doesnt include blinks as saccades
+        will throw some runtime warnings due to nans in the gaze data 
     '''
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-
-    si=[]
+    import pickle
+    si=[];trackdir=[];finalev=[]
     for b in range(1,24):
         try: data=readEyelink(vp,b)
         except:
@@ -533,8 +533,21 @@ def saveSacInfo(vp=1):
                             si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                                 ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
-                        gg+=1         
-    np.save(path+'si.npy',si)
+                            trackdir.append(g[ev[0]:ev[1],[7,8]].flatten().tolist())
+                        gg+=1
+                    if data[i].msgs=='DETECTION':
+                        res=[[b,i,0]]
+                        for ttt in [-251,-201,-151,-101,-51,-26]:
+                            if data[i].isFix[ttt] or data[i].opur[ttt] or data[i].cpur[ttt]:
+                                res.append(g[ttt,[0,7,8]])
+                            else: res.append(np.zeros(3)*np.nan)
+                        finalev.append(res)  
+                    elif data[i].msgs!='OMISSION':raise ValueError('Unexpected message')
+    np.save(path+'finalev',finalev)
+    f=open(path+'trdir.pickle','wb')
+    pickle.dump(trackdir,f)
+    f.close()
+    np.save(path+'sinew.npy',si)
     
     
 if __name__ == '__main__':
@@ -542,7 +555,7 @@ if __name__ == '__main__':
 ##    data[1].extractBasicEvents()
 ##    data[1].driftCorrection()
 ##    data[1].importComplexEvents()
-    saveSacInfo(vp=1)
+    saveSacInfo(vp=4)
     #sacInfoMergeBlocks(vp=1)
     
             

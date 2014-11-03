@@ -66,30 +66,6 @@ def myDeg2pix(deg,dist,cent,width):
     cm = myDeg2cm(deg,dist)
     return myCm2pix(cm,cent,width)
 
-
-
-##def filterButterworth(self,x,cutoff=50):
-##        
-##        #normPass = 2*np.pi*cutoff/self.hz*2
-##        normPass = cutoff / (self.hz/2.0)
-##        normStop = 1.5*normPass
-##        print normPass, normStop
-##        (N, Wn) = signal.buttord(wp=normPass, ws=normStop,
-##                    gpass=2, gstop=30, analog=0)
-##        (b, a) = signal.butter(N, Wn)
-##        print b.shape
-##        #b *= 1e3
-##        # return signal.lfilter(b, a, x[::-1])[::-1]
-##        return signal.lfilter(b, a, x)
-##
-##    def filterCausal(self,x,theta=0.6):
-##        y=np.zeros(x.shape)
-##        y[0]=x[0]
-##        for i in range(1,x.size):
-##            if np.isnan(y[i-1]): y[i]=x[i]
-##            else: y[i]=(theta)*y[i-1] +(1- theta)*x[i]
-##        return y
-
 # computation functions
 
 def selectAgentCL(dist,dev,hz):
