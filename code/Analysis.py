@@ -436,7 +436,7 @@ def extractPhi(PLOT=False):
         #print (np.array(sds)>0.3).mean()
 
 if __name__ == '__main__':
-    #extractPhi()
+    extractPhi()
     for event in range(-6,0):
     #for event in range(1,3):
         for vpl in range(1,5):

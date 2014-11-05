@@ -629,10 +629,68 @@ def plotBTmean(MAX=16):
             #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
             dat[-1].append(d.mean(axis=0)/float(MAX))
     plotGifGrid(dat,fn=figpath+'buttonPressMean')
-    return dat
+    return dat,figpath
 
-##dat=plotBTmean()
+def plotBTpt():
+    from scipy.optimize import fmin
+    def fun(x,D=None,verbose=False):
+        nrlines=len(x)/3; p1=np.nan;s=0.15
+        if nrlines==1: p0,v0,s0=tuple(x)
+        elif nrlines==2: p0,v0,s0,p1,v1,s1=tuple(x)
+        else: raise ValueError
+        out=np.ones((P,T))
+        dist=np.abs(pm+v0*tm-p0)/np.sqrt(1+v0**2)/s0
+        out=np.maximum(1-np.power(dist,3),0)/float(nrlines)
+        if nrlines==2:
+            dist=np.abs(pm+v1*tm-p1)/np.sqrt(1+v1**2)/s1
+            out+=np.maximum(1-np.power(dist,3),0)/float(nrlines)
+        out/=out.sum()
+        if D is None: return out
+        fout=-np.corrcoef(D.flatten(),out.flatten())[0,1]# np.linalg.norm(D-out)**2
+        if verbose: print 'p0=%.2f, v=%.2f, p1=%.2f, s=%.2f, f=%f'%(p0,v,p1,s,fout)
+        return fout
+    dat,figpath=plotBTmean()
+    T=dat[0][0].shape[-1]
+    P=dat[0][0].shape[0]
+    t=np.linspace(-0.8,0,T);p=np.linspace(-5,5,P)
+    tm=np.repeat(t[np.newaxis,:],P,axis=0)
+    pm=np.repeat(p[:,np.newaxis],T,axis=1)
+    rows=len(dat)
+    cols=len(dat[0])
+    plt.figure(figsize=(6,6))
+    m=[-251,-201,-151,-101,-51,-1]
+    bnds=[(1,None),(None,0),(None,None)]
+    est=[]
 
+    for i in range(rows):
+        est.append([])
+        for j in [0,2,4]:
+            D=dat[i][j][31:33,:,:].mean(0)
+            D/=D.sum()
+            print rows, cols/2 ,i*cols/2+j/2.+1
+            plt.subplot(rows,cols/2,i*cols/2+j/2.+1)
+            plt.pcolor(p,t,D.T,cmap='gray')
+            if j>=4:
+                if i==0: x0=np.array((1.3,-12,0.1))
+                else: x0=np.array((3,-12,0.1,-2,-12,0.1))
+                xopt=fmin(func=fun,x0=x0,args=(D,False))
+                est[-1].append(xopt.tolist())
+                plt.plot(xopt[0]-xopt[1]*t,t,'r',alpha=0.2)
+                if i>0:
+                    plt.plot(xopt[3]-xopt[4]*t,t,'r',alpha=0.2)
+                else:est[-1][-1].extend([np.nan]*3)
+            plt.grid(True);
+            plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
+            ax=plt.gca()
+            if i<3:ax.set_xticks([]);
+            if j>0:ax.set_yticks([]);
+            else: plt.ylabel('subject %d'%(i+1))
+            if i==0: plt.title(str(m[j]*2+2))
+    plt.savefig(figpath+'buttonPress.png')
+    est=np.squeeze(est)
+    print np.round(est[:,],2)
+
+#plotBTpt()
 #########################################################
 #                                                       #
 #                       PCA                             #
@@ -892,10 +950,62 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-def pcaScript():
+def _getPC(pf,h):
+    if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
+    pf-= np.min(pf)
+    pf/= np.max(pf)
+    return np.rollaxis(pf.squeeze(),1).T
+
+def plotCoeff(vp,event,rows=8,cols=5):
+    p,inpath,figpath=initPath(vp,event)
+    coeff=np.load(inpath+'X/coeff.npy')
+    offset=8 # nr pixels for border padding
+    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
+    for h in range(coeff.shape[1]):
+        if h>=rows*cols:continue
+        c= h%cols;r= h/cols
+        s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
+    ndarray2gif(figpath+'pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
+def plotLatent():
+    for ev in range(2):
+        for vp in range(1,5):
+            initPath(vp,ev)
+            plt.plot(np.load(inpath+'X/latent.npy')[:20],['r','g'][ev])
+    plt.show()
+
+
+def plotScore(vp,event,pcs=5,scs=3):
+    p,inpath,figpath=initPath(vp,event)
+    score=np.load(inpath+'X/score.npy')
+    coeff=np.load(inpath+'X/coeff.npy')
+    offset=8 # nr pixels for border padding
+    rows=scs*2+1; cols=pcs
+    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
+    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
+    bd=score.shape[0]/dat['N']
+    for h in range(pcs):
+        s=((offset+64)*scs+offset/2,(offset+64)*h+offset/2)
+        pc=_getPC(coeff,h)
+        print pc.mean()
+        if False and pc.mean()>=0.4: invert= -1
+        else: invert= 1
+        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=invert*pc
+        
+        ns=np.argsort(invert*score[:,h])[range(-scs,0)+range(scs)]
+        for i in range(len(ns)):
+            pf=np.load(inpath+'PF/PF%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
+            s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
+            #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
+            R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
+    ndarray2gif(figpath+'scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
+
+def pcaScript(vp,ev):
     global inpath,N
+    path,inpath,figpath=initPath(vp,ev)
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inpath=inpath+'X/'
+    if not oss.path.exists(inpath): oss.makedirs(inpath)
     mrg=4;N=dat['N']/mrg+1
     PF2X(merge=mrg)
 
@@ -921,59 +1031,8 @@ def pcaScript():
 
     score=Xleftmult(coeff)
     np.save(inpath+'score',score)
-#initPath(3,0)
-#pcaScript()
-
-def _getPC(pf,h):
-    if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
-    pf-= np.min(pf)
-    pf/= np.max(pf)
-    return pf.squeeze().T
-
-def plotCoeff(rows=8,cols=5):
-    coeff=np.load(inpath+'X/coeff.npy')
-    offset=8 # nr pixels for border padding
-    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    for h in range(coeff.shape[1]):
-        if h>=rows*cols:continue
-        c= h%cols;r= h/cols
-        s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
-    ndarray2gif('pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
-
-def plotLatent():
-    for ev in range(2):
-        for vp in range(1,5):
-            initPath(vp,ev)
-            plt.plot(np.load(inpath+'X/latent.npy')[:20],['r','g'][ev])
-    plt.show()
-
-
-def plotScore(pcs=5,scs=3):
-    score=np.load(inpath+'X/score.npy')
-    coeff=np.load(inpath+'X/coeff.npy')
-    offset=8 # nr pixels for border padding
-    rows=scs*2+1; cols=pcs
-    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
-    bd=score.shape[0]/dat['N']
-    for h in range(pcs):
-        s=((offset+64)*scs+offset/2,(offset+64)*h+offset/2)
-        pc=_getPC(coeff,h)
-        print pc.mean()
-        if False and pc.mean()>=0.4: invert= -1
-        else: invert= 1
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=invert*pc
-        
-        ns=np.argsort(invert*score[:,h])[range(-scs,0)+range(scs)]
-        for i in range(len(ns)):
-            pf=np.load(inpath+'PF/PF%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
-            s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
-            #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
-            R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
-    ndarray2gif('scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
-
-
+    plotCoeff(vp,ev)
+    plotScore(vp,ev)
 
 def controlSimulationsPIX():
     P=64;T=50
@@ -1112,6 +1171,7 @@ def rotateTraj(traj,phi,PLOT=False):
     for a in range(14): traj[:,a,:]=traj[:,a,:].dot(R) 
     if PLOT: plotTraj(traj)
     return traj
+
 
 ##for iev in [-1,-2,-3,-4,-5,-6]:
 ##    for ivp in [4]:#range(1,5):
