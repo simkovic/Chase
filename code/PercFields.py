@@ -232,7 +232,7 @@ def createMask(P,F):
             if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
     return mask 
 
-def pfExport(vp,evA,evB,pfn='PF'):
+def pfExport(vp,evA,evB,suf=''):
     ''' compute similarity matrix between perceptive fields
         vp - subject id
         evA - id of event A
@@ -243,26 +243,26 @@ def pfExport(vp,evA,evB,pfn='PF'):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     inpa=path+'E%d/'%evA
     inpb=path+'E%d/'%evB
-    f=open(inpa+'%s.pars'%pfn,'r');
+    f=open(inpa+'PF%s.pars'%suf,'r');
     dat=pickle.load(f);f.close();N1=dat['N']+1
-    f=open(inpb+'%s.pars'%pfn,'r');
+    f=open(inpb+'PF%s.pars'%suf,'r');
     dat=pickle.load(f);f.close();N2=dat['N']+1
-    D1=np.load(inpa+'%s/%s000.npy'%(pfn,pfn))
-    D2=np.load(inpb+'%s/%s000.npy'%(pfn,pfn))
+    D1=np.load(inpa+'PF%s/PF000.npy'%(suf))
+    D2=np.load(inpb+'PF%s/PF000.npy'%(suf))
     ds1=D1.shape[0];ds2=D2.shape[0];
     assert dat['os']==D1.shape[1]
     P=D1.shape[1];F=D1.shape[4]
     dga=np.load(inpa+'DG.npy').shape[0]
     dgb=np.load(inpb+'DG.npy').shape[0]
-    suf=['ev%d'%evB,''][int(evA==evB)]
+    evsuf=['ev%d'%evB,''][int(evA==evB)]
     #print dga,dgb,ds1,ds2
     S=np.zeros([dga,dgb])*np.nan
-    mask=createMask(P,F)
+    mask=createMask(P,F) 
     # compute similarity
     for pf1 in range(0,N1):
         for pf2 in range(pf1*int(evA==evB),N2):
-            D1=np.load(inpa+'%s/%s%03d.npy'%(pfn,pfn,pf1))
-            D2=np.load(inpb+'%s/%s%03d.npy'%(pfn,pfn,pf2))
+            D1=np.load(inpa+'PF%s/PF%03d.npy'%(suf,pf1))
+            D2=np.load(inpb+'PF%s/PF%03d.npy'%(suf,pf2))
             Spart=np.zeros((D1.shape[0],D2.shape[0]))*np.nan
             for n1 in range(D1.shape[0]):
                 for n2 in range(D2.shape[0]):
@@ -273,21 +273,21 @@ def pfExport(vp,evA,evB,pfn='PF'):
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
         print strid + 'pf1=%d'%pf1
-    np.save(inpa+'S'+suf,S)
+    np.save(inpa+'S'+suf+evsuf,S)
     print strid+'finished'
     
 
 
-def pfSubsample(vp,ev,s=2):
+def pfSubsample(vp,ev,s=2,suf=''):
     ''' s - multiplicative subsampling factor'''
     strid='pfSubsample vp=%d, ev=%d,s=%d: '%(vp,ev,s)
     print strid+'started'
     path,inpath,figpath=initPath(vp,ev)
-    f=open(inpath+'PF.pars','r');
+    f=open(inpath+'PF%s.pars'%suf,'r');
     dat=pickle.load(f);f.close();N=dat['N']+1
     out=[]
     for h in range(0,N):
-        D=np.load(inpath+'PF/PF%03d.npy'%h)
+        D=np.load(inpath+'PF%s/PF%03d.npy'%(suf,h))
         P=D.shape[1]; F=D.shape[4]
         pfnew=np.zeros([D.shape[0],P/s,P/s,F/s])*np.nan
         for n in range(D.shape[0]):
@@ -300,32 +300,30 @@ def pfSubsample(vp,ev,s=2):
         out.append(pfnew)
         print strid+'h=%d finished'%h
     out=np.concatenate(out,axis=0)
-    np.save(inpath+'sPF%d.npy'%s,out)
+    np.save(inpath+'sPF%s%d.npy'%(suf,s),out)
     print strid+'finished'
     
 def exportScript():
     pool=Pool(processes=8)
-    vps=[2,1];
+    vps=[1,2,3,4];suf='2'
     for ags in [[0,0],[0,1],[1,1],[1,2],[2,2]]:
         for vp in vps:
-            pool.apply_async(pfExport,[vp]+ags)       
+            pool.apply_async(pfExport,[vp]+ags+[suf])       
     for ev in [0,1,2]:
         for vp in vps:
-            pool.apply_async(pfSubsample,[vp,ev,2])
-         
+            pool.apply_async(pfSubsample,[vp,ev,2,suf])   
     pool.close()
     pool.join()
 
-
-def SexportSvm(vp,ev,beta,fn):
+def SexportSvm(vp,ev,beta,fn,suf=''):
     ''' beta on log scale '''
     strid='SexportSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,beta)
     #print strid+'started'
     e1=ev; e2=ev+1
     pth=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    S1=np.load(pth+'E%d/S.npy'%(e1))
-    S2=np.load(pth+'E%d/S.npy'%(e2))
-    Scross=np.load(pth+'E%d/Sev%d.npy'%(e1,e2))
+    S1=np.load(pth+'E%d/S%s.npy'%(e1,suf))
+    S2=np.load(pth+'E%d/S%s.npy'%(e2,suf))
+    Scross=np.load(pth+'E%d/S%sev%d.npy'%(e1,suf,e2))
     n1=S1.shape[0];n2=S2.shape[0]
     S=np.zeros((n1+n2,n1+n2))*np.nan
     S[:n1,:n1]=S1
@@ -335,7 +333,7 @@ def SexportSvm(vp,ev,beta,fn):
     del S1,S2,Scross
     # use radial basis function, note values in S are already squared
     S=np.exp(-np.exp(beta)*S/5000.)
-    f=open(pth+'E%d/svm/svm%d.in'%(e1,int(beta*10)),'w')
+    f=open(pth+'E%d/svm%s/svm%d.in'%(e1,suf,int(beta*10)),'w')
     for row in range(n1+n2):
         s='%d 0:%d'%(int(row<n1),row+1)
         for col in range(n1+n2):
@@ -346,11 +344,11 @@ def SexportSvm(vp,ev,beta,fn):
     f.close()
     print strid+'finished'
 
-def SevalSvm(vp,ev,b,fn):
+def SevalSvm(vp,ev,b,fn,suf):
     strid='SevalSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,b)
     print strid+'started'
     cs=np.arange(-10,10,0.5)
-    SexportSvm(vp,ev,b,fn)
+    SexportSvm(vp,ev,b,fn,suf)
     fn= fn+'%d'%int(b*10)
     logf=open(fn+'.log','w')
     for c in cs:
@@ -366,26 +364,28 @@ def SevalSvm(vp,ev,b,fn):
     logf.close()
     print strid+'finished'
     
-def gridSearchScript():   
-    pool=Pool(processes=4)
-    vps=[2]
+def gridSearchScript(suf=''):   
+    pool=Pool(processes=8)
+    vps=[4]
     betas=np.arange(-5,10,0.5)
 
-    for ev in [0]:
+    for ev in [1]:
         for vp in vps:
             path,inpath,figpath=initPath(vp,ev)
-            fn=inpath+'svm/svm'
-            for beta in [-0.5]:#betas:
-                pool.apply_async(SevalSvm,[vp,ev,beta,fn])
-                sleep(20)
+            fn=inpath+'svm%s/svm'%suf
+            for beta in betas:
+                pool.apply_async(SevalSvm,[vp,ev,beta,fn,suf])
+                if ev==0: sleep(20)
     pool.close()
     pool.join()
+#path,inpath,figpath=initPath(1,1)
+#SevalSvm(1,1,-0.5,inpath+'svm2/svm','2')   
 
-def getWeights(vp,event):
+def getWeights(vp,event,suf):
     # validate the model and save it
     path,inpath,fp=initPath(vp,event)
-    opt=np.load(inpath+'svm/opt.npy')
-    fnm=inpath+'svm/svm';fn=fnm+'%d'%int(opt[0]*10)
+    opt=np.load(inpath+'svm%s/opt.npy'%suf)
+    fnm=inpath+'svm%s/svm'%suf;fn=fnm+'%d'%int(opt[0]*10)
     if not os.path.isfile(fn+'.in'):SexportSvm(vp,event,opt[0],fn)
     status,output=commands.getstatusoutput('svm-train -s '+
         '0 -t 4 -c %f %s.in %s.model'%(np.exp(opt[1]),fn,fnm))
@@ -410,28 +410,28 @@ def getWeights(vp,event):
     f.close()
     weights=np.array(weights)
     svs=np.array(svs)-1
-    np.save(inpath+'svm/weights.npy',weights)
-    np.save(inpath+'svm/svs.npy',svs)
+    np.save(inpath+'svm%s/weights.npy'%suf,weights)
+    np.save(inpath+'svm%s/svs.npy'%suf,svs)
     info=[]
-    sPF=np.load(inpath+'sPF2.npy')
+    sPF=np.load(inpath+'sPF%s2.npy'%suf)
     info.append(sPF.shape[0])
-    sPF=np.load(path+'E%d/sPF2.npy'%(event+1))
+    sPF=np.load(path+'E%d/sPF%s2.npy'%(event+1,suf))
     info.append(sPF.shape[0])
     del sPF
     info.append(svs.size)
     return np.array(info)
 
-def plotSvm():
+def plotSvm(suf=''):
     print 'plotSvm started'
-    for event in [0,1]:
+    for event in [1]:
         plt.figure()
         for vp in range(1,5):
             path,inpath,figpath=initPath(vp,event)
-            fns=os.listdir(inpath+'svm/')
+            fns=os.listdir(inpath+'svm%s/'%suf)
             fns=filter(lambda s: s.endswith('.log'),fns)
             dat=[]
             for fn in fns:
-                f=open(inpath+'svm/'+fn,'r')
+                f=open(inpath+'svm%s/'%suf+fn,'r')
                 txt=f.read()
                 f.close()
                 txt='\n'+txt
@@ -462,8 +462,8 @@ def plotSvm():
             # sanity check
             oi=np.logical_and(opt[0]==dat[:,0],opt[1]==dat[:,1])
             assert np.max(fun)==dat[oi.nonzero()[0][0],2]
-            np.save(inpath+'svm/opt',opt)
-            nf=getWeights(vp,event)
+            np.save(inpath+'svm%s/opt'%suf,opt)
+            nf=getWeights(vp,event,suf)
             chnc=max(nf[0],nf[1])/float(nf[0]+nf[1])
             print nf,chnc
             plt.subplot(2,2,vp)
@@ -475,16 +475,16 @@ def plotSvm():
             plt.title('b=%.1f, C=%.1f,fm=%.2f,ch=%.2f'%(opt[0],opt[1],np.max(fun),chnc))
             
 
-        plt.savefig(figpath+'svmfitEv%d.png'%event)
+        plt.savefig(figpath+'svm%sfitEv%d.png'%(suf,event))
     print 'plotSvm finished'
 
 #exportScript()
-#gridSearchScript()
-#plotSvm()
+#gridSearchScript(suf='2')
+#plotSvm(suf='2')
 
 
 def svmObjFun(*args):
-    [wid,np,P,F,svvs,beta,weights,D,inpath,invert,x]=args
+    [wid,np,P,F,svvs,beta,weights,D,inpath,suf,invert,x]=args
     SMAX=128
     '''
     compute similarity between x and the selected perc fields
@@ -501,28 +501,28 @@ def svmObjFun(*args):
     res=weights[1:].dot(K)-weights[0]
     return  (-1)**invert * res
 
-def inithc(vp,event,s):
+def inithc(vp,event,s,suf=''):
     path,inpath,fp=initPath(vp,event)
-    D0=np.load(inpath+'sPF%d.npy'%s)
-    D1=np.load(path+'E%d/sPF%d.npy'%(event+1,s))
+    D0=np.load(inpath+'sPF%s%d.npy'%(suf,s))
+    D1=np.load(path+'E%d/sPF%s%d.npy'%(event+1,suf,s))
     D=np.float64(np.concatenate([D0,D1],axis=0))
     P=D.shape[1];F=D.shape[3]
     mask=createMask(P,F)
     D*=mask
     np.save('test',D)
-    weights=np.load(inpath+'svm/weights.npy')
-    svs=np.load(inpath+'svm/svs.npy')
+    weights=np.load(inpath+'svm%s/weights.npy'%suf)
+    svs=np.load(inpath+'svm%s/svs.npy'%suf)
     svvs=np.zeros(D.shape[0])
     svvs[svs]=1
     svvs=svvs>0.5
-    [beta,c]=np.load(inpath+'svm/opt.npy').tolist()
-    return [0,np,P,F,svvs,beta,weights,D,inpath]
+    [beta,c]=np.load(inpath+'svm%s/opt.npy'%suf).tolist()
+    return [0,np,P,F,svvs,beta,weights,D,inpath,suf]
 
 
 
 def hillClimb(*args): 
     # these are read-only vars
-    [wid,np,P,F,svvs,beta,ww,D,inpath]=args
+    [wid,np,P,F,svvs,beta,ww,D,inpath,suf]=args
     seed=wid/2-1
     invert=wid%2
     args=list(args)+[invert]
@@ -546,7 +546,6 @@ def hillClimb(*args):
     for k in range(loops):
         for h in np.random.permutation(x.size).tolist():
             a,b,c=[h/(P*F),(h%(P*F))/F,h%F]
-            #print a,b,c,h
             #assert (a*P*F+b*F+c)==h
             if mask[a,b,c]:
                 x[a,b,c]= not x[a,b,c]
@@ -559,11 +558,11 @@ def hillClimb(*args):
             break
         fk=fmin
         print 'worker %d: loop=%d, t=%.3f, fmin=%f'%(wid,k,np.round((time()-t0)/3600.,3),fmin)
-        np.save(inpath+'svm/hc/hcWorker%d'%(wid),x)
+        np.save(inpath+'svm%s/hc/hcWorker%d'%(suf,wid),x)
 
 
-def hcscript(vp,event,nworkers=8,s=2):
-    ags=inithc(vp,event,s)
+def hcscript(vp,event,nworkers=8,s=2,suf=''):
+    ags=inithc(vp,event,s,suf)
     ps=[]
     for wid in range(0,nworkers):
         ags[0]=wid
@@ -571,7 +570,7 @@ def hcscript(vp,event,nworkers=8,s=2):
         p.start();ps.append(p)
     for p in ps: p.join()
 
-#hcscript(2,1)
+hcscript(1,1,suf='2')
 
 
 def svmPlotExtrema(event=0,plot=True):
