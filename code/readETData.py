@@ -479,8 +479,8 @@ def checkEyelinkDatasets():
         
 
 
-def saveSacInfo(vp=1):
-    ''' output gives,
+def saveETinfo(vp=1):
+    ''' si output gives,
             0- sac onset in f,
             1- sac onset in sec,
             2-sac onset posx,
@@ -494,7 +494,7 @@ def saveSacInfo(vp=1):
             10-event type of the consecutive event,
             11-start of tracking event in f,
             12-trial dur in sec,
-            13-tracking event id within trial,
+            13-sac id within tracking event counted backwards
             14-sac id within tracking event,
             15-block,
             16-trial
@@ -503,13 +503,14 @@ def saveSacInfo(vp=1):
     '''
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     import pickle
-    si=[];trackdir=[];finalev=[]
+    si=[];sacxy=[];finalev=[];ti=[];trackxy=[]
+    pi=[];purxy=[]
     for b in range(1,24):
         try: data=readEyelink(vp,b)
         except:
             print 'block %d is missing'%b
             continue
-        for i in range(1,len(data)):
+        for i in range(0,len(data)):
             if data[i].ts>=0:
                 print 'vp',vp,'block ',b,'trial',i
                 data[i].extractBasicEvents()
@@ -517,11 +518,11 @@ def saveSacInfo(vp=1):
                 data[i].importComplexEvents(coderid=4)
                 if  data[i].search!=None:
                     g=data[i].getGaze()
-                    hh=0
                     for ev in data[i].search:
                         si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                             ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
-                            ev[4],np.nan,data[i].t0[1]-data[i].t0[0],hh,0,b,i]);hh+1
+                            ev[4],np.nan,data[i].t0[1]-data[i].t0[0],0,0,b,i])
+                        sacxy.append(g[ev[0]:ev[1],[7,8]].flatten().tolist())
                     gg=0
                     for tr in data[i].track:
                         if False:#len(tr[4:])>0:
@@ -529,13 +530,20 @@ def saveSacInfo(vp=1):
                             # i.e. tracking started with a blink or directly with pursuit 
                             print '\tdif', g[tr[0],0],g[tr[4][1],0],tr[0]-tr[4][1]
                         kk=1
-                        for ev in tr[4:]:
+                        for ev in tr[4]:
                             si.append([ev[0],g[ev[0],0],g[ev[0],7],g[ev[0],8],
                                 ev[1],g[ev[1],0],g[ev[1],7],g[ev[1],8],ev[2],ev[3],
-                                ev[4],tr[0],data[i].t0[1]-data[i].t0[0],gg,kk,b,i]); kk+=1
-                            trackdir.append(g[ev[0]:ev[1],[7,8]].flatten().tolist())
+                                ev[4],tr[0],data[i].t0[1]-data[i].t0[0],
+                                kk-len(tr[4])-1,kk,b,i]);
+                            sacxy.append(g[ev[0]:ev[1],[7,8]].flatten().tolist())
+                            if len(ev)>5:
+                                pi.append([b,i,kk-len(tr[4])-1,kk,
+                                           ev[-1][0],g[ev[-1][0],0],ev[-1][1],g[ev[-1][1],0]])
+                                purxy.append(g[ev[-1][0]:ev[-1][1],[7,8]].flatten().tolist())
+                            kk+=1
                         gg+=1
                     if data[i].msgs=='DETECTION':
+                        si[-1][13]=1
                         res=[[b,i,0]]
                         for ttt in [-251,-201,-151,-101,-51,-26]:
                             if data[i].isFix[ttt] or data[i].opur[ttt] or data[i].cpur[ttt]:
@@ -544,35 +552,47 @@ def saveSacInfo(vp=1):
                         finalev.append(res)  
                     elif data[i].msgs!='OMISSION':raise ValueError('Unexpected message')
     np.save(path+'finalev',finalev)
-    f=open(path+'trdir.pickle','wb')
-    pickle.dump(trackdir,f)
-    f.close()
-    np.save(path+'sinew.npy',si)
+    f=open(path+'purxy.pickle','wb')
+    pickle.dump(purxy,f);f.close()
+    f=open(path+'sacxy.pickle','wb')
+    pickle.dump(sacxy,f);f.close()
+    np.save(path+'si.npy',si)
+    np.save(path+'pi.npy',pi)
+
+def saveTrackingInfo(vp):
+    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    si=np.load(path+'si.npy')
+    temp=np.int32(si[:,[15,16,0]])
+    indices=np.lexsort((temp[:,2],temp[:,1],temp[:,0]))
+    si=si[indices,:].tolist();ti=[];trackxy=[]
+    import pickle
+    for b in range(1,24):
+        try: data=readEyelink(vp,b)
+        except:
+            print 'block %d is missing'%b
+            continue
+        for i in range(0,len(data)):
+            if data[i].ts>=0:
+                print 'vp',vp,'block ',b,'trial',i
+                data[i].extractBasicEvents()
+                data[i].driftCorrection()
+                g=data[i].getGaze()
+                while len(si) and si[0][-2]==b and si[0][-1]==i:
+                    if len(ti) and len(ti[-1])==6:
+                        ti[-1].extend([si[0][0],si[0][1]])
+                        trackxy.append(g[ti[-1][4]:ti[-1][6],[7,8]].flatten().tolist())
+                    if si[0][-3]>0: ti.append(si[0][13:]+[si[0][4],si[0][5]])
+                    out=si.pop(0)
+                if len(ti) and len(ti[-1])==6:
+                    ti[-1].extend([g.shape[0],g[-1,0]])
+                    trackxy.append(g[ti[-1][4]:ti[-1][6],[7,8]].flatten().tolist())
+    np.save(path+'ti.npy',ti)
+    f=open(path+'trackxy.pickle','wb')
+    pickle.dump(trackxy,f);f.close()
+                
+    
     
     
 if __name__ == '__main__':
-##    data=readEyelink(1,1)
-##    data[1].extractBasicEvents()
-##    data[1].driftCorrection()
-##    data[1].importComplexEvents()
-    saveSacInfo(vp=4)
-    #sacInfoMergeBlocks(vp=1)
-    
-            
-##    res=np.zeros(2549)
-##    for b in range(1,22):
-##        data=readEyelink(1,b)
-##        for i in range(40):
-##            data[i].extractBasicEvents()
-##            data[i].loadTrajectories()
-##            D=data[i].oldtraj
-##            print i, D.shape
-##            for a in range(14):
-##                res+=np.logical_or(np.abs(np.diff(D[:,a,1],2))>0.0001,
-##                        np.abs(np.diff(D[:,a,0],2))>0.0001)
-##            
-
-        
-##    data[1].extractBasicEvents()
-##    data[1].driftCorrection()
-##    data[1].importComplexEvents()
+    saveETinfo(vp=1)
+    saveTrackingInfo(vp=1)

@@ -190,7 +190,7 @@ def PFparallel(vp,event,suf=''):
     ''' please run PFinit() first
     '''
     path,inpath,fp=initPath(vp,event)
-    E=np.load(inpath+'DG.npy')[:,:,:,:2]
+    E=np.load(inpath+'DG%s.npy'%suf)[:,:,:,:2]
     print E.shape
     stack=np.load(inpath+'stackPF.npy').tolist()
     f=open(inpath+'PF%s.pars'%suf,'r');dat=pickle.load(f);f.close()
@@ -212,11 +212,12 @@ def PFparallel(vp,event,suf=''):
                 print 'IOError'
                 core.wait(1)
     wind.close()
-##vp=4
-##PFinit(vp,2,suf='2')
-##PFparallel(vp,2,suf='2')
-##PFinit(vp,1,suf='2')
-##PFparallel(vp,1,suf='2')
+    
+vp=4
+#PFinit(vp,2,suf='3')
+#PFparallel(vp,2,suf='3')
+#PFinit(vp,1,suf='3')
+#PFparallel(vp,1,suf='3')
 
 #########################################################
 #                                                       #
@@ -509,7 +510,6 @@ def inithc(vp,event,s,suf=''):
     P=D.shape[1];F=D.shape[3]
     mask=createMask(P,F)
     D*=mask
-    np.save('test',D)
     weights=np.load(inpath+'svm%s/weights.npy'%suf)
     svs=np.load(inpath+'svm%s/svs.npy'%suf)
     svvs=np.zeros(D.shape[0])
@@ -570,7 +570,7 @@ def hcscript(vp,event,nworkers=8,s=2,suf=''):
         p.start();ps.append(p)
     for p in ps: p.join()
 
-hcscript(1,1,suf='2')
+#hcscript(2,1,suf='2')
 
 
 def svmPlotExtrema(event=0,plot=True):

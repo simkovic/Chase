@@ -397,7 +397,8 @@ class ETTrialData():
     def extractSearch(self):
         # build search events
         from copy import copy
-        self.search=[]
+        for tr in self.track: tr.extend([[],[]])
+        self.search=[];tracked=False
         for k in range(0,len(self.events)-1):
             if (self.events[k+1][-1] in [FIX,OLPUR,CLPUR] and
                 self.events[k][-1] in [SAC]):
@@ -407,14 +408,16 @@ class ETTrialData():
                         tr[0]<=self.events[k+1][0] and tr[1]>=self.events[k+1][1]):
                         tracked=True
                         temp=copy(self.events[k][:-1])
-                        temp.extend([self.events[k+1][-1]])
-                        tr.append(temp)
+                        temp.append(self.events[k+1][-1])
+                        if self.events[k+1][-1] in [OLPUR,CLPUR]:
+                            temp.append(self.events[k+1][:-1])
+                        tr[4].append(temp)
                 if not tracked:
                     temp=copy(self.events[k][:-1])
                     temp.extend([self.events[k+1][-1]])
                     self.search.append(temp)
+
                 
-        
     def extractComplexEvents(self):
         """ extracts high-level events -  search,tracking"""
         # build high-level events
