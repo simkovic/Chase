@@ -52,10 +52,11 @@ class Trajectory():
             clrs[-1,[0,1,2]]=-1
             if eyes==2: clrs[-2,[0,1,2]]=-1
             if highlightChase: clrs[0,[0,2]]=0; clrs[1,[0,2]]=-1
-            #print clrs
+            print 'test', self.cond, type(clrs)
             self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
-                nElements=self.cond,sizes=Q.agentSize,colors=clrs,interpolate=False,
+                nElements=self.cond,sizes=Q.agentSize,interpolate=False,
                 colorSpace='rgb',elementMask='circle',elementTex=None)
+            self.elem.setColors(clrs)
             if type(maze)!=type(None):
                 self.maze=maze
                 self.maze.draw(wind)
@@ -615,7 +616,7 @@ def checkBehData():
            
 if __name__ == '__main__':
     RH=0 # set right handed or left handed layout
-    replayBlock(vp =4,block=5,trial=38,tlag=0.0,coderid=4)
+    replayBlock(vp =1,block=20,trial=38,tlag=0.0,coderid=4)
     #compareCoding(vp=2,block=20,cids=[0,1,2])
     #missingTEfiles()
     #checkBehData()

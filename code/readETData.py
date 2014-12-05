@@ -504,7 +504,7 @@ def saveETinfo(vp=1):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     import pickle
     si=[];sacxy=[];finalev=[];ti=[];trackxy=[]
-    pi=[];purxy=[]
+    pi=[];purxy=[];
     for b in range(1,24):
         try: data=readEyelink(vp,b)
         except:
@@ -536,14 +536,26 @@ def saveETinfo(vp=1):
                                 ev[4],tr[0],data[i].t0[1]-data[i].t0[0],
                                 kk-len(tr[4])-1,kk,b,i]);
                             sacxy.append(g[ev[0]:ev[1],[7,8]].flatten().tolist())
+                            if len(ti) and len(ti[-1])==5:
+                                ti[-1].extend([ev[0]])
+                                gxy=g[max(0,ti[-1][4]-5):min(ti[-1][5]+5,g.shape[0]-1),[0,7,8]]
+                                trackxy.append([tr[2],tr[3],gxy.flatten().tolist()])
+                            ti.append(si[-1][13:]+[ev[1]])
                             if len(ev)>5:
                                 pi.append([b,i,kk-len(tr[4])-1,kk,
                                            ev[-1][0],g[ev[-1][0],0],ev[-1][1],g[ev[-1][1],0]])
                                 purxy.append(g[ev[-1][0]:ev[-1][1],[7,8]].flatten().tolist())
                             kk+=1
+                        if len(tr[4])==0:
+                            mll=min(g.shape[0]-1,tr[1])
+                            ti.append([-1,1,b,i,tr[0],mll])
+                        else: ti[-1].append(min(g.shape[0]-1,tr[1]))
+                        assert len(ti[-1])==6
+                        gxy=g[max(0,ti[-1][4]-5):min(ti[-1][5]+5,g.shape[0]-1),[0,7,8]]
+                        trackxy.append([tr[2],tr[3],gxy.flatten().tolist()])
                         gg+=1
                     if data[i].msgs=='DETECTION':
-                        si[-1][13]=1
+                        si[-1][13]=1;ti[-1][0]=1
                         res=[[b,i,0]]
                         for ttt in [-251,-201,-151,-101,-51,-26]:
                             if data[i].isFix[ttt] or data[i].opur[ttt] or data[i].cpur[ttt]:
@@ -551,6 +563,9 @@ def saveETinfo(vp=1):
                             else: res.append(np.zeros(3)*np.nan)
                         finalev.append(res)  
                     elif data[i].msgs!='OMISSION':raise ValueError('Unexpected message')
+    np.save(path+'ti.npy',ti)
+    f=open(path+'trackxy.pickle','wb')
+    pickle.dump(trackxy,f);f.close()
     np.save(path+'finalev',finalev)
     f=open(path+'purxy.pickle','wb')
     pickle.dump(purxy,f);f.close()
@@ -558,11 +573,13 @@ def saveETinfo(vp=1):
     pickle.dump(sacxy,f);f.close()
     np.save(path+'si.npy',si)
     np.save(path+'pi.npy',pi)
+    
 
 def saveTrackingInfo(vp):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     si=np.load(path+'si.npy')
     temp=np.int32(si[:,[15,16,0]])
+    # sort based on time order
     indices=np.lexsort((temp[:,2],temp[:,1],temp[:,0]))
     si=si[indices,:].tolist();ti=[];trackxy=[]
     import pickle
@@ -591,8 +608,33 @@ def saveTrackingInfo(vp):
     pickle.dump(trackxy,f);f.close()
                 
     
+def saveTrackedAgs(vp):
+    from ReplayData import Coder
+    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+    ti=np.int32(np.load(path+'ti.npy')).tolist()
+    trackags=[]
+    tottr=len(ti)
+    totevs=0
+    for b in range(1,24):
+        for t in range(0,40):
+            try: trdat=Coder.loadSelection(vp,b,t,coder=4)
+            except IOError:
+                print b,t,'IOError'
+                continue
+            totevs+=len(trdat)
+            while len(ti) and ti[0][2]==b and ti[0][3]==t:
+                for tr in trdat:
+                    print tr,ti[0]
+                    if tr[2]==ti[0][4]:
+                        trackags.append(tr)
+                        ti.pop(0)
+                        break
+            print b,t, totevs,(tottr-len(trackags))
+    np.save(path+'trackags',trackags)
+    
     
     
 if __name__ == '__main__':
-    saveETinfo(vp=1)
-    saveTrackingInfo(vp=1)
+    saveETinfo(vp=4)
+    #saveTrackingInfo(vp=1)
+    #saveTrackedAgs(vp=1)

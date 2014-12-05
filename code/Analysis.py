@@ -3,8 +3,9 @@ import pylab as plt
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.ndimage.filters import gaussian_filter
-from scipy.stats import nanmean
+from scipy.stats import nanmean,norm,nanmedian
 from scipy.stats import scoreatpercentile as sap
+from scipy.interpolate import interp1d
 import pickle, os
 plt.close('all')
 plt.ion()
@@ -440,13 +441,231 @@ def plotTraj(traj):
 ##    y[:F[q].shape[0]]=1
 ##    del D, E, F
 
+
+#############################################################
+#
+#                       TRACKING
+#
+#############################################################
+
+def _computePhi(g,sd=0.05,hz=500):
+    ''' compute the movement direction 
+        does basic smoothing with gaussian filter
+        g - Tx2 array with gaze position
+        sd - standard deviation of  the guass filter
+        hz - rate of g
+        output - vector Tx1 with direction in radians
+    '''
+    sdf=int(sd*hz) # standard deviation as nr of frames ( ms times hz)
+    t=np.linspace(-2,2,4*sdf-1)
+    gf=norm.pdf(t);gf/= gf.sum()
+    temp=np.diff(g[:,1:],axis=0)
+    phi=np.arctan2(temp[:,1],temp[:,0])
+    df=np.diff(phi)
+    df=-np.sign(df)*(np.abs(df)>np.pi)
+    phi[1:]+=np.cumsum(df)*2*np.pi
+    res=np.median(phi)
+    if g.shape[0]<=(gf.size+2): return res*np.ones(g.shape[0]),g[:,0]
+    phismooth=np.convolve(phi,gf,'valid')
+    n=int(gf.size-1)/2
+    return phismooth,g[(n+1):-n,0]
+    #phi[n:-n]=phismooth
+    #plt.plot(g[1:,0],phi*180/np.pi)
+
+def _computeAgTime(trackxy,ti):
+    txy=[]
+    for ii in range(ti.shape[0]):
+        txy.append([])
+        for k in range(len(trackxy[ii][1]))[::-1]:
+            s=max(ti[ii,:][4],trackxy[ii][1][k][0])
+            e=min(ti[ii,:][5],trackxy[ii][1][k][1])
+            if e>s: txy[-1].append([trackxy[ii][0][k],s,e])
+    return txy
+
+def plotTimeVsAgcount():
+    evs=([1,-1,-2,-3],range(1,5))
+    plt.figure(0,figsize=(10,6))
+    plt.figure(1,figsize=(10,6))
+
+    for vp in range(1,5):
+        initVP(vp,1)
+        f=open(path+'trackxy.pickle','rb')
+        trackxy=pickle.load(f);f.close()
+        ti=np.load(path+'ti.npy') 
+        txy=_computeAgTime(trackxy,ti)
+
+        for i in range(2):
+            for k in range(len(evs[i])+1):
+                if k==len(evs[i]): sel=evs[i][-1]<ti[:,1]
+                else: sel= evs[i][k]==ti[:,i]
+                count=np.zeros(500)
+                totc=np.zeros(500)
+                countN=np.zeros(200)
+                for j in sel.nonzero()[0]:
+                    temp=np.zeros(500)
+                    for ag in txy[j]:
+                        count[(ag[1]-ti[j,:][4]):(ag[2]-ti[j,:][4])]+=1
+                        tot=float(ti[j,:][5]-ti[j,:][4])
+                        s=int(round(countN.size*(ag[1]-ti[j,:][4])/tot))
+                        e=int(round(countN.size*(ag[2]-ti[j,:][4])/tot))
+                        countN[s:e]+=1
+                        temp[:tot]+=1
+                    totc+=np.int32(temp>0)
+                plt.figure(0);plt.subplot(2,4,i*4+vp);plt.grid(False)
+                plt.plot(np.linspace(0,1000,500),count/totc)
+                if vp==4:plt.legend(map(str,evs[i])+['other'],loc=4)
+                plt.figure(1);plt.subplot(2,4,i*4+vp);plt.grid(False)
+                plt.plot(np.linspace(0,1000,200),countN/float(sel.sum()))
+def computeTrackInfo():
+    told=999;dist=[];dirch=[];
+    gs=[];trajs=[]
+    for vp in range(1,5):
+        initVP(vp,1)
+        inpath=os.getcwd().rstrip('code')+'input/' 
+        f=open(path+'trackxy.pickle','rb')
+        trackxy=pickle.load(f);f.close()
+        ti=np.load(path+'ti.npy') 
+        txy=_computeAgTime(trackxy,ti)
+        for some in [gs,trajs,dist,dirch]:some.append([])
+        for j in range(len(txy)):
+            for some in [gs,trajs,dist,dirch]:some[-1].append([])
+            for ag in txy[j]:
+                g=np.array(trackxy[j][2])
+                g=g.reshape([g.size/3,3])
+                s=int(round(g[0,0]*hz/1000.0))+1; e=int(round(g[-1,0]*hz/1000.0))-1
+                if ti[j,3]!=told:
+                    order=np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,ti[j,2]))
+                    traj=np.load(inpath+'vp001/vp001b%dtrial%03d.npy'%(ti[j,2],order[ti[j,3]]) )
+                traj=traj[s:e,ag[0],:2]
+                dirch[-1][j].append(np.int32(np.linalg.norm(
+                            np.diff(traj,2,axis=0),axis=1)>0.0001))
+                ttraj=np.linspace(s*1000/hz,e*1000/hz,e-s)
+                temp=np.zeros((e-s,2))
+                temp[:,0]=interp1d(g[:,0],g[:,1])(ttraj)
+                temp[:,1]=interp1d(g[:,0],g[:,2])(ttraj)
+                gs[-1][j].append(temp)
+                traj-=temp[:traj.shape[0],:]
+                dist[-1][j].append(np.linalg.norm(traj,axis=1))
+                phiold,tphi= _computePhi(g)
+                phi=interp1d(tphi,phiold,bounds_error=False)(ttraj)
+                inds=np.isnan(phi).nonzero()[0]
+                for i in inds:
+                    if i<phi.size/2: phi[i]=phiold[0]
+                    else: phi[i]=phiold[-1]
+                M=traj.shape[0]
+                temp=np.zeros((M,2))
+                c=np.cos(phi[:M]);s=np.sin(phi[:M])
+                temp[:,0]=c*traj[:,0]+s*traj[:,1]
+                temp[:,1]= -s*traj[:,0]+c*traj[:,1]
+                trajs[-1][j].append(temp)
+    return dist,trajs,dirch,gs
+def plotAgdist():
+    dist,discard,the,rest=computeTrackInfo()
+    del discard,the,rest
+    plt.figure(0,figsize=(10,8))
+    for vp in range(1,5):
+        xlim=500
+        ys=dist[vp-1]
+        dat=np.zeros((len(ys),int(hz*xlim/1000.0),2))*np.nan
+        datrev=np.zeros((len(ys),int(hz*500/1000.0),2))*np.nan
+        #datN=np.zeros((len(ys),xlim/20))
+        for i in range(len(ys)):
+            ao=np.argsort(map(np.median,ys[i]))
+            if len(ys[i])==0:continue
+            N=ys[i][ao[0]].size
+            if N==0:continue
+            dat[i,:min(dat.shape[1],N),0]=ys[i][ao[0]][:min(dat.shape[1],N)]
+            datrev[i,-min(datrev.shape[1],N):,0]=ys[i][ao[0]][-min(datrev.shape[1],N):]
+            N=ys[i][ao[-1]].size
+            dat[i,:min(dat.shape[1],N),1]=ys[i][ao[-1]][:min(dat.shape[1],N)]
+            datrev[i,-min(datrev.shape[1],N):,1]=ys[i][ao[-1]][-min(datrev.shape[1],N):]
+        nrags=np.array(map(len,ys))
+        ylims=[[[1,2.5]]*3,[[],[3,4],[3,5]]]
+        for a in range(3)[::-1]:
+            if a==2: sel=nrags>=(a+1)
+            else: sel = nrags==(a+1)
+            for i in range(2):
+                if a==0 and i==1:continue
+                plt.subplot(4,4,i*8+vp);plt.grid(b=False);#plt.ylim(ylims[i][a])
+                plt.plot(np.linspace(0,xlim/1000.,dat.shape[1]),nanmedian(dat[sel,:,i],0));
+                plt.subplot(4,4,i*8+vp+4);plt.grid(b=False);#plt.ylim(ylims[i][a])
+                ss=datrev.shape[1]/hz
+                plt.plot(np.linspace(-ss,0,datrev.shape[1]),nanmedian(datrev[sel,:,i],0));
+    plt.subplot(441)
+    plt.legend(['> 2','2','1'],loc=4)
+    initVP(1,1)
+    plt.savefig(figpath+'trackAgdist')
+
+def computeMeanPF(P=129,T=85,pvar=0.3**2,PLOT=False):
+    ''' compute mean pf with gaussian kernel
+        out - mean pf of size 4x3xPxPxT
+        pvar - determines the sd of smoothing across pixels
+        no smoothing along the time axis
+
+        math formula: $$f(x,y,t)= \frac{1}{N}\sum_n^N w_n(\left[x-x_{nt},y-y_{nt}\right])$$
+$$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \mathbf{\Sigma^{-1}} \mathbf{h} \right)$$
+    '''
+    p=np.linspace(-5,5,P)
+    pp=np.meshgrid(p,p)
+    x,y=np.meshgrid(p,p)
+    H=np.zeros((4,3,P,P,T))
+    G=np.zeros((4,3,P,P,T))
+    discard,trajs,the,rest=computeTrackInfo()
+    for vp in range(4):
+        for nrags in range(3):  
+            J=np.zeros((T,2))
+            for traj in trajs[vp]:
+                if nrags==2 and len(traj)>=(nrags+1): continue
+                if nrags<2 and len(traj)!=(nrags+1): continue
+                for atraj in traj:
+                    t=0
+                    for pos in atraj.tolist():
+                        if t>=T: break
+                        if np.any(np.isnan(pos)): continue
+                        d=np.square(x-pos[0])+np.square(y-pos[1])
+                        H[vp,nrags,:,:,t]+= np.exp(-d/pvar/2.)
+                        J[t,0]+=1;t+=1
+                    t=0
+                    for pos in atraj.tolist()[::-1]:
+                        if t>=T: break
+                        if np.any(np.isnan(pos)): continue
+                        dist=np.square(x-pos[0])+np.square(y-pos[1])
+                        G[vp,nrags,:,:,-t]+= np.exp(-dist/pvar/2.)
+                        J[-t,1]+=1;t+=1
+                
+            for t in range(T):
+                H[vp,nrags,:,:,t]/=J[t,0]
+                G[vp,nrags,:,:,t]/=J[t,1]
+        np.save(path+'trackPFforw',H)
+        np.save(path+'trackPFback',G)
+    if PLOT:
+        k=0
+        for some in [H,G]:
+            Fs=[]
+            denom=[0.15,0.05,0.05]
+            for i in range(some.shape[0]):
+                Fs.append([])
+                for j in range(some.shape[1]):
+                    print np.nanmax(some[i,j,:,:,:])
+                    temp=some[i,j,:,:,:]/denom[j]
+                    temp[temp>1]=1
+                    Fs[-1].append(temp)
+            initVP(1,1)
+            from matustools.matusplotlib import plotGifGrid
+            plotGifGrid(Fs,figpath+['trackPFforw','trackPFback'][k]);k+=1
+    return H,G
+
+
+
 if __name__ == '__main__':
+    computeMeanPF(PLOT=True)
     #for event in range(-6,0):
-    for event in range(1,3):
-        for vpl in range(1,5):
-            initVP(vpl=vpl,evl=event)
-            print vp, event
-            extractTrajectories(suf='3')
+    #plotAgdist()
+##    for event in range(1,3):
+##        for vpl in range(1,5):
+##            initVP(vpl=vpl,evl=event)
+##            print vp, event
+##            extractTrajectories(suf='3')
             #extractDensity()
             #extractDirC()
             #extractSaliency(channel='COmotion')

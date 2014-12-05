@@ -7,8 +7,6 @@ from Settings import Q
 import random, Image,ImageFilter, os,pyglet, pickle,commands
 from scipy.ndimage.filters import convolve,gaussian_filter
 from ImageOps import grayscale
-from psychopy import core
-from matustools.matusplotlib import ndarray2gif,plotGifGrid
 from time import time, sleep
 from multiprocessing import Process,Pool
 import os as oss
@@ -213,7 +211,7 @@ def PFparallel(vp,event,suf=''):
                 core.wait(1)
     wind.close()
     
-vp=4
+
 #PFinit(vp,2,suf='3')
 #PFparallel(vp,2,suf='3')
 #PFinit(vp,1,suf='3')
@@ -253,8 +251,8 @@ def pfExport(vp,evA,evB,suf=''):
     ds1=D1.shape[0];ds2=D2.shape[0];
     assert dat['os']==D1.shape[1]
     P=D1.shape[1];F=D1.shape[4]
-    dga=np.load(inpa+'DG.npy').shape[0]
-    dgb=np.load(inpb+'DG.npy').shape[0]
+    dga=np.load(inpa+'DG%s.npy'%suf).shape[0]
+    dgb=np.load(inpb+'DG%s.npy'%suf).shape[0]
     evsuf=['ev%d'%evB,''][int(evA==evB)]
     #print dga,dgb,ds1,ds2
     S=np.zeros([dga,dgb])*np.nan
@@ -274,6 +272,7 @@ def pfExport(vp,evA,evB,suf=''):
             S[pf1*ds1:(pf1*ds1+sps[0]),pf2*ds2:(pf2*ds2+sps[1])]=Spart
             if evA==evB: S[pf2*ds2:(pf2*ds2+sps[1]),pf1*ds1:(pf1*ds1+sps[0])]=Spart.T
         print strid + 'pf1=%d'%pf1
+    assert np.all(~np.isnan(S))
     np.save(inpa+'S'+suf+evsuf,S)
     print strid+'finished'
     
@@ -304,17 +303,18 @@ def pfSubsample(vp,ev,s=2,suf=''):
     np.save(inpath+'sPF%s%d.npy'%(suf,s),out)
     print strid+'finished'
     
-def exportScript():
+def exportScript(suf=''):
     pool=Pool(processes=8)
-    vps=[1,2,3,4];suf='2'
-    for ags in [[0,0],[0,1],[1,1],[1,2],[2,2]]:
+    vps=[1,2];
+    for ags in [[1,1],[1,2],[2,2]]:
         for vp in vps:
             pool.apply_async(pfExport,[vp]+ags+[suf])       
-    for ev in [0,1,2]:
+    for ev in [1,2]:
         for vp in vps:
             pool.apply_async(pfSubsample,[vp,ev,2,suf])   
     pool.close()
     pool.join()
+
 
 def SexportSvm(vp,ev,beta,fn,suf=''):
     ''' beta on log scale '''
@@ -367,7 +367,7 @@ def SevalSvm(vp,ev,b,fn,suf):
     
 def gridSearchScript(suf=''):   
     pool=Pool(processes=8)
-    vps=[4]
+    vps=[1,2]
     betas=np.arange(-5,10,0.5)
 
     for ev in [1]:
@@ -387,7 +387,7 @@ def getWeights(vp,event,suf):
     path,inpath,fp=initPath(vp,event)
     opt=np.load(inpath+'svm%s/opt.npy'%suf)
     fnm=inpath+'svm%s/svm'%suf;fn=fnm+'%d'%int(opt[0]*10)
-    if not os.path.isfile(fn+'.in'):SexportSvm(vp,event,opt[0],fn)
+    if not os.path.isfile(fn+'.in'):SexportSvm(vp,event,opt[0],fn,suf)
     status,output=commands.getstatusoutput('svm-train -s '+
         '0 -t 4 -c %f %s.in %s.model'%(np.exp(opt[1]),fn,fnm))
     if status: print output
@@ -422,66 +422,68 @@ def getWeights(vp,event,suf):
     info.append(svs.size)
     return np.array(info)
 
-def plotSvm(suf=''):
+def plotSvm(event=0,suf=''):
     print 'plotSvm started'
-    for event in [1]:
-        plt.figure()
-        for vp in range(1,5):
-            path,inpath,figpath=initPath(vp,event)
-            fns=os.listdir(inpath+'svm%s/'%suf)
-            fns=filter(lambda s: s.endswith('.log'),fns)
-            dat=[]
-            for fn in fns:
-                f=open(inpath+'svm%s/'%suf+fn,'r')
-                txt=f.read()
-                f.close()
-                txt='\n'+txt
-                txt=txt.rsplit('%')
-                for tx in txt[:-1]:
-                    lines=tx.rsplit('\n')
-                    #print len(lines),len(lines[0]),lines[0]
-                    b= float(lines[1].rsplit('=')[1])
-                    C= float(lines[2].rsplit('=')[1])
-                    f= float(lines[-1].rsplit('=')[1])/100.
-                    dat.append([b,C,f])
-               
-            dat=np.array(dat)
-            betas=np.unique(dat[:,0]).tolist()
-            Cs= np.unique(dat[:,1]).tolist()
-            fun=np.zeros((len(betas),len(Cs)))#*np.nan
-            for d in dat.tolist():
-                fun[betas.index(d[0]),Cs.index(d[1])]=d[2]
+    plt.figure()
+    infos=[]
+    for vp in [1,2,3,4]:
+        path,inpath,figpath=initPath(vp,event)
+        fns=os.listdir(inpath+'svm%s/'%suf)
+        fns=filter(lambda s: s.endswith('.log'),fns)
+        dat=[]
+        for fn in fns:
+            f=open(inpath+'svm%s/'%suf+fn,'r')
+            txt=f.read()
+            f.close()
+            txt='\n'+txt
+            txt=txt.rsplit('%')
+            for tx in txt[:-1]:
+                lines=tx.rsplit('\n')
+                #print len(lines),len(lines[0]),lines[0]
+                b= float(lines[1].rsplit('=')[1])
+                C= float(lines[2].rsplit('=')[1])
+                f= float(lines[-1].rsplit('=')[1])/100.
+                dat.append([b,C,f])
+           
+        dat=np.array(dat)
+        betas=np.unique(dat[:,0]).tolist()
+        Cs= np.unique(dat[:,1]).tolist()
+        fun=np.zeros((len(betas),len(Cs)))#*np.nan
+        for d in dat.tolist():
+            fun[betas.index(d[0]),Cs.index(d[1])]=d[2]
 
-            inc=(betas[1]-betas[0])
-            betas.append(betas[-1]+inc)
-            Cs.append(Cs[-1]+inc)
-            betas=np.array(betas)-inc/2.;Cs=np.array(Cs)-inc/2.
-            am= (fun==np.max(fun)).nonzero()
-            iam=np.argmin(am[1])
-            opt=[betas[am[0][iam]]+inc/2.,Cs[am[1][iam]]+inc/2.]
+        inc=(betas[1]-betas[0])
+        betas.append(betas[-1]+inc)
+        Cs.append(Cs[-1]+inc)
+        betas=np.array(betas)-inc/2.;Cs=np.array(Cs)-inc/2.
+        am= (fun==np.max(fun)).nonzero()
+        iam=np.argmin(am[1])
+        opt=[betas[am[0][iam]]+inc/2.,Cs[am[1][iam]]+inc/2.]
 
-            # sanity check
-            oi=np.logical_and(opt[0]==dat[:,0],opt[1]==dat[:,1])
-            assert np.max(fun)==dat[oi.nonzero()[0][0],2]
-            np.save(inpath+'svm%s/opt'%suf,opt)
-            nf=getWeights(vp,event,suf)
-            chnc=max(nf[0],nf[1])/float(nf[0]+nf[1])
-            print nf,chnc
-            plt.subplot(2,2,vp)
-            plt.pcolor(betas,Cs,fun.T,cmap='hot')
-            plt.xlabel('beta');plt.ylabel('C')
-            plt.xlim([betas[0],betas[-1]]);plt.ylim([Cs[0],Cs[-1]])
-            plt.colorbar()
-            plt.plot(opt[0],opt[1],'rx',mew=2)
-            plt.title('b=%.1f, C=%.1f,fm=%.2f,ch=%.2f'%(opt[0],opt[1],np.max(fun),chnc))
-            
+        # sanity check
+        oi=np.logical_and(opt[0]==dat[:,0],opt[1]==dat[:,1])
+        assert np.max(fun)==dat[oi.nonzero()[0][0],2]
+        np.save(inpath+'svm%s/opt'%suf,opt)
+        nf=getWeights(vp,event,suf)
+        chnc=max(nf[0],nf[1])/float(nf[0]+nf[1])
+        infos.append([vp,np.max(fun)*100,chnc*100]+nf.tolist()
+            +[nf[2]/float(nf[0]+nf[1])*100,opt[1],opt[0]])
+        plt.subplot(2,2,vp)
+        plt.pcolor(betas,Cs,fun.T,cmap='hot')
+        plt.xlabel('beta');plt.ylabel('C')
+        plt.xlim([betas[0],betas[-1]]);plt.ylim([Cs[0],Cs[-1]])
+        plt.colorbar()
+        plt.plot(opt[0],opt[1],'rx',mew=2)
+        plt.title('b=%.1f, C=%.1f,fm=%.2f,ch=%.2f'%(opt[0],opt[1],np.max(fun),chnc))
+    plt.savefig(figpath+'svm%sfitEv%d.png'%(suf,event))
+    from matustools.matusplotlib import ndarray2latextable
+    ndarray2latextable(np.array(infos),decim=[2,2,0,0,0,2,1,1])
+    return infos
 
-        plt.savefig(figpath+'svm%sfitEv%d.png'%(suf,event))
-    print 'plotSvm finished'
 
-#exportScript()
-#gridSearchScript(suf='2')
-#plotSvm(suf='2')
+#exportScript(suf='3')
+#gridSearchScript(suf='3')
+#plotSvm(event=0,suf='')
 
 
 def svmObjFun(*args):
@@ -572,25 +574,35 @@ def hcscript(vp,event,nworkers=8,s=2,suf=''):
 
 #hcscript(2,1,suf='2')
 
+from matustools.matusplotlib import plotGifGrid
 
-def svmPlotExtrema(event=0,plot=True):
+def svmPlotExtrema(event=0,plot=True,suf=''):
+    
     P=32;F=34
     dat=[]
-    print len(dat)
     for vp in range(1,5):
         path,inpath,figpath=initPath(vp,event)
-        fn= inpath+'svm/hc/hcWorker'
+        fn= inpath+'svm%s/hc/hcWorker'%suf
+        dat.append([])
         for g in range(2):
-            dat.append([])
             for k in range(4):
                 try:temp=np.load(fn+'%d.npy'%(k*2+g))
-                except IOError:temp=np.ones(P*P*F)
+                except IOError:
+                    print 'File missing: ',vp,event,suf
+                    temp=np.zeros(P*P*F,dtype=np.bool8)
                 temp=np.reshape(temp,[P,P,F])
-                dat[-1].append(temp)
-    if plot: plotGifGrid(dat,fn=figpath+'svmExtremaE%d'%event)
+                dat[-1].append(np.bool8(g-1**g *temp))
+    if plot: plotGifGrid(dat,fn=figpath+'svm%sExtremaE%d'%(suf,event),bcgclr=0.5)
     return dat
+out=[[],[],[],[]]
+for nf in [[0,''],[1,''],[1,'3'],[1,'2']]:
+    dat=svmPlotExtrema(nf[0],suf=nf[1])
+    for vp in range(4):
+        out[vp].extend([dat[vp][1],dat[vp][5]])
+path,inpath,figpath=initPath(1,0)
+plotGifGrid(out,fn=figpath+'svmExtrema',bcgclr=0.5)  
+    
 
-#dat=svmPlotExtrema(0)
 ##initPath(3,1)
 ##args=inithc(s=2)
 ##invert=1
@@ -949,55 +961,6 @@ def testPca():
         else: plt.plot(a1[:,k])
     plt.show()
 
-def _getPC(pf,h):
-    if pf.shape[0]!=64:pf=pf[:,h].reshape((64,64,68))
-    pf-= np.min(pf)
-    pf/= np.max(pf)
-    return np.rollaxis(pf.squeeze(),1).T
-
-def plotCoeff(vp,event,rows=8,cols=5):
-    p,inpath,figpath=initPath(vp,event)
-    coeff=np.load(inpath+'X/coeff.npy')
-    offset=8 # nr pixels for border padding
-    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    for h in range(coeff.shape[1]):
-        if h>=rows*cols:continue
-        c= h%cols;r= h/cols
-        s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=_getPC(coeff,h)
-    ndarray2gif(figpath+'pcAllvp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
-def plotLatent():
-    for ev in range(2):
-        for vp in range(1,5):
-            initPath(vp,ev)
-            plt.plot(np.load(inpath+'X/latent.npy')[:20],['r','g'][ev])
-    plt.show()
-
-
-def plotScore(vp,event,pcs=5,scs=3):
-    p,inpath,figpath=initPath(vp,event)
-    score=np.load(inpath+'X/score.npy')
-    coeff=np.load(inpath+'X/coeff.npy')
-    offset=8 # nr pixels for border padding
-    rows=scs*2+1; cols=pcs
-    R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
-    f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
-    bd=score.shape[0]/dat['N']
-    for h in range(pcs):
-        s=((offset+64)*scs+offset/2,(offset+64)*h+offset/2)
-        pc=_getPC(coeff,h)
-        print pc.mean()
-        if False and pc.mean()>=0.4: invert= -1
-        else: invert= 1
-        R[1:,s[0]:s[0]+64,s[1]:s[1]+64]=invert*pc
-        
-        ns=np.argsort(invert*score[:,h])[range(-scs,0)+range(scs)]
-        for i in range(len(ns)):
-            pf=np.load(inpath+'PF/PF%03d.npy'%(ns[i]/bd))[ns[i]%bd,:,:,0,:]
-            s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
-            #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
-            R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
-    ndarray2gif(figpath+'scoreVp%de%d'%(vp,event),np.uint8(R*255),duration=0.1)
 
 def pcaScript(vp,ev):
     global inpath,N
@@ -1030,8 +993,6 @@ def pcaScript(vp,ev):
 
     score=Xleftmult(coeff)
     np.save(inpath+'score',score)
-    plotCoeff(vp,ev)
-    plotScore(vp,ev)
 
 def controlSimulationsPIX():
     P=64;T=50
