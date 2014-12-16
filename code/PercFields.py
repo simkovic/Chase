@@ -14,7 +14,8 @@ def initPath(vpp,eventt):
     #global event,vp,path,inpath,figpath
     event=eventt;vp=vpp
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    inpath=path+'E%d/'%event
+    if event>=0: inpath=path+'E%d/'%event
+    else: inpath=path+'E%d/'%(100+event)
     figpath=os.getcwd().rstrip('code')+'figures/PercFields/'
     #print 'initPath: vp=%d, ev=%d'%(vp,event)
     return path,inpath,figpath
@@ -477,14 +478,16 @@ def plotSvm(event=0,suf=''):
         plt.title('b=%.1f, C=%.1f,fm=%.2f,ch=%.2f'%(opt[0],opt[1],np.max(fun),chnc))
     plt.savefig(figpath+'svm%sfitEv%d.png'%(suf,event))
     from matustools.matusplotlib import ndarray2latextable
-    ndarray2latextable(np.array(infos),decim=[2,2,0,0,0,2,1,1])
+    ndarray2latextable(np.array(infos),decim=[0,2,2,0,0,0,2,1,1])
     return infos
 
 
 #exportScript(suf='3')
 #gridSearchScript(suf='3')
 #plotSvm(event=0,suf='')
-
+#plotSvm(event=1,suf='')
+#plotSvm(event=1,suf='3')
+#plotSvm(event=1,suf='2')
 
 def svmObjFun(*args):
     [wid,np,P,F,svvs,beta,weights,D,inpath,suf,invert,x]=args
@@ -574,9 +577,9 @@ def hcscript(vp,event,nworkers=8,s=2,suf=''):
 
 #hcscript(2,1,suf='2')
 
-from matustools.matusplotlib import plotGifGrid
 
-def svmPlotExtrema(event=0,plot=True,suf=''):
+
+def svmPlotExtrRep(event=0,plot=True,suf=''):
     
     P=32;F=34
     dat=[]
@@ -594,14 +597,19 @@ def svmPlotExtrema(event=0,plot=True,suf=''):
                 dat[-1].append(np.bool8(g-1**g *temp))
     if plot: plotGifGrid(dat,fn=figpath+'svm%sExtremaE%d'%(suf,event),bcgclr=0.5)
     return dat
-out=[[],[],[],[]]
-for nf in [[0,''],[1,''],[1,'3'],[1,'2']]:
-    dat=svmPlotExtrema(nf[0],suf=nf[1])
-    for vp in range(4):
-        out[vp].extend([dat[vp][1],dat[vp][5]])
-path,inpath,figpath=initPath(1,0)
-plotGifGrid(out,fn=figpath+'svmExtrema',bcgclr=0.5)  
-    
+def svmPlotExtrema():
+    from matustools.matusplotlib import plotGifGrid
+    out=[[],[],[],[]]
+    for nf in [[0,''],[1,''],[1,'3'],[1,'2']]:
+        dat=svmPlotExtrRep(nf[0],suf=nf[1])
+        for vp in range(4):
+            out[vp].extend([dat[vp][1],dat[vp][5]])
+    path,inpath,figpath=initPath(1,0)
+    txt=[['VP1',16,20,-16],['VP2',16,60,-16],['VP3',16,100,-16],['VP4',16,140,-16],
+         ['A',16,-8,60],['B',16,-8,140],['C',16,-8,220],['D',16,-8,300]]
+    plotGifGrid(out,fn=figpath+'svmExtrema',bcgclr=0.5,
+                text=txt,duration=0.2,plottime=True,snapshot=True)  
+        
 
 ##initPath(3,1)
 ##args=inithc(s=2)
@@ -631,6 +639,7 @@ plotGifGrid(out,fn=figpath+'svmExtrema',bcgclr=0.5)
 #########################################################
 
 def plotBTmean(MAX=16):
+    from matustools.matusplotlib import plotGifGrid
     dat=[]
     for vp in range(1,5):
         dat.append([])
@@ -700,8 +709,7 @@ def plotBTpt():
     plt.savefig(figpath+'buttonPress.png')
     est=np.squeeze(est)
     print np.round(est[:,],2)
-
-#plotBTpt()
+plotBTpt()
 #########################################################
 #                                                       #
 #                       PCA                             #

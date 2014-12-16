@@ -3,7 +3,7 @@ import pylab as plt
 from scipy import stats
 from matustools.matusplotlib import *
 import os
-from matustools.matusplotlib import ndarray2gif,plotGifGrid
+from matustools.matusplotlib import ndarray2gif,plotGifGrid,str2img
 
 FIG=(('behdata.png',('Detection Time in Seconds','Probability' ),
                      ('Subject','Mean Detection Time'),
@@ -221,13 +221,6 @@ def _getPC(pf,h):
     return np.rollaxis(pf.squeeze(),1).T
 
 def plotCoeff(event,rows=8,cols=5):
-    from PIL import ImageFont, ImageDraw, Image
-    def str2img(inp,size,fontpath="/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf"):
-        image= Image.fromarray(np.zeros((size,1+int(np.round(size*2/3.*len(inp))))))
-        draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype(fontpath,size)
-        draw.text((0,0), inp, font=font)
-        return np.asarray(image)
     panels=[]
     for vp in range(1,5):
         path=inpath+'vp%03d/E%d/'%(vp,event)
