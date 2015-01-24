@@ -11,7 +11,7 @@ plt.close('all')
 plt.ion()
 dtos=['G','A','T']
 radbins=np.arange(1,15)
-bs=range(1,22);hz=85.0 #sampling frequency 
+bs=range(1,22);HZ=85.0 #sampling frequency 
 
 def initVP(vpl=1,evl=1):
     '''event - 0: search saccades,1: 1st tracking saccade,2:second ...
@@ -22,7 +22,8 @@ def initVP(vpl=1,evl=1):
     figpath=os.getcwd().rstrip('code')+'figures/analysis/'
     if event>=0: sw=-400; ew=400;# start and end (in ms) of the window
     else: sw=-800; ew=0
-    fw=int(np.round((abs(sw)+ew)/1000.0*hz))
+    fw=int(np.round((abs(sw)+ew)/1000.0*HZ))
+    return vp,event,path
 
 ##########################################
 #
@@ -159,7 +160,7 @@ def plotSearchInfo(plot=True,suf=''):
 def extractTrajectories(suf=''):
     si,phi=plotSearchInfo(plot=False,suf=suf)
     inpath=os.getcwd().rstrip('code')+'input/' 
-    sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
+    sf=np.int32(np.round((si[:,1]+sw)/1000.0*HZ))
     ef=sf+fw
     Np=100;rp=[]; # number of random replications for DP CI calculation
     valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= si[:,12])
@@ -278,7 +279,7 @@ def extractSaliency(channel='intensity'):
         from ezvisiontools import Mraw
         si=plotSearchInfo(plot=False)
         inpath=os.getcwd().rstrip('code')+'input/'
-        sf=np.int32(np.round((si[:,1]+sw)/1000.0*hz))
+        sf=np.int32(np.round((si[:,1]+sw)/1000.0*HZ))
         ef=sf+fw
         valid= np.logical_and(si[:,1]+sw>=0, si[:,1]+ew <= np.minimum(si[:,12],30000))
         print si.shape, valid.sum()
@@ -510,6 +511,8 @@ def plotDur():
     plt.figure(1,figsize=(10,10))
     plt.subplot(221);plt.xlim([0,1200]);plt.grid(False)
     plt.hist(dur,bins=np.linspace(0,1200,50))
+    plt.subplot(222)
+    plt.hist()
     for i in range(4):
         plt.subplot(223)
         x=range(len(evs[1])+1)
@@ -566,9 +569,23 @@ def plotTimeVsAgcount():
     plt.figure(0)
     initVP(1,1);plt.savefig(figpath+'trackTimeCount')
     
-def computeTrackInfo(allAgents=False):
-    told=999;dist=[];dirch=[];
-    gs=[];trajs=[]
+def computeTrackInfo():
+    def _hlpfun(atraj,gaze,phiold,tphi,ttraj):           
+        dchv=np.int32(np.linalg.norm(np.diff(atraj,2,axis=0),axis=1)>0.0001)
+        atraj-=gaze[:atraj.shape[0],:]
+        dst=np.linalg.norm(atraj,axis=1)
+        phi=interp1d(tphi,phiold,bounds_error=False)(ttraj)
+        inds=np.isnan(phi).nonzero()[0]
+        for i in inds:
+            if i<phi.size/2: phi[i]=phiold[0]
+            else: phi[i]=phiold[-1]
+        M=atraj.shape[0]
+        temp=np.zeros((M,2))
+        cs=np.cos(phi[:M]);sn=np.sin(phi[:M])
+        temp[:,0]=cs*atraj[:,0]+sn*atraj[:,1]
+        temp[:,1]= -sn*atraj[:,0]+cs*atraj[:,1]
+        return dchv,dst,temp
+    told=999;
     for vp in range(1,5):
         initVP(vp,1)
         inpath=os.getcwd().rstrip('code')+'input/' 
@@ -576,40 +593,39 @@ def computeTrackInfo(allAgents=False):
         trackxy=pickle.load(f);f.close()
         ti=np.load(path+'ti.npy') 
         txy=_computeAgTime(trackxy,ti)
-        for some in [gs,trajs,dist,dirch]:some.append([])
+        dist=[];dirch=[];gs=[];trajs=[]
         for j in range(len(txy)):
-            for some in [gs,trajs,dist,dirch]:some[-1].append([])
-            txyall= np.array([range(14),[ti[j,4]]*14,[ti[j,5]]*14]).T.tolist()
-            for ag in [txy[j],txyall][int(allAgents)]:
-                g=np.array(trackxy[j][2])
-                g=g.reshape([g.size/3,3])
-                s=int(round(g[0,0]*hz/1000.0))+1; e=int(round(g[-1,0]*hz/1000.0))-1
-                if ti[j,3]!=told:
-                    order=np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,ti[j,2]))
-                    traj=np.load(inpath+'vp001/vp001b%dtrial%03d.npy'%(ti[j,2],order[ti[j,3]]) )
-                traj=traj[s:e,ag[0],:2]
-                dirch[-1][j].append(np.int32(np.linalg.norm(
-                            np.diff(traj,2,axis=0),axis=1)>0.0001))
-                ttraj=np.linspace(s*1000/hz,e*1000/hz,e-s)
-                temp=np.zeros((e-s,2))
-                temp[:,0]=interp1d(g[:,0],g[:,1])(ttraj)
-                temp[:,1]=interp1d(g[:,0],g[:,2])(ttraj)
-                gs[-1][j].append(temp)
-                traj-=temp[:traj.shape[0],:]
-                dist[-1][j].append(np.linalg.norm(traj,axis=1))
-                phiold,tphi= _computePhi(g)
-                phi=interp1d(tphi,phiold,bounds_error=False)(ttraj)
-                inds=np.isnan(phi).nonzero()[0]
-                for i in inds:
-                    if i<phi.size/2: phi[i]=phiold[0]
-                    else: phi[i]=phiold[-1]
-                M=traj.shape[0]
-                temp=np.zeros((M,2))
-                c=np.cos(phi[:M]);s=np.sin(phi[:M])
-                temp[:,0]=c*traj[:,0]+s*traj[:,1]
-                temp[:,1]= -s*traj[:,0]+c*traj[:,1]
-                trajs[-1][j].append(temp)
-    return dist,trajs,dirch,gs
+            for some in [trajs,dist,dirch]: some.append([[],[],[],[]])          
+            g=np.array(trackxy[j][2])
+            g=g.reshape([g.size/3,3])
+            s=int(round(g[0,0]*HZ/1000.0))+1; e=int(round(g[-1,0]*HZ/1000.0))-1
+            if ti[j,3]!=told:
+                order=np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,ti[j,2]))
+                traj=np.load(inpath+'vp001/vp001b%dtrial%03d.npy'%(ti[j,2],order[ti[j,3]]) )
+            ttraj=np.linspace(s*1000/HZ,e*1000/HZ,e-s)
+            temp=np.zeros((e-s,2))
+            temp[:,0]=interp1d(g[:,0],g[:,1])(ttraj)
+            temp[:,1]=interp1d(g[:,0],g[:,2])(ttraj)
+            gs.append(temp)
+            phiold,tphi= _computePhi(g)
+            for ag in txy[j]:
+                atraj=traj[s:e,ag[0],:2]
+                dchv,dst,trj = _hlpfun(atraj,temp,phiold,tphi,ttraj)
+                dirch[j][min(len(txy[j]),3)].append(dchv)
+                dist[j][min(len(txy[j]),3)].append(dst)
+                trajs[j][min(len(txy[j]),3)].append(trj)
+            txyall= np.array([range(14),[ti[j,4]]*14,[ti[j,5]]*14]).T.tolist() 
+            for ag in txyall:
+                atraj=traj[s:e,ag[0],:2]
+                dchv,dst,trj = _hlpfun(atraj,temp,phiold,tphi,ttraj)
+                dirch[j][0].append(dchv)
+                dist[j][0].append(dst)
+                trajs[j][0].append(trj)
+        np.save(path+'trackDist.npy',dist)
+        np.save(path+'trackDirch.npy',dirch)
+        np.save(path+'trackGaze.npy',gs)
+        np.save(path+'trackTraj.npy',trajs)
+        
 def plotAgdist():
     dist,discard,the,rest=computeTrackInfo()
     del discard,the,rest
@@ -617,8 +633,8 @@ def plotAgdist():
     for vp in range(1,5):
         xlim=500
         ys=dist[vp-1]
-        dat=np.zeros((len(ys),int(hz*xlim/1000.0),2))*np.nan
-        datrev=np.zeros((len(ys),int(hz*500/1000.0),2))*np.nan
+        dat=np.zeros((len(ys),int(HZ*xlim/1000.0),2))*np.nan
+        datrev=np.zeros((len(ys),int(HZ*500/1000.0),2))*np.nan
         #datN=np.zeros((len(ys),xlim/20))
         for i in range(len(ys)):
             ao=np.argsort(map(np.median,ys[i]))
@@ -640,14 +656,14 @@ def plotAgdist():
                 plt.subplot(4,4,i*8+vp);plt.grid(b=False);#plt.ylim(ylims[i][a])
                 plt.plot(np.linspace(0,xlim/1000.,dat.shape[1]),nanmedian(dat[sel,:,i],0));
                 plt.subplot(4,4,i*8+vp+4);plt.grid(b=False);#plt.ylim(ylims[i][a])
-                ss=datrev.shape[1]/hz
+                ss=datrev.shape[1]/HZ
                 plt.plot(np.linspace(-ss,0,datrev.shape[1]),nanmedian(datrev[sel,:,i],0));
     plt.subplot(441)
     plt.legend(['> 2','2','1'],loc=4)
     initVP(1,1)
     plt.savefig(figpath+'trackAgdist')
 
-def computeMeanPF(P=129,T=85,pvar=0.3**2,allAgents=False,PLOT=False):
+def computeMeanPF(P=129,T=85,pvar=0.3**2):
     ''' compute mean pf with gaussian kernel
         out - mean pf of size 4x3xPxPxT
         pvar - determines the sd of smoothing across pixels
@@ -659,33 +675,43 @@ $$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \math
     p=np.linspace(-5,5,P)
     pp=np.meshgrid(p,p)
     x,y=np.meshgrid(p,p)
-    H=np.zeros((4,3,P,P,T))
-    G=np.zeros((4,3,P,P,T))
-    F=np.zeros((4,3,P,P,T))
-    J=np.zeros((4,3,T,3))
-    discard,trajs,the,rest=computeTrackInfo()
+    D=np.zeros((4,4,3,P,P,T))
+    J=np.zeros((4,4,3,T))
+    computeTrackInfo()
+    Lout=np.zeros((4,3,T))
     for vp in range(4):
-        for nrags in [[0,1,2],[14]][int(allAgents)]:
-            ind=[nrags,0][int(allAgents)]
-            print vp, nrags
-            for traj in trajs[vp]:
-                if nrags==2 and len(traj)<3: continue
-                if nrags<2 and len(traj)!=(nrags+1): continue
-                for atraj in traj:
-                    t=0
-                    for pos in atraj.tolist():
+        print vp
+        initVP(vp+1,1)
+        gs=np.load(path+'trackGaze.npy')
+        trajs=np.load(path+'trackTraj.npy')
+        L=[[],[],[]];
+        for i in range(3):
+            for t in range(T): L[i].append([])
+        for ind in range(4):
+            for kk in range(len(trajs)):
+                traj =trajs[kk][ind]
+                for ag in range(len(traj)):
+                    atraj=traj[ag]
+                    for t in range(atraj.shape[0]):
                         if t>=T: break
-                        if np.any(np.isnan(pos)): continue
-                        d=np.square(x-pos[0])+np.square(y-pos[1])
-                        H[vp,ind,:,:,t]+= np.exp(-d/pvar/2.)
-                        J[vp,ind,t,0]+=1;t+=1
-                    t=0
-                    for pos in atraj.tolist()[::-1]:
-                        if t>=T: break
+                        pos = atraj[t]
                         if np.any(np.isnan(pos)): continue
                         dist=np.square(x-pos[0])+np.square(y-pos[1])
-                        G[vp,ind,:,:,-t]+= np.exp(-dist/pvar/2.)
-                        J[vp,ind,-t,1]+=1;t+=1
+                        D[vp,ind,0,:,:,t]+= np.exp(-dist/pvar/2.)
+                        if t and not ind and not ag:
+                            ddd=gs[kk][t,:]-gs[kk][t-1,:]
+                            L[0][t].append(np.linalg.norm(ddd))
+                        J[vp,ind,0,t]+=1
+                    for t in range(atraj.shape[0]):
+                        if t>=T: break
+                        pos = atraj[-t]
+                        if np.any(np.isnan(pos)): continue
+                        dist=np.square(x-pos[0])+np.square(y-pos[1])
+                        D[vp,ind,1,:,:,-t]+= np.exp(-dist/pvar/2.)
+                        if t and not ind and not ag:
+                            ddd=gs[kk][-t,:]-gs[kk][-t+1,:]
+                            L[1][-t].append(np.linalg.norm(ddd))
+                        J[vp,ind,1,-t]+=1
                     btraj=atraj.tolist()
                     S=len(btraj)
                     for s in range(S):
@@ -695,76 +721,97 @@ $$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \math
                         t=s+(T-S)/2
                         if t<0 or t>=T:continue
                         dist=np.square(x-pos[0])+np.square(y-pos[1])
-                        F[vp,ind,:,:,t]+= np.exp(-dist/pvar/2.)
-                        J[vp,ind,t,2]+=1
+                        D[vp,ind,2,:,:,t]+= np.exp(-dist/pvar/2.)
+                        if t and not ind and not ag:
+                            ddd=gs[kk][s,:]-gs[kk][s-1,:]
+                            L[2][t].append(np.linalg.norm(ddd))
+                        J[vp,ind,2,t]+=1
             for t in range(T):
-                H[vp,ind,:,:,t]/=J[vp,ind,t,0]
-                G[vp,ind,:,:,t]/=J[vp,ind,t,1]
-                F[vp,ind,:,:,t]/=J[vp,ind,t,2]
-    suf=['','All'][int(allAgents)]
-    np.save(path+'trackPFforw'+suf,H)
-    np.save(path+'trackPFback'+suf,G)
-    np.save(path+'trackPFmid'+suf,F)
-    np.save(path+'trackPFcount'+suf,J[:,:,0,0])
-    return H,G,F
+                for hh in range(3):
+                    D[vp,ind,hh,:,:,t]/=J[vp,ind,hh,t]
+                    Lout[vp,hh,t]=nanmedian(L[hh][t])
+    np.save(path+'trackPF.npy',D)
+    np.save(path+'trackPFcount.npy',J)
+    np.save(path+'trackVel',Lout)
 
 def plotMeanPF():
     initVP(4,1)
-    H=np.load(path+'trackPFforw.npy')
-    temp=np.load(path+'trackPFforwAll.npy')
-    H=np.concatenate([H,temp],axis=1);H=H[:,[3,0,1,2],:,:,:]
-    G=np.load(path+'trackPFback.npy')
-    temp=np.load(path+'trackPFbackAll.npy')
-    G=np.concatenate([G,temp],axis=1);G=G[:,[3,0,1,2],:,:,:]
-    F=np.load(path+'trackPFmid.npy')
-    F=np.concatenate([F,np.zeros(F.shape)],axis=1);F=F[:,[3,0,1,2],:,:,:]
-    k=0
-    for some in [H,G,F]:
-        Fs=[]
-        denom=[0.05,0.15,0.05,0.05]
-        for i in range(some.shape[0]):
+    D=np.load(path+'trackPF.npy')
+    FFs=[]
+    for vp in range(D.shape[0]): FFs.append([[],[],[]])
+    Fs=[]
+    for g in range(D.shape[2]):
+        Fs=[];
+        for vp in range(D.shape[0]):
             Fs.append([])
-            for j in range(some.shape[1]):
-                #print np.nanmax(some[i,j,:,:,:])
-                temp=some[i,j,:,:,:]/denom[j]
-                temp[temp>1]=1
+            
+            for h in range(1,D.shape[1]):
+                
+                denom=[0.003,0.15,0.05,0.05][h]
+                temp=D[vp,h,g,:,:,:]/denom
                 Fs[-1].append(temp)
-        initVP(1,1)
+                temp[temp>1]=1
+                if h==2:FFs[vp][[0,2,1][g]]=temp       
         from matustools.matusplotlib import plotGifGrid
-        lbls=[['A',20,-10,95],['B',20,-10,235],['C',20,-10,370],
-              ['D',20,-10,505],['VP1',20,65,-20],['VP2',20,200,-20],
-              ['VP3',20,340,-20],['VP4',20,475,-20]]
-        plotGifGrid(Fs,fn=figpath+['trackPFforw','trackPFback','trackPFmid'][k],
-                    bcgclr=0.5,plottime=True,text=lbls);k+=1
-
-    plt.figure(figsize=(10,6))
-    for i in range(3):
-        D=[G,F,H][i]
+        lbls=[['A',20,-10,95],['B',20,-10,235],['C',20,-10,370],#['D',20,-10,505],
+              ['P1',20,65,-15],['P2',20,200,-15],
+              ['P3',20,340,-15],['P4',20,475,-15]]
+        plotGifGrid(Fs,fn=figpath+['trackPFforw','trackPFback','trackPFmid'][g],
+                    bcgclr=0.5,plottime=True,text=lbls)
+    plotGifGrid(FFs,fn=figpath+'trackPF',bcgclr=0.5,plottime=True)
+    plt.figure(figsize=(6,10))
+    for g in range(D.shape[2]):
         for vp in range(4):
-            d=D[vp,2,60:68,:,:].mean(0)
+            d=D[vp,2,[0,2,1][g],60:68,:,:].mean(0)
             T=d.shape[1];P=d.shape[0]
-            plt.subplot(3,4,i*4+vp+1)
+            plt.subplot(4,3,g+3*vp+1)
             t=[np.linspace(-T*1000/85,0,T),
                np.linspace(-T/2*1000/85,T/2*1000/85,T),
-               np.linspace(0,T*1000/85,T)][i]
-            if not i:plt.title('VP'+str(vp+1))
-            else:  plt.gca().set_xticklabels([])
+               np.linspace(0,T*1000/85,T)][g]
+            if not g:plt.ylabel('S'+str(vp+1),size=18)
+            if False:  plt.gca().set_xticklabels([])
+            if not vp:plt.title(['Start','Middle','End'][g],size=18)
             p=np.linspace(-5,5,P)
             plt.pcolor(p,t,d.T,cmap='gray',vmax=0.05)
             plt.xlim([p[0],p[-1]])
-            if vp: plt.gca().set_yticklabels([])
-            else: 
-                plt.ylabel(['A','B','C'][i],size=20,
-                    rotation='horizontal',va='center',ha='right')
-            if i==1: plt.ylim([-500,500])
+            if g: plt.gca().set_yticklabels([])
+            if g==1: plt.ylim([-500,500])
     plt.savefig(figpath+'trackPFrail')
+
+def createIdealObserver(vpnr=999,N=5000,rseed=10):
+    np.random.seed(rseed)
+    initVP(vpnr,0);wdur=(ew-sw)/1000.
+    inpath=os.getcwd().rstrip('code')+'input/' 
+    ts=np.random.rand(N)*(30-wdur)*40*23
+    ts=np.sort(ts)
+    blocks=np.int32(ts/(30-wdur)/40)
+    trials=np.int32((ts-blocks*(30-wdur)*40)/(30-wdur))
+    frames=np.int32((ts%(30-wdur))*HZ)
+
+    D=np.zeros((N,int(wdur*HZ),14,2))
+    mdp=int(wdur*HZ)/2
+    for n in range(N):
+        if not n or trials[n]!=trials[n-1]:
+            traj=np.load(inpath+'vp001/vp001b%dtrial%03d.npy'%(blocks[n]+1,trials[n]))
+        #print frames[n],frames[n]+int(HZ*wdur)
+        
+        D[n,:,:,:]=traj[frames[n]:(frames[n]+int(HZ*wdur)),:,:2]
+        g=(D[n,mdp,0,:]+D[n,mdp,1,:])/2.
+        D[n,:,:,0]-=g[0]
+        D[n,:,:,1]-=g[1]
+    np.save(path+'E1/DG.npy',D)
+    
+         
+        
 
 
 
 if __name__ == '__main__':
     #plotDur()
-    #computeMeanPF(PLOT=False,allAgents=False)
-    plotMeanPF()
+    #computeMeanPF()
+    #computeTrackInfo()
+    #plotMeanPF()
+    createIdealObserver()
     #for event in range(-6,0):
     #plotAgdist()
 ##    for event in range(1,3):

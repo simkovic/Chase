@@ -211,12 +211,6 @@ def PFparallel(vp,event,suf=''):
                 print 'IOError'
                 core.wait(1)
     wind.close()
-    
-
-#PFinit(vp,2,suf='3')
-#PFparallel(vp,2,suf='3')
-#PFinit(vp,1,suf='3')
-#PFparallel(vp,1,suf='3')
 
 #########################################################
 #                                                       #
@@ -634,84 +628,6 @@ def svmPlotExtrema():
 
 #########################################################
 #                                                       #
-#                  Button press                         #
-#                                                       #
-#########################################################
-
-def plotBTmean(MAX=16):
-    from matustools.matusplotlib import plotGifGrid
-    dat=[]
-    for vp in range(1,5):
-        dat.append([])
-        for event in range(-6,0):
-            path,inpath,figpath=initPath(vp,event)
-            d=np.squeeze(np.load(inpath+'PF/PF000.npy'))
-            #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
-            dat[-1].append(d.mean(axis=0)/float(MAX))
-    plotGifGrid(dat,fn=figpath+'buttonPressMean')
-    return dat,figpath
-
-def plotBTpt():
-    from scipy.optimize import fmin
-    def fun(x,D=None,verbose=False):
-        nrlines=len(x)/3; p1=np.nan;s=0.15
-        if nrlines==1: p0,v0,s0=tuple(x)
-        elif nrlines==2: p0,v0,s0,p1,v1,s1=tuple(x)
-        else: raise ValueError
-        out=np.ones((P,T))
-        dist=np.abs(pm+v0*tm-p0)/np.sqrt(1+v0**2)/s0
-        out=np.maximum(1-np.power(dist,3),0)/float(nrlines)
-        if nrlines==2:
-            dist=np.abs(pm+v1*tm-p1)/np.sqrt(1+v1**2)/s1
-            out+=np.maximum(1-np.power(dist,3),0)/float(nrlines)
-        out/=out.sum()
-        if D is None: return out
-        fout=-np.corrcoef(D.flatten(),out.flatten())[0,1]# np.linalg.norm(D-out)**2
-        if verbose: print 'p0=%.2f, v=%.2f, p1=%.2f, s=%.2f, f=%f'%(p0,v,p1,s,fout)
-        return fout
-    dat,figpath=plotBTmean()
-    T=dat[0][0].shape[-1]
-    P=dat[0][0].shape[0]
-    t=np.linspace(-0.8,0,T);p=np.linspace(-5,5,P)
-    tm=np.repeat(t[np.newaxis,:],P,axis=0)
-    pm=np.repeat(p[:,np.newaxis],T,axis=1)
-    rows=len(dat)
-    cols=len(dat[0])
-    plt.figure(figsize=(6,6))
-    m=[-251,-201,-151,-101,-51,-1]
-    bnds=[(1,None),(None,0),(None,None)]
-    est=[]
-
-    for i in range(rows):
-        est.append([])
-        for j in [0,2,4]:
-            D=dat[i][j][31:33,:,:].mean(0)
-            D/=D.sum()
-            print rows, cols/2 ,i*cols/2+j/2.+1
-            plt.subplot(rows,cols/2,i*cols/2+j/2.+1)
-            plt.pcolor(p,t,D.T,cmap='gray')
-            if j>=4:
-                if i==0: x0=np.array((1.3,-12,0.1))
-                else: x0=np.array((3,-12,0.1,-2,-12,0.1))
-                xopt=fmin(func=fun,x0=x0,args=(D,False))
-                est[-1].append(xopt.tolist())
-                plt.plot(xopt[0]-xopt[1]*t,t,'r',alpha=0.2)
-                if i>0:
-                    plt.plot(xopt[3]-xopt[4]*t,t,'r',alpha=0.2)
-                else:est[-1][-1].extend([np.nan]*3)
-            plt.grid(True);
-            plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
-            ax=plt.gca()
-            if i<3:ax.set_xticks([]);
-            if j>0:ax.set_yticks([]);
-            else: plt.ylabel('subject %d'%(i+1))
-            if i==0: plt.title(str(m[j]*2+2))
-    plt.savefig(figpath+'buttonPress.png')
-    est=np.squeeze(est)
-    print np.round(est[:,],2)
-plotBTpt()
-#########################################################
-#                                                       #
 #                       PCA                             #
 #                                                       #
 #########################################################
@@ -739,6 +655,7 @@ def PF2X(merge=1,verbose=True):
     if len(x)>0:
         out=np.concatenate(x,0)
         np.save(inpath+'X%d'%h,out);h+=1
+    if N==1: return np.float64(out)/255.0
     assert h==N
     inc=int(np.ceil(out.shape[1]/float(h)))
     for g in range(h):
@@ -827,6 +744,7 @@ def XmeanCenter(axis=1,verbose=True):
         np.save(inpath+'X%s%d.npy'%(ss[1-axis],i),X-np.matrix(res[i*inc:(i*inc+X.shape[0])]).T)  
 
 def Xcov(transpose=False,verbose=True):
+    ''' NOTE: Xcov demeans X on hard drive '''
     transpose=int(transpose)
     XmeanCenter(axis=1-transpose)
     ss=['','T']
@@ -841,7 +759,7 @@ def Xcov(transpose=False,verbose=True):
     return np.concatenate(C,0)/float(X1.shape[1]-1)
 
 
-def pcaSVD(A,highdim=None):
+def pcaEIG(A,highdim=None):
     """ performs principal components analysis 
      (PCA) on the n-by-p data matrix A
      Rows of A correspond to observations, columns to features/attributes. 
@@ -859,23 +777,26 @@ def pcaSVD(A,highdim=None):
     of the covariance matrix of A.
     Reference: Bishop, C. (2006) PRML, Chap. 12.1
     """
-    n=A.shape[0];m=A.shape[1]
     A=np.array(A)
-    if highdim==None: highdim=n<m
-    M = (A-np.array(A.mean(1),ndmin=2).T) # mean-center data
+    n=A.shape[0];m=A.shape[1]
+    highdim = n<m
+    assert n!=m
+    M = (A-A.mean(1)[:,np.newaxis]) # mean-center data
     if highdim:
         [latent,coeff] = np.linalg.eigh(np.cov(M))
         coeff=M.T.dot(coeff)
+        denom=np.sqrt((A.shape[1]-1)*latent[np.newaxis,:])
+        coeff/=denom #make unit vector length
     else:
         [latent,coeff] = np.linalg.eigh(np.cov(M.T))
-    score = M.dot(coeff).T
-    coeff/=np.sqrt(A.shape[int(highdim==False)]*np.array(latent,ndmin=2)) #unit vector length
+    score = M.dot(coeff)
     latent/=latent.sum()
     # sort the data
     indx=np.argsort(latent)[::-1]
     latent=latent[indx]
     coeff=coeff[:,indx]
-    score=score[indx,:]
+    score=score[:,indx]
+    assert np.allclose(np.linalg.norm(coeff,axis=0),1)
     return coeff,score,latent
   
 def pcaNIPALS(K=5,tol=1e-4,verbose=False):
@@ -951,16 +872,12 @@ def testPca():
     C2=Xcov(True)
     assert np.abs(C1-C2).mean()<1e-12
     global c1,s1,v1,c2,s2,v2
-    c1,s1,v1=pcaSVD(X,True)
-    c2,s2,v2=pcaSVD(X,False)
-    print v1,v2
-
     X=np.random.rand(52,M)
     split(X)
     pcaNIPALS(K=M)
     a1=mergeT('coeff')
     c1=np.load(inpath+'latent.npy')
-    a2,b2,c2=pcaSVD(X)
+    a2,b2,c2=pcaEIG(X)
     print c2/c2.sum(), c2.sum()
     for k in range(a1.shape[1]):
         plt.figure()
@@ -968,7 +885,7 @@ def testPca():
         if np.abs((a2[:,k]-a1[:,k])).mean()> np.abs((a2[:,k]+a1[:,k])).mean() : plt.plot(-a1[:,k])
         else: plt.plot(a1[:,k])
     plt.show()
-
+#testPca()
 
 def pcaScript(vp,ev):
     global inpath,N
@@ -976,31 +893,42 @@ def pcaScript(vp,ev):
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
     inpath=inpath+'X/'
     if not oss.path.exists(inpath): oss.makedirs(inpath)
-    mrg=4;N=dat['N']/mrg+1
-    PF2X(merge=mrg)
-
-    C=Xcov()
+    mrg=[50,15,8][ev]+1;N=dat['N']/mrg+1
+    N=1
+    X=PF2X(merge=mrg)
+    #X=np.load(inpath+'X.npy')
+    print 'demeaning'
+    X = (X-X.mean(1)[:,np.newaxis])
+    print 'computing cov matrix'
+    C=np.cov(X)#C=Xcov()
     np.save(inpath+'C',C)
-
-    C=np.load(inpath+'C.npy')
+    #C=np.load(inpath+'C.npy')
     print 'shape of Cov matrix is ',C.shape
     print 'computing eigenvalue decomposition'
     [latent,coeff]=np.linalg.eigh(C)
     print 'eig finished'
-    print coeff.shape
-    latent=latent[::-1]
-    coeff=coeff[:,::-1]
-    latent/=latent.sum()
-    np.save(inpath+'latent',latent[:100])
-    np.save(inpath+'coeff.npy',coeff[:,:100])
-
-    coeff=np.load(inpath+'coeff.npy')
-    coeff=Xleftmult(coeff,True)
-    print coeff.shape
+    indx=np.argsort(latent)[::-1][:100]
+    assert np.allclose(np.linalg.norm(coeff,axis=0),1)
+    assert np.allclose(np.linalg.norm(coeff,axis=1),1)
+    coeff=coeff[:,indx]
+    coeff=X.T.dot(coeff)#coeff=Xleftmult(coeff,True)
+    # this is the formula from Bishop, C. (2006) PRML, Chap. 12.1
+    denom=np.sqrt((64*64*68-1)*latent[np.newaxis,indx])
+    coeff/=denom #make unit vector length
     np.save(inpath+'coeff.npy',coeff)
-
-    score=Xleftmult(coeff)
+    assert np.allclose(np.linalg.norm(coeff,axis=0),1)
+    latent/=latent.sum()
+    latent=latent[indx]
+    np.save(inpath+'latent',latent)
+    print 'computing score'
+    score = X.dot(coeff)#score=Xleftmult(coeff)
     np.save(inpath+'score',score)
+
+
+
+#for ev in [0]:
+#    for vp in range(1,5):   
+#        pcaScript(vp,ev)
 
 def controlSimulationsPIX():
     P=64;T=50
@@ -1099,7 +1027,7 @@ def radialkde(x,y,weights=None,bandwidth=np.pi/6,kernel=None):
     return out
 
 def computeRotation(vp,event):
-    path,inpath,fp=initPath(ivp,iev)
+    path,inpath,fp=initPath(vp,event)
     D=np.load(inpath+'DG.npy')[:,:,:,:2]
     x=np.linspace(-1,1,3601)*np.pi
     phis=np.zeros(D.shape[0])
@@ -1141,6 +1069,8 @@ def rotateTraj(traj,phi,PLOT=False):
     return traj
 
 
+
+
 ##for iev in [-1,-2,-3,-4,-5,-6]:
 ##    for ivp in [4]:#range(1,5):
 ##        print 'vp = %d, ev = %d'%(ivp,iev)
@@ -1149,3 +1079,10 @@ def rotateTraj(traj,phi,PLOT=False):
 ##        PFparallel(ivp,iev)
 ##        #pcaScript()
 ##        plotCoeff()
+
+# ideal observer
+vp=999
+#computeRotation(vp,1)
+#PFinit(vp,1)
+#PFparallel(vp,1)
+pcaScript(vp,1)

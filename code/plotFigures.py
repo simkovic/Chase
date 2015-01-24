@@ -3,7 +3,7 @@ import pylab as plt
 from scipy import stats
 from matustools.matusplotlib import *
 import os
-from matustools.matusplotlib import ndarray2gif,plotGifGrid,str2img
+from matustools.matusplotlib import ndarray2gif,plotGifGrid,str2img,ndarray2latextable
 
 FIG=(('behdata.png',('Detection Time in Seconds','Probability' ),
                      ('Subject','Mean Detection Time'),
@@ -83,7 +83,9 @@ def plotBehData():
 
 
 def plotAnalysis(event=-1):
-    lim=[[0.25,2.5],[0.37,2.5]]
+    #lim=[[0.25,2.5],[0.37,2.5]]
+    if event==0: lim=[[0.25,0.022],[0.37,0.022]]
+    else: lim=[[0.25,0.025],[0.37,0.025]]
     for vp in range(1,5):
         plt.figure(0)
         if event>-1: sw=-400; ew=400
@@ -180,7 +182,7 @@ def plotAnalysis(event=-1):
         plt.ylim([0,12])
         #plt.title('Radius = 10 deg')
         plt.grid()
-        
+
         hh=-1
         for chan in ['SOintensity','COmotion']:
             hh+=1
@@ -220,9 +222,10 @@ def _getPC(pf,h):
     pf/= np.max(pf)
     return np.rollaxis(pf.squeeze(),1).T
 
-def plotCoeff(event,rows=8,cols=5):
-    panels=[]
+def plotCoeff(event,rows=8,cols=5,pcs=10):
+    panels=[];small=[]
     for vp in range(1,5):
+        small.append([])
         path=inpath+'vp%03d/E%d/'%(vp,event)
         coeff=np.load(path+'X/coeff.npy')
         offset=8 # nr pixels for border padding
@@ -232,9 +235,12 @@ def plotCoeff(event,rows=8,cols=5):
             c= h%cols;r= h/cols
             s=((offset+64)*r+offset/2,(offset+64)*c+offset/2)
             pc= _getPC(coeff,h)
-            if pc.mean()>=0.4: R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= 1-pc
-            else: R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= pc
+            if pc.mean()>=0.4: pc= 1-pc
+            R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= pc
+            if h<pcs: small[-1].append(pc.T)
         panels.append(np.copy(R))
+    plotGifGrid(small, fn=figpath+'PercFields/pcE%ds'%(event),rot90=True,
+                duration=0.1,plottime=True,snapshot=1)   
     pad=20
     a,b,c=R.shape
     T=np.ones((a,(b+pad)*2,c*2+pad))
@@ -265,18 +271,31 @@ def plotLatent():
     plt.legend(range(1,5));print var.sum(),var[:20].sum(),var[:4].sum()
     plt.savefig(figpath+'PercFields/pcaVar.png',
                 dpi=400,bbox_inches='tight')
-
+def tabLatent(ev,pcs=5):
+    dat=[]
+    for vp in range(1,5)+[999]:
+        path=inpath+'vp%03d/E%d/X/'%(vp,ev)
+        dat.append(np.load(path+'latent.npy')[:pcs]*100)
+    return ndarray2latextable(np.array(dat),decim=1)
+        
+    
 
 def plotScore(vp,event,pcs=5,scs=3):
     path=inpath+'vp%03d/E%d/'%(vp,event)
     score=np.load(path+'X/score.npy')
     coeff=np.load(path+'X/coeff.npy')
+    r=np.corrcoef(score[:,:10].T)
+    print np.round(r,2)
+    print np.linalg.norm(coeff[:,:10],axis=0)
+    #c=score[:,1]/score[:,0]*coeff[:,1].sum()/coeff[:,0].sum()
+    #print 'vp%d, ev%d, r01=%.3f,c1/c0=%.3f'%(vp,event,r,np.median(c))
     offset=18 # nr pixels for border padding
     rows=scs*2+1; cols=pcs
     R=np.ones((69,(64+offset)*rows,(64+offset)*cols),dtype=np.float32)
     from pickle import load
     f=open(path+'PF.pars','r');dat=load(f);f.close()
     bd=score.shape[0]/dat['N']
+    nss=[]
     for h in range(pcs):
         s=((offset+64)*scs+offset/2,(offset+64)*h+offset/2)
         pc=_getPC(coeff,h)
@@ -292,20 +311,172 @@ def plotScore(vp,event,pcs=5,scs=3):
             s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
             #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
             R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
-    
     ndarray2gif(figpath+'PercFields/scoreVp%de%d'%(vp,event),
-                np.uint8(R*255),duration=0.1,plottime=False)
+                np.uint8(R*255),duration=0.1,plottime=True)
 
+#########################################################
+#                                                       #
+#                  Button press                         #
+#                                                       #
+#########################################################
+
+def plotBTmean(MAX=16):
+    from matustools.matusplotlib import plotGifGrid
+    dat=[]
+    for vp in range(1,5):
+        dat.append([])
+        for event in range(-6,0):
+            fn=inpath+'vp%03d/E%d/'%(vp,100+event)+'PF/PF000.npy'
+            d=np.squeeze(np.load(fn))
+            #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
+            dat[-1].append(d.mean(axis=0)/float(MAX))
+    plotGifGrid(dat,fn=figpath+'buttonPressMean')
+    return dat
+
+def plotBTpt(pcaEv=97):
+    from scipy.optimize import fmin
+    def fun(x,D=None,verbose=False):
+        nrlines=len(x)/3; p1=np.nan;s=0.15
+        if nrlines==1: p0,v0,s0=tuple(x)
+        elif nrlines==2: p0,v0,s0,p1,v1,s1=tuple(x)
+        else: raise ValueError
+        out=np.ones((P,T))
+        dist=np.abs(pm+v0*tm-p0)/np.sqrt(1+v0**2)/s0
+        out=np.maximum(1-np.power(dist,3),0)/float(nrlines)
+        if nrlines==2:
+            dist=np.abs(pm+v1*tm-p1)/np.sqrt(1+v1**2)/s1
+            out+=np.maximum(1-np.power(dist,3),0)/float(nrlines)
+        out/=out.sum()
+        if D is None: return out
+        fout=-np.corrcoef(D.flatten(),out.flatten())[0,1]# np.linalg.norm(D-out)**2
+        if verbose: print 'p0=%.2f, v=%.2f, p1=%.2f, s=%.2f, f=%f'%(p0,v,p1,s,fout)
+        return fout
+    dat=plotBTmean()
+    T=dat[0][0].shape[-1]
+    P=dat[0][0].shape[0]
+    t=np.linspace(-0.8,0,T);p=np.linspace(-5,5,P)
+    tm=np.repeat(t[np.newaxis,:],P,axis=0)
+    pm=np.repeat(p[:,np.newaxis],T,axis=1)
+    rows=len(dat)
+    #cols=len(dat[0])
+    plt.figure(figsize=(6,6))
+    m=[-251,-201,-151,-101,-51,-1]
+    bnds=[(1,None),(None,0),(None,None)]
+    est=[]
+    for i in range(rows):
+        for k in [1]:
+            est.append([])
+            j=4# 200 ms 
+            if k:
+                fn=inpath+'vp%03d/E%d/'%(i+1,pcaEv)+'X/coeff.npy'
+                pc=_getPC(np.load(fn),0)
+                if pc.mean()>=0.4: pc=1-pc
+                D= pc.T[:,31:33,:].mean(1)
+            else: D=dat[i][j][31:33,:,:].mean(0)
+            D/=D.sum()
+            print i,k,D.shape,D.sum()
+            
+            plt.subplot(2,2,i+1)
+            plt.pcolor(p,t,D.T,cmap='gray')
+            if i==0: x0=np.array((1.3,-12,0.1))
+            else: x0=np.array((3,-12,0.1,-2,-12,0.1))
+            xopt=fmin(func=fun,x0=x0,args=(D,False))
+            est[-1].append(xopt.tolist())
+            plt.plot(xopt[0]-xopt[1]*t,t,'r',alpha=0.2)
+            if i>0:
+                plt.plot(xopt[3]-xopt[4]*t,t,'r',alpha=0.2)
+            else:est[-1][-1].extend([np.nan]*3)
+            plt.grid(True);
+            plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
+            ax=plt.gca()
+            #if i<2:ax.set_xticks([]);
+            if i%2==0:ax.set_yticks([])
+            else: ax.set_yticklabels(np.linspace(-1,-0.2,9))
+            #else: plt.ylabel('subject %d'%(i+1))
+            #if i==0: plt.title(str(m[j]*2+2))
+    print figpath
+    plt.savefig(figpath+'PercFields/buttonPress',dpi=400,bbox_inches='tight')
+    est=np.squeeze(est)
+    print ndarray2latextable(est,decim=2)
+
+##############33
+#
+#   Tracking
+#
+##############
+
+def plotEvStats():
+    from Analysis import initVP
+    res=[]
+    dat=np.zeros((3,30))
+    plt.figure(figsize=(10,8))
+    for vp in range(1,5):
+        vp,ev,path=initVP(vp,0)
+        si=np.load(path+'si.npy')
+        out=[]
+        for ev in range(6):
+            out.append(np.sum(si[:,14]==ev))
+        out.append(np.sum(si[:,14]>ev))
+        out.append(np.sum(si[:,13]==1))
+        out.extend([out[1]/float(out[0])*100, 100*out[-1]/float(out[1])])
+        res.append(out)
+        print np.max(si[:,14])
+        for ev in range(dat.shape[1]):
+            dat[0,ev]=np.logical_and(si[:,14]==ev,si[:,13]==1).sum()
+            if ev: 
+                dat[2,ev]=np.logical_and(si[:,14]==ev,si[:,13]==-1).sum()
+                dat[1,ev]=(si[:,14]==ev).sum()-dat[0,ev]-dat[2,ev]
+            else: 
+                dat[1,ev]=(si[:,14]==1).sum()
+                dat[2,ev]=(si[:,14]==ev).sum()-dat[1,ev]
+                
+            dat[:,ev]/=dat[:,ev].sum()
+        plt.subplot(2,2,vp);plt.grid(False)
+        for ev in range(20):
+            a=dat[0,ev];b=dat[0,ev]+dat[1,ev]
+            plt.bar(ev,a,color='g',bottom=0,width=1)
+            plt.bar(ev,b,color='gray',bottom=a,width=1)
+            plt.bar(ev,1,color='r',bottom=b,width=1)
+        ax=plt.gca()
+        if vp<3:
+            ax.set_xticks(np.arange(20)+0.5)
+            ax.set_xticklabels(np.arange(20))
+        else: 
+            ax.set_xticks([])
+        if vp%2: ax.set_yticks([])
+        else: ax.set_yticks([0,0.25,0.5,0.75,1])
+        plt.ylim([0,1])
+        for hh in [0.25,0.5,0.75]:plt.plot([0,20],[hh,hh],'k:')
+    plt.savefig(figpath+'analysis/trackEv',dpi=400,bbox_inches='tight')
+def si2tex():
+    from matustools.matusplotlib import ndarray2latextable
+    res=[]
+    for vp in range(1,5):
+        vp,ev,path=initVP(vp,0)
+        si=np.load(path+'si.npy')
+        out=[]
+        for ev in range(6):
+            out.append(np.sum(si[:,14]==ev))
+        out.append(np.sum(si[:,14]>ev))
+        out.append(np.sum(si[:,13]==1))
+        out.extend([out[1]/float(out[0])*100, 100*out[-1]/float(out[1])])
+        res.append(out)
+    ndarray2latextable(np.array(res),8*[0]+[1,1])
 
 if __name__=='__main__':
+    #plotEvStats()
     #plotBehData()
-    #plotAnalysis(event=0)
     #plotAnalysis(event=1)
-    for ev in [0,1,2]:
-        for vp in range(1,5):
-            plotCoeff(ev,rows=4)
-            plotScore(vp,ev,pcs=5)
+    tabLatent(1)
+    #plotBTpt()
+##    for ev in [0,1,2]:
+##        tabLatent(ev,pcs=6)
+##        plotCoeff(ev,rows=4)
+##        for vp in range(1,5):
+##            plotScore(vp,ev,pcs=5)
+    plotScore(999,1,pcs=5,scs=2)
     #plotLatent()
+    
 
 ##    plt.figure()
 ##    radbins=np.arange(1,15)
