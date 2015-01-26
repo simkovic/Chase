@@ -734,6 +734,23 @@ $$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \math
     np.save(path+'trackPFcount.npy',J)
     np.save(path+'trackVel',Lout)
 
+def plotVel():
+    ''' TODO'''
+    plt.figure(figsize=(4,3))
+    initVP(4,1)
+    tv=np.load(path+'trackVel.npy')
+    T=tv.shape[2]
+    for hh in range(1):
+        t=[np.linspace(0,T*1000/85,T), 
+           np.linspace(-T/2*1000/85,T/2*1000/85,T),
+           np.linspace(-T*1000/85,0,T)][hh]
+        for vp in range(4):
+            #plt.subplot(3,1,hh+1)
+            plt.plot(t,85*tv[vp,[0,2,1][hh],:])
+            plt.ylim([10,13])
+    plt.legend(['S1','S2','S3','S4'],loc=0,ncol=4)
+    plt.savefig(figpath+'trackVel')
+
 def plotMeanPF():
     initVP(4,1)
     D=np.load(path+'trackPF.npy')
@@ -799,19 +816,19 @@ def createIdealObserver(vpnr=999,N=5000,rseed=10):
         g=(D[n,mdp,0,:]+D[n,mdp,1,:])/2.
         D[n,:,:,0]-=g[0]
         D[n,:,:,1]-=g[1]
-    np.save(path+'E1/DG.npy',D)
-    
+    np.save(path+'E1/DG.npy',D)  
          
         
 
 
 
 if __name__ == '__main__':
+    plotVel()
     #plotDur()
     #computeMeanPF()
     #computeTrackInfo()
     #plotMeanPF()
-    createIdealObserver()
+    #createIdealObserver()
     #for event in range(-6,0):
     #plotAgdist()
 ##    for event in range(1,3):

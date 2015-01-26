@@ -333,7 +333,7 @@ def plotBTmean(MAX=16):
     plotGifGrid(dat,fn=figpath+'buttonPressMean')
     return dat
 
-def plotBTpt(pcaEv=97):
+def plotBTpt(vpn=range(1,5),pcaEv=97):
     from scipy.optimize import fmin
     def fun(x,D=None,verbose=False):
         nrlines=len(x)/3; p1=np.nan;s=0.15
@@ -351,52 +351,56 @@ def plotBTpt(pcaEv=97):
         fout=-np.corrcoef(D.flatten(),out.flatten())[0,1]# np.linalg.norm(D-out)**2
         if verbose: print 'p0=%.2f, v=%.2f, p1=%.2f, s=%.2f, f=%f'%(p0,v,p1,s,fout)
         return fout
-    dat=plotBTmean()
-    T=dat[0][0].shape[-1]
-    P=dat[0][0].shape[0]
+    #dat=plotBTmean()
+    T=68#dat[0][0].shape[-1]
+    P=64#dat[0][0].shape[0]
     t=np.linspace(-0.8,0,T);p=np.linspace(-5,5,P)
     tm=np.repeat(t[np.newaxis,:],P,axis=0)
     pm=np.repeat(p[:,np.newaxis],T,axis=1)
-    rows=len(dat)
+    rows=len(vpn)
     #cols=len(dat[0])
     plt.figure(figsize=(6,6))
-    m=[-251,-201,-151,-101,-51,-1]
+    #m=[-251,-201,-151,-101,-51,-1]
     bnds=[(1,None),(None,0),(None,None)]
     est=[]
     for i in range(rows):
-        for k in [1]:
-            est.append([])
-            j=4# 200 ms 
-            if k:
-                fn=inpath+'vp%03d/E%d/'%(i+1,pcaEv)+'X/coeff.npy'
-                pc=_getPC(np.load(fn),0)
-                if pc.mean()>=0.4: pc=1-pc
-                D= pc.T[:,31:33,:].mean(1)
-            else: D=dat[i][j][31:33,:,:].mean(0)
-            D/=D.sum()
-            print i,k,D.shape,D.sum()
-            
-            plt.subplot(2,2,i+1)
-            plt.pcolor(p,t,D.T,cmap='gray')
-            if i==0: x0=np.array((1.3,-12,0.1))
-            else: x0=np.array((3,-12,0.1,-2,-12,0.1))
-            xopt=fmin(func=fun,x0=x0,args=(D,False))
-            est[-1].append(xopt.tolist())
-            plt.plot(xopt[0]-xopt[1]*t,t,'r',alpha=0.2)
-            if i>0:
-                plt.plot(xopt[3]-xopt[4]*t,t,'r',alpha=0.2)
-            else:est[-1][-1].extend([np.nan]*3)
-            plt.grid(True);
-            plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
-            ax=plt.gca()
-            #if i<2:ax.set_xticks([]);
-            if i%2==0:ax.set_yticks([])
-            else: ax.set_yticklabels(np.linspace(-1,-0.2,9))
-            #else: plt.ylabel('subject %d'%(i+1))
-            #if i==0: plt.title(str(m[j]*2+2))
+        #for k in [1]:
+        #est.append([])
+        j=4# 200 ms 
+        fn=inpath+'vp%03d/E%d/'%(vpn[i],pcaEv)+'X/coeff.npy'
+        pc=_getPC(np.load(fn),0)
+        if pc.mean()>=0.4: pc=1-pc
+        D= pc.T[:,31:33,:].mean(1)
+        #else: D=dat[i][j][31:33,:,:].mean(0)
+        D/=D.sum()
+        #print i,k,D.shape,D.sum()
+        
+        plt.subplot(2,2,i+1)
+        plt.pcolor(p,t,D.T,cmap='gray')
+        # below we set the initial guess 
+        if vpn[i]==999: x0=np.array((3,-12,0.1,7,-12,0.1))
+        elif vpn[i]==1: x0=np.array((1.3,-12,0.1))
+        else: x0=np.array((3,-12,0.1,-2,-12,0.1))
+        xopt=fmin(func=fun,x0=x0,args=(D,False))
+        est.append(xopt.tolist())
+        plt.plot(xopt[0]-xopt[1]*t,t,'r',alpha=0.2)
+        if vpn[i]!=1:
+            plt.plot(xopt[3]-xopt[4]*t,t,'r',alpha=0.2)
+        else:est[-1].extend([np.nan]*3)
+        plt.grid(True);
+        plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
+        ax=plt.gca()
+        #if i<2:ax.set_xticks([]);
+        if i%2==0:ax.set_yticks([])
+        else: ax.set_yticklabels(np.linspace(-1,-0.2,9))
+        #else: plt.ylabel('subject %d'%(i+1))
+        #if i==0: plt.title(str(m[j]*2+2))
     print figpath
-    plt.savefig(figpath+'PercFields/buttonPress',dpi=400,bbox_inches='tight')
-    est=np.squeeze(est)
+    plt.savefig(figpath+'PercFields/buttonPress%d'%pcaEv,
+                dpi=400,bbox_inches='tight')
+    est=np.array(est)
+    print est.ndim, est
+    if est.ndim>2: est=np.squeeze(est)
     print ndarray2latextable(est,decim=2)
 
 ##############33
@@ -467,14 +471,16 @@ if __name__=='__main__':
     #plotEvStats()
     #plotBehData()
     #plotAnalysis(event=1)
-    tabLatent(1)
+    
     #plotBTpt()
 ##    for ev in [0,1,2]:
 ##        tabLatent(ev,pcs=6)
 ##        plotCoeff(ev,rows=4)
 ##        for vp in range(1,5):
 ##            plotScore(vp,ev,pcs=5)
-    plotScore(999,1,pcs=5,scs=2)
+    #tabLatent(1)
+    #plotScore(999,1,pcs=5,scs=2)
+    plotBTpt(vpn=[999],pcaEv=1)
     #plotLatent()
     
 
