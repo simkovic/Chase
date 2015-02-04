@@ -638,6 +638,7 @@ if __name__=='__main__':
     replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
     replayTrial(vp =3,block=16,trial=12,tlag=0.0,coderid=4)#mov07
     replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
+    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
     replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
     #tables 
     si2tex()
