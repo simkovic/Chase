@@ -1,4 +1,4 @@
-Wolfpack Effect Revisited
+Chase
 =================
 
 This is a repostitory for a psychology research project conducted at Universität Heidelberg by Matus Simkovic and Birgit Träuble during 2012-2015.
