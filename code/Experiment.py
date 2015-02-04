@@ -890,11 +890,7 @@ class TobiiExperiment(Gao10e3Experiment):
 
 if __name__ == '__main__':
     from Settings import Q
-    #E=Gao10e4Experiment()
-    
-    E=TobiiExperiment()
-    
-    #E=BabyExperiment()
+    E=AdultExperiment()
     E.run()
 
 

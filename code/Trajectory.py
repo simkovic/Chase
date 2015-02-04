@@ -4,6 +4,7 @@ from psychopy.event import xydist
 import numpy as np
 import random, os, pickle
 from Maze import *
+
 class Diagnosis:
     def __init__(self,replications=100,nragents=[8,11,14,17,20],
                  dispSizes=[18,22,26,29,32], rejDists=[0.0,1.5,3.0]):
@@ -638,35 +639,18 @@ def exportSvmGao09(nrtrials=10000):
     
 
 if __name__ == '__main__':
-    
-    #d=28
-    #random.seed(3)
-    #maze=EmptyMaze((1,1),dispSize=(32,24))
-    
-    #generateMixedExperiment([2],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
-    #t=generateTrial(5,maze,rejectionDistance=5.0,moveSubtlety=(0,120),trialDur=10)
-    #print t.shape
-    #t=np.load('input/vp023/gao09e1vp023b1trial003.npy')
-    #TD=TrajectoryData(t,trajRefresh=60.0,highlightChase=True)
-    #TD.replay(tlag=0)
-    #TD.showFrame(t[333,:,:])
-    #generateExperiment([105],1000,conditions=[20],dispSizes=[32],rejectionDistance=3.0)
-    #generateExperiment([0],1,conditions=[8,11,14,17,20],
-    #                   dispSizes=[18,22,26,29,32],rejectionDistance=3.0)
-        
+    random.seed(3)
+    maze=EmptyMaze((1,1),dispSize=(32,24))
+    generateMixedExperiment([1],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
+
     #generateBabyExperiment([201])
-    
-    #t=generateShortTrial(maze)
-    #print t.shape
-    #np.save('t.npy',t)
-    #exportSvmGao09()
     
     #d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3.0])
     #Diagnosis.save(d,'diagBaby6.pkl')
     #D=Diagnosis.multiload(6,prefix='diagBaby')
     #generateGao10e4(308)
     
-    generateGao10e3(range(350,370))
+    #generateGao10e3(range(350,370))
 
 
         

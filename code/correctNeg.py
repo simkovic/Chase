@@ -6,6 +6,10 @@ import random, os
 from Settings import Q
 from Constants import *
 
+# these routines were used to correct detection response where
+# the subject clicked incorrect agent because a distractor overlapped
+# or crossed with a target.
+
 wind=Q.initDisplay()
 # some constants
 CHASEE=0

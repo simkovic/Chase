@@ -5,7 +5,7 @@ from psychopy.misc import pix2deg
 import numpy as np
 from scipy.interpolate import interp1d
 from datetime import datetime
-from evalETdata import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
+from ETData import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
 import os
 import pylab as plt
@@ -516,7 +516,7 @@ class Coder(ETReplay):
 
 def replayTrial(vp,block,trial,tlag=0,coderid=0):
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
-    from readETData import readEyelink
+    from ETData import readEyelink
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
@@ -533,7 +533,7 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     trialStart=trial
     #win = Q.initDisplay((1280,1100))
-    from readETData import readEyelink
+    from ETData import readEyelink
     data=readEyelink(vp,block)
     #PATH+='coder%d'% coderid +os.path.sep
     for trial in range(trialStart,len(data)):
@@ -573,7 +573,7 @@ def compareCoding(vp,block,cids=[0,1,2]):
                         (ts[a][3]-ts[a][0])/1000.0,1/float(N)/float(len(ags)),color=(1+hclrs[ags[a]])/2.0,alpha=0.5)
                     
                     ax.add_patch(r)
-    plt.xlim([0,30])
+    plt.xlim([0,20])
     ax.set_yticks(range(40))
     ax.set_xticks(range(30))
     #ax.set_yticklabels(['pc','anna','matus']*40)
@@ -615,8 +615,8 @@ def checkBehData():
     
            
 if __name__ == '__main__':
-    RH=0 # set right handed or left handed layout
-    replayBlock(vp =1,block=20,trial=38,tlag=0.0,coderid=4)
-    #compareCoding(vp=2,block=20,cids=[0,1,2])
+    RH=0 # set right handed (1) or left handed (0) layout
+    replayBlock(vp =1,block=1,trial=0,tlag=0.0,coderid=4)
+    
     #missingTEfiles()
     #checkBehData()

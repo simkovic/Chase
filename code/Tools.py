@@ -5,7 +5,6 @@ from psychopy.misc import pix2deg
 import numpy as np
 from subprocess import call
 
-
 def exportFrame(positions,fn,maze=None,wind=None):
     if type(wind)==type(None):
         wind=initDisplay()
@@ -192,27 +191,3 @@ def showTrial(trajectories,maze=None,wind=None,highlightChase=False,
     except: 
         wind.close()
         raise
-
-
-
-if __name__ == '__main__':
-    #t=np.load('test.npy')
-    from Settings import Q
-    from Constants import *
-    from Maze import *
-    from evalETdata import *
-    #data=readEdf(fname='VP001.ASC')
-    #maze=TestMaze(10,dispSize=24)
-    #traj=np.load('input/vp001/trial019.npy')
-    #showTrial(traj,highlightChase=True,gazeData=data[18][:,[1,2]])
-    #r=traj2image(t[113,:,:].squeeze())
-#    vp=1
-#    for b in range(4,5):
-#        for tr in range(15,40):
-#            print vp,b,tr
-#            t=np.load(Q.inputPath+'vp%03d'%vp+Q.delim+'vp%03db%dtrial%03d.npy'%(vp,b,tr))
-#            exportTrial('saliency'+Q.delim+'mpeg'+Q.delim+'vp%03db%dtrial%03d'%(vp,b,tr),t)
-    for i in range(100):
-        print i
-        t=np.load('gao09'+Q.delim+'t%03d.npy'%i)[:,:-1,:]
-        exportTrial('mpeg'+Q.delim+'t%03d'%i,t)

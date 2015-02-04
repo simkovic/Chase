@@ -244,7 +244,7 @@ class ZbrickMaze(Maze):
                 self[i,j,Maze.H]= (i%2==1 and j%2==1 or
                     i%4==0 and j%4==0 or i%4==2 and j%4==2)
         super(ZbrickMaze, self).__init__(*args,**kwargs)
-#m=EmptyMaze((1,1),(12,8))                    
+                   
 if __name__ == '__main__':            
     wind=visual.Window(fullscr=False,size=(900,900),units='deg',
             color=[-1,-1,-1],winType='pyglet',monitor='dell')
@@ -269,84 +269,3 @@ if __name__ == '__main__':
     except:
         wind.close()
         raise
-
-##class PerfectMaze(Maze):
-##    """
-##        Maze without any loops or closed circuits
-##        created using recursive backtracking algorithm
-##    """
-##    
-##    def __new__(cls,sz=10):
-##        return super(PerfectMaze, cls).__new__(cls,sz)
-##    def __init__(self):
-##        self.sz=self.shape[0]
-##        STEP=(np.array((1,0)),np.array((0,1)),
-##          np.array((-1,0)),np.array((0,-1)))
-##        I=0; J=1; START=-1
-##        # fill the grid and stack
-##        dstack=np.array(np.zeros((self.shape[I],self.shape[J],4)),np.int)
-##        for i in range(self.shape[I]):
-##            for j in range(self.shape[J]):
-##                self[i,j,:]= np.array((True,True))
-##                dstack[i,j,:]=np.random.permutation(4)
-##
-##        
-##        # init position  
-##        visited = np.array(np.zeros((self.shape[I],self.shape[J])),np.int)
-##        pos = np.array((random.randint(0,self.shape[I]-1),
-##               random.randint(0,self.shape[J]-1)))
-##        visited[pos[I],pos[J]]=START
-##        # carve the maze
-##        finished = False
-##        while not finished:
-##            #self.draw(wind,dispSize=400,)
-##            #wind.flip()
-##            #plt.imshow(visited,interpolation='nearest')
-##            #print pos
-##            #core.wait(0.1)
-##            # choose random direction
-##            #print 'availability',dstack[pos[I],pos[J],:]
-##            madeStep=False
-##            for d in range(4):    
-##                if dstack[pos[I],pos[J],d]!=-1:
-##                    temp=dstack[pos[I],pos[J],d]
-##                    dstack[pos[I],pos[J],d]=-1
-##                    d=temp
-##                    newPos=pos+STEP[d]
-##                    #print 'proposed', newPos, d
-##                    # check whether the new position is valid
-##                    if (newPos[I]>=0 and newPos[J]>=0
-##                        and newPos[I]<self.shape[I]
-##                        and newPos[J]<self.shape[J]
-##                        and not visited[newPos[I],newPos[J]]
-##                        and not visited[pos[I],pos[J]]==((d+2)%4+1)):
-##                        #print 'accepted'
-##                        madeStep=True
-##                        # carve through wall and accept the new position
-##                        self.carveWall(pos,newPos,d)
-##                        pos=newPos
-##                        visited[pos[I],pos[J]]=d+1
-##                        break
-##            if not madeStep:
-##                if visited[pos[I],pos[J]]==START:
-##                    finished=True
-##                else:# backtrack
-####                    for d in np.random.permutation(4):
-####                        newPos=pos+STEP[d]
-####                        if (newPos[I]>=0 and newPos[J]>=0
-####                            and newPos[I]<self.shape[I]
-####                            and newPos[J]<self.shape[J]):
-####                            self.carveWall(pos,newPos,d)
-####                            break  
-##                    pos=pos-STEP[visited[pos[I],pos[J]]-1]
-##                    #print 'backtrack to', newPos
-##        super(PerfectMaze, self).__init__(self)
-##    def carveWall(self,pos,newPos,d):
-##        I=0;J=1
-##        if d<2:
-##            #print newPos
-##            self[newPos[I],newPos[J],d%2]=False       
-##        else:
-##            #print pos
-##            self[pos[I],pos[J],d%2]=False
-plt.show()
