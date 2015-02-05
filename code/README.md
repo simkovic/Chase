@@ -15,7 +15,7 @@ Python Code
 
 * Preprocess.py - read the ET data, create ETData class and pre-processes the data
 
-* ReplayData.py - displays stimulus along with gaze data and shows some results of pre-processing done by the ETData class, Coder class was used for coding
+* ReplayData.py - displays stimulus along with gaze data and shows some results of pre-processing done by the ETData class, Coder class was used for coding and its use is explained in the [coding protocoll](http://github.com/simkovic/Chase/blob/master/evaluation/coding/tracking.prot)
 
 * Behavior.py - performs analyses of behavioral data
 
