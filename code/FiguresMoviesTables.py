@@ -26,17 +26,20 @@ from scipy import stats
 from matustools.matusplotlib import *
 from Coord import initVP
 import os
+
+LINEWIDTH=5.74 # peerj line width in inches
 DPI=300
 FIG=(('behdata.png',('Detection Time','' ),
-                     ('Subject','Mean Detection Time'),
-                     ('Subject',),
-                     ('','Mean Proportion Correct'),()),
+                     ('Subject',''),
+                     ('Subject','Detection Time'),
+                     ('Subject','Proportion Correct'),
+                      ('Subject','Proportion Correct')),
      ('bdtime.png',('Trial','Proportion Correct',['S1','S2','S3','S4'])),
      ('Coord/agdens',('Radial Distance','Agent Density',['S1','S2','S3','S4','RT']),
       ('Time to Saccade Onset','Agent Density'),
       ('Radial Distance','Direction Changes'),
       ('Time to Saccade Onset','Direction Changes'),
-      ('Radial Distance', 'Light Contrast Saliency'),
+      ('Radial Distance', 'Contrast Saliency'),
       ('Radial Distance', 'Motion Saliency'),
       ('Time to Saccade Onset', 'Light Contrast Saliency'),
       ('Time to Saccade Onset', 'Motion Saliency')),
@@ -56,39 +59,43 @@ def plotBehData():
     rejs=np.load(inpath+'rejs.npy')
     rts=np.load(inpath+'rts.npy')
     acc=np.load(inpath+'acc.npy')
-    figure(size=1,aspect=1.4)
-    subplot(3,1,1)
+    figure(size=3,aspect=0.6)
+    ax = plt.subplot2grid((2,3), (0, 0), colspan=2)
+    #subplot(3,1,1)
+    formatAxes(ax)
+    #ax=plt.gca()
     vp=0
     d=rts[vp,rejs[vp,:]==1]
     d=d[d>0]
     x=np.linspace(1,30,30)
     hist(d,bins=x,normed=True)
-    plt.plot(x-0.5,lognorm(mu=rtmc[vp,-2,:].mean(),
+    ax.plot(x-0.5,lognorm(mu=rtmc[vp,-2,:].mean(),
                 sigma=rtmc[vp,-1,:].mean()).pdf(x-0.5),'k')
     plt.xlabel(FIG[0][1][0])
     plt.ylabel(FIG[0][1][1])
     subplot_annotate(loc='ne',nr=0)
     #plt.subplot(2,2,i+1);i+=1
     for k in range(4):
-        subplot(3,2,[3,4,5,6][k])
-        if k<2: 
-            plt.ylim([6,20]);
-            plt.xlabel(FIG[0][2+k][0])
-        else:plt.gca().set_xticklabels([])
-        if k==0:
-            print FIG[0][1+k]
-            plt.ylabel(FIG[0][2+k][1])
-        elif k>1: 
-            plt.ylim([0.75,1])
-        if k==2:plt.ylabel(FIG[0][2+k][1])
-        if k%2==1: plt.gca().set_yticklabels([])
+        subplot(2,3,[4,5,3,6][k])
+        
+        
+        plt.xlabel(FIG[0][2+k][0])
+        #else:plt.gca().set_xticklabels([])
+        #if k==0:
+        #    print FIG[0][1+k]
+        plt.ylabel(FIG[0][2+k][1])
+        #elif k>1: 
+        if k==1 or k==0: plt.ylim([6,20])
+        else: plt.ylim([0.75,1])
+        #if k==2:plt.ylabel(FIG[0][2+k][1])
+        #if k%2==1: plt.gca().set_yticklabels([])
         
         errorbar(rtmc[:,k,:].T,x=range(1,5))
         subplot_annotate(loc='ne',nr=k+1)
     plt.subplots_adjust(wspace=0.01,hspace=-0.2)
     plt.savefig(figpath+FIG[0][0],dpi=DPI,bbox_inches='tight')
 
-    figure(aspect=0.6)
+    figure(size=2,aspect=0.4)
     for vp in range(4):
         sel= ~np.isnan(rts[vp,:])
         d=np.int32(acc[vp,sel]==1)
@@ -114,10 +121,11 @@ def plotBehData():
 def plotAnalysis(event=-1):
     plt.close()
     #lim=[[0.25,2.5],[0.37,2.5]]
-    if event==0: lim=[[0.25,0.022],[0.37,0.022]]
-    else: lim=[[0.25,0.025],[0.37,0.025]]
+    if event==0: lim=[[0.25,0.022],[0.4,0.022]]
+    else: lim=[[0.25,0.025],[0.4,0.025]]
+    figure(size=3,aspect=0.99)
     for vp in range(1,5):
-        plt.figure(0)
+        
         if event>-1: sw=-400; ew=400
         else: sw=-800; ew=0
         hz=85.0 # start, end (in ms) and sampling frequency of the saved window
@@ -139,24 +147,32 @@ def plotAnalysis(event=-1):
             ci=np.concatenate([I[2,:,m,2],I[2,:,m,1][::-1]])
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
                         alpha=0.2,fill=True,fc='red',ec='red'))
-        plt.xlabel(FIG[2][1][0])
+            subplotAnnotate(loc='ne')
+        #plt.xlabel(FIG[2][1][0])
         plt.ylabel(FIG[2][1][1])
-        plt.legend(FIG[2][1][2],loc=1,fontsize=7)
-        plt.grid();plt.ylim([0,lim[event][0]]);
+        leg=plt.legend(FIG[2][1][2],loc=9,fontsize=7,frameon=True,ncol=2)
+        box=leg.get_frame()
+        box.set_linewidth(0.)
+        box.set_facecolor([0.9]*3)
+        plt.grid(True);plt.ylim([0,lim[event][0]]);
+        plt.gca().set_yticks(np.linspace(0,lim[event][0],6))
         plt.xlim([0,14])
 
-        subplot(4,2,2)
-        plt.grid()
+        subplot(4,2,2);plt.grid(True)
         x=np.linspace(sw,ew,I[0].shape[1])/1000.
         x=np.reshape(x,[x.size/2,2]).mean(1)
         hhh=0
         plt.plot(x,np.reshape(I[0,hhh,:,0],[x.size,2]).mean(1))
-        if vp==4: plt.plot(x,np.reshape(I[2,hhh,:,0],[x.size,2]).mean(1))
+        if vp==4:
+            plt.plot(x,np.reshape(I[2,hhh,:,0],[x.size,2]).mean(1))
+            subplotAnnotate(loc='ne')
         plt.ylim([0,lim[event][0]]);
+        plt.gca().set_yticks(np.linspace(0,lim[event][0],6))
         plt.xlim([-0.4,0.4])
         #plt.title('Radius=5 deg')
-        plt.xlabel(FIG[2][2][0])
-        plt.ylabel(FIG[2][2][1])#[a per deg^2]
+        #plt.xlabel(FIG[2][2][0])
+        #plt.ylabel(FIG[2][2][1])#[a per deg^2]
+        plt.gca().set_yticklabels([])
         
 
         #direction change
@@ -170,8 +186,9 @@ def plotAnalysis(event=-1):
         #plt.subplot(2,2,vp)
         #plt.imshow(np.nansum(K[0],2)/np.sum(nK[0],2),origin='lower',extent=[sw,ew,bn[0],bn[-1]],aspect=20,cmap='hot',vmax=11,vmin=2)     
         #plt.colorbar()
+        #plt.figure(0)
         ################
-        plt.figure(0)
+        
         subplot(4,2,3)
         hz=85.0
         mm=K[0].shape[1]/2
@@ -184,10 +201,12 @@ def plotAnalysis(event=-1):
             ci=np.concatenate([h,l[::-1]])
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
                         alpha=0.2,fill=True,fc='red',ec='white'))
-        plt.xlabel(FIG[2][3][0])  
+            subplotAnnotate(loc='ne')
+        #plt.xlabel(FIG[2][3][0])  
         plt.ylabel(FIG[2][3][1])
         
-        plt.xlim([0,14]);plt.grid();plt.ylim([0,12])
+        plt.xlim([0,14]);plt.grid(True);plt.ylim([0,12])
+        plt.yticks(range(0,13,3))
         subplot(4,2,4)
         x=np.linspace(sw,ew,K[0].shape[1])/1000.
         ss=2
@@ -206,12 +225,13 @@ def plotAnalysis(event=-1):
             
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
                         alpha=0.2,fill=True,fc='red',ec='white'))
-        plt.xlabel(FIG[2][4][0])  
-        plt.ylabel(FIG[2][4][1])
-        plt.xlim([-0.4,0.4])
-        plt.ylim([0,12])
+            subplotAnnotate(loc='ne')
+        #plt.xlabel(FIG[2][4][0])  
+        #plt.ylabel(FIG[2][4][1])
+        plt.gca().set_yticklabels([])
+        plt.xlim([-0.4,0.4]);plt.grid(True)
+        plt.ylim([0,12]);plt.yticks(range(0,13,3))
         #plt.title('Radius = 10 deg')
-        plt.grid()
 
         hh=-1
         for chan in ['SOintensity','COmotion']:
@@ -219,28 +239,30 @@ def plotAnalysis(event=-1):
             K=np.load(path+'E%d/grd%s.npy'%(event,chan))
             I=np.load(path+'E%d/rad%s.npy'%(event,chan)).T
             if vp==4:IR=np.load(path+'E%d/radT%s.npy'%(event,chan)).T
-                
             subplot(4,2,5+2*hh)
             plt.plot(np.arange(1,15),I[:,I.shape[1]/2])
-            if vp==4: plt.plot(np.arange(1,15),IR[:,IR.shape[1]/2])
-            plt.xlabel(FIG[2][5+hh][0])  
+            if vp==4:
+                plt.plot(np.arange(1,15),IR[:,IR.shape[1]/2])
+                subplotAnnotate(loc='ne')
+            if chan=='COmotion': plt.xlabel(FIG[2][5+hh][0])  
             plt.ylabel(FIG[2][5+hh][1])
-            plt.ylim([0.008,lim[event][1]])
-            
-            plt.grid();plt.xlim([0,14])
+            plt.ylim([0.008,lim[event][1]]);plt.grid(True)
+            plt.gca().set_yticks(np.linspace(0.008,lim[event][1],6))
+            plt.xlim([0,14])
             subplot(4,2,6+2*hh)
             x=np.linspace(sw,ew,I.shape[1])/1000.
             hhh=3
             #plt.plot(x,np.nanmean(I[:hhh,:],0))
             plt.plot(x,I[0,:])
-            if vp==4: plt.plot(x,IR[0,:])
-            plt.xlabel(FIG[2][7+hh][0])
-            plt.ylabel(FIG[2][7+hh][1])
+            if vp==4:
+                plt.plot(x,IR[0,:])
+                subplotAnnotate(loc='ne')
+            if chan=='COmotion':plt.xlabel(FIG[2][7+hh][0])
+            #plt.ylabel(FIG[2][7+hh][1])
+            plt.gca().set_yticklabels([])
             plt.ylim([0.008,lim[event][1]])
-            plt.xlim([-0.4,0.4])
-            plt.grid()
-        #plt.legend(['gaze','rand time','rand agent','rand pos'],loc=2)
-        #plt.show()
+            plt.gca().set_yticks(np.linspace(0.008,lim[event][1],6))
+            plt.xlim([-0.4,0.4]);plt.grid(True)
     plt.savefig(figpath+FIG[2][0]+'E%d.png'%event,dpi=DPI,bbox_inches='tight')
     plt.close('all')
 
@@ -415,7 +437,7 @@ def plotBTpt(vpn=range(1,5),pcaEv=97):
     pm=np.repeat(p[:,np.newaxis],T,axis=1)
     rows=len(vpn)
     #cols=len(dat[0])
-    plt.figure(figsize=(6,6))
+    figure(size=3,aspect=0.3)
     #m=[-251,-201,-151,-101,-51,-1]
     bnds=[(1,None),(None,0),(None,None)]
     est=[]
@@ -431,7 +453,7 @@ def plotBTpt(vpn=range(1,5),pcaEv=97):
         D/=D.sum()
         #print i,k,D.shape,D.sum()
         
-        plt.subplot(2,2,i+1)
+        subplot(1,4,i+1)
         plt.pcolor(p,t,D.T,cmap='gray')
         # below we set the initial guess 
         if vpn[i]==999: x0=np.array((3,-12,0.1,7,-12,0.1))
@@ -439,19 +461,23 @@ def plotBTpt(vpn=range(1,5),pcaEv=97):
         else: x0=np.array((3,-12,0.1,-2,-12,0.1))
         xopt=fmin(func=fun,x0=x0,args=(D,False))
         est.append(xopt.tolist())
-        plt.plot(xopt[0]-xopt[1]*t,t,'r',lw=2,alpha=0.4)
+        plt.plot(xopt[0]-xopt[1]*t,t,'r',lw=1,alpha=0.4)
         if vpn[i]!=1:
-            plt.plot(xopt[3]-xopt[4]*t,t,'r',lw=2,alpha=0.4)
+            plt.plot(xopt[3]-xopt[4]*t,t,'r',lw=1,alpha=0.4)
         else:est[-1].extend([np.nan]*3)
-        plt.grid(True);
+        plt.grid(True,'both');
         plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
-        ax=plt.gca()
-        #if i<2:ax.set_xticks([]);
-        if i%2==0:ax.set_yticks([])
-        else: ax.set_yticklabels(np.linspace(-1,-0.2,9))
+        ax=plt.gca();ax.set_axisbelow(False)
+        ax.set_xticks([-5,-2.5,0,2.5,5])
+        ax.set_yticks(np.linspace(-0.8,0,5))
+        if i in set((1,2,3)): ax.set_yticklabels([])
+        else:
+            ax.set_yticklabels(np.linspace(-1,-0.2,5))
+            plt.ylabel('Time to button press')
+        
         #else: plt.ylabel('subject %d'%(i+1))
         #if i==0: plt.title(str(m[j]*2+2))
-    print figpath
+        plt.text(2.2,-0.75,'S'+str(vpn[i]),color='w')
     plt.savefig(figpath+FIG[3][0]+'%d'%pcaEv,
                 dpi=DPI,bbox_inches='tight')
     est=np.array(est)
@@ -470,7 +496,7 @@ def plotEvStats():
     from Coord import initVP
     res=[]
     dat=np.zeros((3,30))
-    plt.figure(figsize=(8,6))
+    figure(size=3,aspect=0.6)
     for vp in range(1,5):
         vp,ev,path=initVP(vp,0)
         si=np.load(path+'si.npy')
@@ -492,7 +518,7 @@ def plotEvStats():
                 dat[2,ev]=(si[:,14]==ev).sum()-dat[1,ev]
                 
             dat[:,ev]/=dat[:,ev].sum()
-        plt.subplot(2,2,vp);plt.grid(False)
+        subplot(2,2,vp);plt.grid(False)
         for ev in range(20):
             a=dat[0,ev];b=dat[0,ev]+dat[1,ev]
             plt.bar(ev,a,color='#85dd7c',bottom=0,width=1)
@@ -500,15 +526,19 @@ def plotEvStats():
             plt.bar(ev,1,color='#FF9797',bottom=b,width=1)
         ax=plt.gca()
         if vp<3:
-            ax.set_xticks(np.arange(20)+0.5)
-            ax.set_xticklabels(np.arange(20))
+            ax.set_xticks(np.arange(0,20,3)+0.5)
+            ax.set_xticklabels(np.arange(0,20,3))
         else: 
             ax.set_xticks([])
         if vp%2: ax.set_yticks([])
         else: ax.set_yticks([0,0.25,0.5,0.75,1])
         plt.ylim([0,1])
-        for hh in [0.25,0.5,0.75]:plt.plot([0,20],[hh,hh],'k:')
+        for hh in [0.25,0.5,0.75]:plt.plot([0,20],[hh,hh],'gray',lw=0.5)
+        plt.text(0.15,0.8,'S'+str(vp),color='k')
+    plt.subplots_adjust(wspace=0.01,hspace=-0.2)
     plt.savefig(figpath+FIG[4][0],dpi=DPI,bbox_inches='tight')
+
+    
 def si2tex():
     from matustools.matusplotlib import ndarray2latextable
     res=[]
@@ -526,7 +556,7 @@ def si2tex():
 
 def plotVel():
     plt.close()
-    plt.figure(figsize=(4,3))
+    figure(size=2,aspect=0.6)
     vp,ev,path=initVP(4,1)
     tv=np.load(path+'trackVel.npy')
     T=tv.shape[2]
@@ -571,23 +601,29 @@ def plotMeanPF():
                     bcgclr=1,plottime=True,text=lbls,P=129,F=85)
     
     plotGifGrid(FFs,fn=figpath+'Coord/trackPF',bcgclr=1,forclr=0,plottime=True,P=129,F=85)
-    plt.figure(figsize=(6,10))
+    figure(size=3,aspect=1)
     for g in range(D.shape[2]):
         for vp in range(4):
             d=D[vp,2,[0,2,1][g],60:68,:,:].mean(0)
             T=d.shape[1];P=d.shape[0]
-            plt.subplot(4,3,g+3*vp+1)
+            ax=subplot(4,3,g+3*vp+1)
             t=[np.linspace(-T*1000/85,0,T),
                np.linspace(-T/2*1000/85,T/2*1000/85,T),
                np.linspace(0,T*1000/85,T)][g]
             if not g:plt.ylabel(FIG[6][1][3]+str(vp+1),size=18)
-            if False:  plt.gca().set_xticklabels([])
             if not vp:plt.title(FIG[6][1][2][g],size=18)
             p=np.linspace(-5,5,P)
             plt.pcolor(p,t,d.T,cmap='gray',vmax=0.05)
             plt.xlim([p[0],p[-1]])
-            if g: plt.gca().set_yticklabels([])
-            if g==1: plt.ylim([-500,500])
+            #if g: ax.set_yticklabels([])
+            if vp<3: ax.set_xticklabels([])
+            if g==1:
+                plt.ylim([-500,500])
+                ax.set_yticks([-500,-250,0,250,500])
+            elif g==0: ax.set_yticks([-1000,-750,-500,-250,0])
+            else: ax.set_yticks([0,250,500,750,1000])
+            ax.set_axisbelow(False);plt.grid(True)
+            ax.set_xticks([-5,-2.5,0,2.5,5])
     plt.savefig(figpath+FIG[6][0],dpi=DPI,bbox_inches='tight')
 
 #############################
