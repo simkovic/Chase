@@ -408,7 +408,7 @@ def plotBTmean(MAX=16):
             d=np.squeeze(np.load(fn))
             #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
             dat[-1].append(d.mean(axis=0)/float(MAX))
-    plotGifGrid(dat,fn=figpath+'buttonPressMean',bcgclr=1)
+    plotGifGrid(dat,fn=figpath+'buttonPressMean',bcgclr=1,plottime=True)
     return dat
 
 def plotBTpt(vpn=range(1,5),pcaEv=97):
