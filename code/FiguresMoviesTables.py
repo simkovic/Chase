@@ -29,6 +29,7 @@ import os
 
 LINEWIDTH=5.74 # peerj line width in inches
 DPI=300
+FMT='.avi' # movie export format
 FIG=(('behdata.png',('Detection Time','' ),
                      ('Subject',''),
                      ('Subject','Detection Time'),
@@ -292,8 +293,12 @@ def plotCoeff(event,rows=8,cols=5,pcs=10):
             R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= pc
             if h<pcs: small[-1].append(pc.T)
         panels.append(np.copy(R))
-    plotGifGrid(small, fn=figpath+'Pixel/pcE%ds'%(event),tpL=True,
-                duration=0.1,plottime=True,snapshot=1,bcgclr=1)   
+    lbl=[]
+    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,-15])
+    for i in range(10):lbl.append(['PC'+str(i+1),20,-10,27+i*72])
+    lbl[-1][3]-=10
+    plotGifGrid(small, fn=figpath+'Pixel/pcE%ds'%(event)+FMT,tpL=True,
+                duration=0.1,text=lbl,plottime=True,snapshot=1,bcgclr=1)   
     pad=20
     a,b,c=R.shape
     T=np.ones((a,(b+pad)*2,c*2+pad))
@@ -308,7 +313,7 @@ def plotCoeff(event,rows=8,cols=5,pcs=10):
     T[:,(b+pad):(b+pad+labels[2].shape[0]),:labels[2].shape[1]]-=labels[2]
     T[:,(b+pad):(b+pad+labels[3].shape[0]),
       (c+pad):(c+pad+labels[3].shape[1])]-=labels[3]
-    ndarray2gif(figpath+'Pixel/pcE%d'%(event),
+    ndarray2gif(figpath+'Pixel/pcE%d'%(event)+FMT,
                 T,duration=0.1,plottime=True,snapshot=True)
 def plotLatent():
     for ev in range(2):
@@ -352,7 +357,8 @@ def pcAddition():
             out[-1].append(pc1)
             out[-1].append(1-pc2)
             out[-1].append((pc1+pc2)/2.)
-    plotGifGrid(out,fn=figpath+'Pixel/pcAddition',bcgclr=1,plottime=True)
+    plotGifGrid(out,fn=figpath+'Pixel/pcAddition'+FMT,bcgclr=1,
+                plottime=True,text=[['A',20,12,-10],['B',20,84,-10]])
              
 
 def plotScore(vp,event,pcs=5,scs=3):
@@ -387,7 +393,7 @@ def plotScore(vp,event,pcs=5,scs=3):
             s=((offset+64)*(i+int(i>=scs))+offset/2,(offset+64)*h+offset/2)
             #print h,i,ns[i],ns[i]/bd,ns[i]%bd, s
             R[1:,s[0]:s[0]+64,s[1]:s[1]+64]= _getPC(np.float32(pf),h)
-    ndarray2gif(figpath+'Pixel/scoreVp%de%d'%(vp,event),
+    ndarray2gif(figpath+'Pixel/scoreVp%de%d'%(vp,event)+FMT,
                 np.uint8(R*255),duration=0.1,plottime=True)
 
 #########################################################
@@ -408,7 +414,11 @@ def plotBTmean(MAX=16):
             d=np.squeeze(np.load(fn))
             #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
             dat[-1].append(d.mean(axis=0)/float(MAX))
-    plotGifGrid(dat,fn=figpath+'buttonPressMean',bcgclr=1,plottime=True)
+    lbl=[]
+    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,-15])
+    for i in range(6):lbl.append([str([500,400,300,200,100,50][i]),20,-10,30+i*72])
+    plotGifGrid(dat,fn=figpath+'buttonPressMean'+FMT,bcgclr=1,
+                text=lbl,plottime=True)
     return dat
 
 def plotBTpt(vpn=range(1,5),pcaEv=97):
@@ -593,14 +603,17 @@ def plotMeanPF():
                 Fs[-1].append(temp)
                 temp[temp>1]=1
                 if h==2:FFs[vp][[0,2,1][g]]=temp       
-        from matustools.matusplotlib import plotGifGrid
-        lbls=[['A',20,-10,95],['B',20,-10,235],['C',20,-10,370],#['D',20,-10,505],
-              [FIG[6][1][3]+'1',20,65,-15],[FIG[6][1][3]+'2',20,200,-15],
-              [FIG[6][1][3]+'3',20,340,-15],[FIG[6][1][3]+'4',20,475,-15]]
-        plotGifGrid(Fs,fn=figpath+'Coord/'+['trackPFforw','trackPFback','trackPFmid'][g],
-                    bcgclr=1,plottime=True,text=lbls,P=129,F=85)
-    
-    plotGifGrid(FFs,fn=figpath+'Coord/trackPF',bcgclr=1,forclr=0,plottime=True,P=129,F=85)
+        lbl=[]
+        for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,65+i*137,-15])
+        for i in range(3):lbl.append([['1','2','>2'][i],20,-10,85+i*135])
+        plotGifGrid(Fs,fn=figpath+'Coord/'+['trackPFforw',
+                    'trackPFback','trackPFmid'][g]+FMT,
+                    bcgclr=1,plottime=True,text=lbl,P=129,F=85)
+    lbl=[]
+    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,65+i*137,-15])
+    lbl.extend([['Start',20,-10,40],['Middle',20,-10,160],['End',20,-10,340]])
+    plotGifGrid(FFs,fn=figpath+'Coord/trackPF'+FMT,bcgclr=1,
+                forclr=0,plottime=True,P=129,F=85,text=lbl)
     figure(size=3,aspect=1)
     for g in range(D.shape[2]):
         for vp in range(4):
@@ -633,7 +646,7 @@ def plotMeanPF():
 #############################
 
 def svmPlotExtrRep(event=0,plot=True,suf=''):
-    from PercFields import initPath
+    from Pixel import initPath
     plt.close()
     P=32;F=34
     dat=[]
@@ -649,13 +662,16 @@ def svmPlotExtrRep(event=0,plot=True,suf=''):
                     temp=np.zeros(P*P*F,dtype=np.bool8)
                 temp=np.reshape(temp,[P,P,F])
                 dat[-1].append(np.bool8(g-1**g *temp))
-    if plot: plotGifGrid(dat,fn=figpath+'svm%sExtremaE%d'%(suf,event),
-                         F=34,P=32,bcgclr=0.5)
+    lbl=[]
+    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,18+i*40,-15])
+    lbl.append(['TS1',20,-10,70]);lbl.append(['SS',20,-10,245])
+    if plot: plotGifGrid(dat,fn=figpath+'svm%sExtremaE%d'%(suf,event)+FMT,
+                         F=34,P=32,text=lbl,bcgclr=0.5)
     return dat
 
 def svmPlotExtrema():
     from matustools.matusplotlib import plotGifGrid
-    from PercFields import initPath
+    from Pixel import initPath
     plt.close()
     out=[[],[],[],[]]
     for nf in [[0,''],[1,''],[1,'3'],[1,'2']]:
@@ -663,25 +679,23 @@ def svmPlotExtrema():
         for vp in range(4):
             out[vp].extend([dat[vp][1],dat[vp][5]])
     path,inpath,figpath=initPath(1,0)
-    txt=[['VP1',16,20,-16],['VP2',16,60,-16],['VP3',16,100,-16],['VP4',16,140,-16],
-         ['A',16,-8,60],['B',16,-8,140],['C',16,-8,220],['D',16,-8,300]]
-    plotGifGrid(out,fn=figpath+'svmExtrema',bcgclr=0.5,F=34,P=32,
-                text=txt,duration=0.2,plottime=True,snapshot=True)  
+    plotGifGrid(out,fn=figpath+'svmExtrema'+FMT,bcgclr=0.5,F=34,P=32,
+                duration=0.2,plottime=True,snapshot=True)  
         
 
 
 if __name__=='__main__':
-    #figures
-    plotBehData()
-    plotEvStats()
-    plotBTpt()
-    plotAnalysis(event=0)
-    plotAnalysis(event=1)
-    plotVel()
+##    #figures
+##    plotBehData()
+##    plotEvStats()
+##    plotBTpt()
+##    plotAnalysis(event=0)
+##    plotAnalysis(event=1)
+##    plotVel()
     plotMeanPF()
-    from ReplayData import compareCoding
-    compareCoding(vp=2,block=18,cids=[0,1,2,4])
-
+##    from ReplayData import compareCoding
+##    compareCoding(vp=2,block=18,cids=[0,1,2,4])
+##
     #movies
     pcAddition()
     plotBTmean()
@@ -689,20 +703,22 @@ if __name__=='__main__':
     plotCoeff(0)
     plotCoeff(1)
     svmPlotExtrema()
-
-    from ReplayData import replayTrial
-    #note the following trials will be displayed but not saved as movies
-    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#mov01
-    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
-    replayTrial(vp =3,block=16,trial=12,tlag=0.0,coderid=4)#mov07
-    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
-    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
-    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
-    #tables 
-    si2tex()
-    tabLatent(0,pcs=5)
-    tabLatent(1,pcs=5)
-    tabLatent(97,pcs=5)
+    plotScore(999,1,pcs=5,scs=0)
+    
+##
+##    from ReplayData import replayTrial
+##    #note the following trials will be displayed but not saved as movies
+##    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#mov01
+##    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
+##    replayTrial(vp =3,block=16,trial=12,tlag=0.0,coderid=4)#mov07
+##    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
+##    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
+##    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
+##    #tables 
+##    si2tex()
+##    tabLatent(0,pcs=5)
+##    tabLatent(1,pcs=5)
+##    tabLatent(97,pcs=5)
     
 
     

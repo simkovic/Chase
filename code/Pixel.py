@@ -39,7 +39,7 @@ def initPath(vpp,eventt):
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     if event>=0: inpath=path+'E%d/'%event
     else: inpath=path+'E%d/'%(100+event)
-    figpath=os.getcwd().rstrip('code')+'figures/PercFields/'
+    figpath=os.getcwd().rstrip('code')+'figures/Pixel/'
     #print 'initPath: vp=%d, ev=%d'%(vp,event)
     return path,inpath,figpath
 #########################################################
