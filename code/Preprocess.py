@@ -255,7 +255,7 @@ def readSMI(vp,block):
     data=_discardInvalidTrials(data)
     return data
   
-def readTobii(vp,block,lagged=False):
+def readTobii(vp,block,path,lagged=False,verbose=False):
     ''' function for reading the tobii controller outputs list of ETDataTrial instances
 
         Each trial starts with line '[time]\tTrial\t[nr]'
@@ -263,12 +263,13 @@ def readTobii(vp,block,lagged=False):
 
         lagged - return time stamp when the data was made available (ca. 30 ms time lag)
     '''
-    print 'Reading Tobii Data'
-    path = os.getcwd()
-    path = path.rstrip('/code')
-    f=open(path+'/tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
-    Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
-    
+    from Settings import Qexp
+    if verbose: print 'Reading Tobii Data'
+    #path = os.getcwd()
+    #path = path.rstrip('code')
+    f=open(path+'VP%03dB%d.csv'%(vp,block),'r')
+    #Qexp=Settings.load(Q.inputPath+'vp%03d'%vp+Q.delim+'SettingsExp.pkl' )
+           
     #f=open('tobiiOutput/VP%03dB%d.csv'%(vp,block),'r')
     ms= Qexp.monitor.getSizePix()
     try:
@@ -309,16 +310,27 @@ def readTobii(vp,block,lagged=False):
                 trial=_reformat(trial,t0[0],Qexp)
                 #print t0, trial.shape, trial[0,0]
                 et=ETData(trial[:,:-1],[],t0,
-                    [vp,block,t,hz,'BOTH'],fs=[],recTime=recTime,msgs=msgs)
+                    [vp,block,t,hz,'BOTH'],fs=np.array([np.nan,np.nan]),recTime=recTime,msgs=msgs)
                 fs=trial[et.ts:et.te,[-1,0]]
                 fs[:,1]-=t0[1]
                 for fff in range(fs.shape[0]-2,-1,-1):
                     if fs[fff+1,0]<fs[fff,0]:
                         fs[fff,0]=fs[fff+1,0]
-                et.fs=np.zeros((fs[-1,0],2))
+                et.fs=np.zeros((fs[-1,0],3))
                 et.fs[:,0]=range(int(fs[-1,0]))
                 et.fs[:,1]=interpRange(fs[:,0],fs[:,1],et.fs[:,0])
-                et.extractBasicEvents(trial[:,:-1]);
+                et.fs[:,2]=interpRange(fs[:,1],range(fs.shape[0]),et.fs[:,1])
+                et.fs[:,2]=np.round(et.fs[:,2])
+                for msg in et.msgs:
+                    if msg[2]=='Omission': msg[0]=float(msg[0]);msg[1]=float(msg[1])
+                    if msg[2]=='Drift Correction':
+                        msg[1]=int(round(msg[0]*75/1000.))
+                        msg.append(msg[0]*et.hz/1000.)
+                    elif msg[1]-et.fs.shape[0]>0:
+                        val=(msg[1]-et.fs.shape[0])*75/et.hz+et.fs[-1,2]
+                        msg.append(int(round(val)))
+                    else: msg.append(int(et.fs[int(msg[1]),2]))
+                #et.extractBasicEvents(trial[:,:-1]);
                 et.phase=phase;et.reward=reward
                 data.append(et)
                 t+=1;trial=[];msgs=[];reward=[]
@@ -328,9 +340,9 @@ def readTobii(vp,block,lagged=False):
                 msgs.append([float(words[0])-t0[1],int(words[1]),words[2]])
                 if words[2]=='Reward On': reward=[float(words[0])-t0[1]]
                 if words[2]=='Reward Off': reward.append(float(words[0])-t0[1])
-    except: f.close(); print words; raise
+    except: f.close(); print 'Words: ',words; raise
     f.close()
-    print 'Finished Reading Data'
+    if verbose:print 'Finished Reading Data'
     return data
 
 
@@ -654,7 +666,23 @@ def saveTrackedAgs(vp):
     
     
 if __name__ == '__main__':
-    for vp in range(1,5):
-        saveETinfo(vp=vp)
-        saveTrackingInfo(vp=vp)
-        saveTrackedAgs(vp=vp)
+##    for vp in range(1,5):
+##        saveETinfo(vp=vp)
+##        saveTrackingInfo(vp=vp)
+##        saveTrackedAgs(vp=vp)
+    vpn=range(170,185)
+    D=[]
+    for vp in vpn:
+        data=readTobii(vp,0)
+        for trl in data:
+            trl.extractBasicEvents()
+            for b in trl.bev:
+                g=trl.getGaze()
+                if b[1]+1<g.shape[0] and b[0]-1>0:
+                    dist=np.linalg.norm(g[b[1]+1,[7,8]]-g[b[0]-1,[7,8]])
+                    D.append([b[1]-b[0],dist])
+    D=np.array(D) 
+            
+    #print np.int32(np.isnan(data[0].gaze[:1000,1]))
+    #data[0].extractBasicEvents()
+    #for dat in data: dat.extractBasicEvents()

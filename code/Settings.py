@@ -95,6 +95,7 @@ dell=monitors.Monitor('dell', width=37.8, distance=60); dell.setSizePix((1280,10
 sonycrt=monitors.Monitor('sony', width=40, distance=60); sonycrt.setSizePix((1280,1024))
 smidell=monitors.Monitor('smiDell', width=47.5, distance=60);smidell.setSizePix((1680,1024))
 t60=monitors.Monitor('tobii', width=34, distance=50); t60.setSizePix((1280,1024))
+eizo=monitors.Monitor('eizo', width=34, distance=40); eizo.setSizePix((1280,1024))
 
 laptop={'monitor' :     dell,
         'refreshRate':  60,                 # [hz]
@@ -148,11 +149,11 @@ smilab ={'monitor' :     smidell,
         'fullscr':      True}
 tobiilab ={'monitor' :  t60,
         'refreshRate':  75,                # [hz]
-        'os':           WINDOWS,            # Linux or Windows
+        'os':           LINUX, #hotfix           # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
         'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
-        'pDirChange':   [4.8,5.5,4],          # avg number of direction changes per second
+        'pDirChange':   [4.8,5.4,4],          # avg number of direction changes per second
         'bckgCLR':      [-0,-0,-0],
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
@@ -197,11 +198,26 @@ gao10e4={'monitor' :     t60,
         'winPos':       (1280,0),              # in pixels
         'fullscr':      True}
 
-Q=Settings(**laptop)
+matusdesktop ={'monitor' :     eizo,
+        'refreshRate':  60,                 # [hz]
+        'os':           LINUX,              # Linux or Windows
+        'phiRange':     [120,0*2],          # in degrees [0-360]
+        'agentSize':    1,                  # in degrees of visial angle
+        'initDistCC':   [12.0 ,18.0],       # in degrees of visial angle
+        'pDirChange':   [4.8,5.4,4.8],          # avg number of direction changes per second
+        'bckgCLR':      [-0,-0,-0],
+        'agentCLR':     1,                  # [1 -1]
+        'mouseoverCLR': 0.5,                # [1 -1]
+        'selectedCLR':  -0.5,               # [1 -1]
+        'trialDur':     120,                 # in seconds
+        'aSpeed':       14.5,               # in degrees of visual angle per second
+        'guiPos':       (200,400),          # in pixels
+        'winPos':       (0,0),              # in pixels
+        'fullscr':      False}
 
-#Q=Settings(**gao10e3)
-#Q=Settings(**tobiilab)
-#fpath=Q.inputPath+'vp081'+Q.delim+'SettingsExp.pkl'
-#print fpath
-#Q2.save(fpath)
-#
+Q=Settings(**tobiilab)
+
+Q=Settings(**matusdesktop)
+Qexp=Settings(**tobiilab)
+
+

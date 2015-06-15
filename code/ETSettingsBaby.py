@@ -27,7 +27,7 @@ FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
 BLKMINDUR=0.05
 EYEDEV=4
 BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
-INTERPMD=0.1 # max duration for which blink interpolation is performed
+INTERPMD=0.2 # max duration for which blink interpolation is performed
 
 LSACVTH=np.inf
 LSACATH=np.inf

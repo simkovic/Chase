@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 ## The MIT License (MIT)
 ##
 ## Copyright (c) <2015> <Matus Simkovic>
@@ -20,7 +21,6 @@
 ## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ## THE SOFTWARE.
 
-# -*- coding: utf-8 -*-
 from Settings import Q
 from Constants import *
 from psychopy import visual, core, event,gui,sound,parallel
@@ -33,14 +33,14 @@ import random
 try: from Eyelink import TrackerEyeLink
 except ImportError: print 'Warning >> Eyelink import failed'
 try: from SMI import TrackerSMI
-except NameError: print 'Warning >> Eyelink import failed'
-from Tobii import TobiiController,TobiiControllerFromOutput
+except ImportError: print 'Warning >> SMI import failed'
+from eyetracking.Tobii import TobiiController,TobiiControllerFromOutput
 class Experiment():
-    def __init__(self):
+    def __init__(self,vp=None):
         # ask infos
         myDlg = gui.Dlg(title="Experiment zur Bewegungswahrnehmung",pos=Q.guiPos)   
         myDlg.addText('VP Infos')   
-        myDlg.addField('Subject ID:',0)
+        myDlg.addField('Subject ID:',201)
         myDlg.addField('Block:',0)
         #myDlg.addField('Scale (1 or 0.6):',1)
         myDlg.addField('Alter:', 21)
@@ -51,17 +51,19 @@ class Experiment():
         myDlg.addField(u'Wochenstunden vor dem Komputerbildschirm:', choices=('0','0-2','2-5','5-10','10-20','20-40','40+'))
         myDlg.addField(u'Wochenstunden Komputerspielen:', choices=('0','0-2','2-5','5-9','10-20','20+'))
         myDlg.addField('Starte bei Trial:', 0)
-        myDlg.show()#show dialog and wait for OK or Cancel
-        vpInfo = myDlg.data
+        if vp is None:
+            myDlg.show()#show dialog and wait for OK or Cancel
+            vpInfo = myDlg.data
+        else: vpInfo=[vp,0,21,'','','','','','',0]
         self.id=vpInfo[0]
         self.block=vpInfo[1]
         self.initTrial=vpInfo[-1]
         self.scale=1#vpInfo[2]
-        if myDlg.OK:#then the user pressed OK
+        try:#then the user pressed OK
             subinf = open(Q.outputPath+'vpinfo.res','a')
             subinf.write('%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n'% tuple(vpInfo))
             subinf.close()               
-        else: print 'Experiment cancelled'
+        except: print 'Experiment cancelled'
         # save settings, which we will use
         Q.save(Q.inputPath+'vp%03d'%self.id+Q.delim+'SettingsExp.pkl')
         #init stuff
@@ -183,7 +185,9 @@ class Experiment():
             self.pos=trajectories[self.f,:,[X,Y]].transpose()*self.scale
             self.phi=trajectories[self.f,:,PHI].squeeze()
             self.elem.setXYs(self.pos)
+            #t0=core.getTime()
             self.flip()
+            #print core.getTime()-t0
 
             # check for termination signal
             for key in event.getKeys():
@@ -201,6 +205,10 @@ class Experiment():
         self.wind.flip()
         core.wait(1.0)
         self.output.write('\n')
+    def destroy(self):
+        try: self.wind.close()
+        except: pass
+        core.quit()
         
     def run(self,mouse=None,prefix=''): 
         self.output = open(Q.outputPath+prefix+'vp%03d.res'%self.id,'a')
@@ -630,7 +638,6 @@ class Gao10e4Experiment(Experiment):
         self.output.close()
         self.wind.close()
         
-    
 class BabyExperiment(Experiment):
     criterion=6*Q.refreshRate # abort trial after infant is continuously not looking for more than criterion nr of frames 
     fixRadius=3 # threshold in deg
@@ -643,13 +650,15 @@ class BabyExperiment(Experiment):
     dataLag = 14 # nr of frames between the presentation and the availibility of fixation data
     maxFixInterval=2*Q.refreshRate # nr of frames, maximum allowed duration between two consecutive fixations during pursuit
     finished=2 # abort after consecutive nr of attention catchers
-    expDur=6 # total experiment duration in minutes
+    expDur=10 # total experiment duration in minutes
     doReward=True # show colored reward?
     
-    def __init__(self):
-        Experiment.__init__(self)
-        #self.etController=TobiiControllerFromOutput(self.getWind(),sid=self.id,playMode=True,block=self.block,initTrial=self.initTrial)
-        self.etController = TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
+    def __init__(self,vp=None,fin=None,fout=''):
+        Experiment.__init__(self,vp=vp)
+        if fin is None: self.etController=TobiiController(self.getWind(),getfhandle=self.getf,sid=self.id,block=self.block)
+        else:
+            self.etController=TobiiControllerFromOutput(self.getWind(),fout=fout,
+                fin=fin,getfhandle=self.getf,sid=self.id,block=self.block)
         self.etController.doMain()
         #self.clrOscil=0.05
         self.rewardColor1=np.array((0,-1,1))
@@ -670,7 +679,8 @@ class BabyExperiment(Experiment):
         self.phases=np.load(Q.inputPath+'vp%d'%self.id+Q.delim+'phasevp%sb%d.npy'% (self.id,self.block)) # 0 - show easy reward, 1 - show difficult reward, 2 - no reward (test)
         self.account=0 # count consecutive attention catchers
         self.pi=0
-        self.eeg=parallel.PParallelInpOut32()
+        self.eeg=None
+        #self.eeg=parallel.PParallelInpOut32()
         
     def run(self):
         self.tStart=core.getTime()
@@ -720,6 +730,7 @@ class BabyExperiment(Experiment):
         #print np.array([fc.tolist()]*self.cond).shape,temp[:,:2].shape
         dxy=np.array([fc.tolist()]*self.cond)-temp[:,:2]#self.elem.xys
         distance= np.sqrt(np.power(dxy[:,0],2)+np.power(dxy[:,1],2))
+        #assert not np.any(np.isnan(fs))
         agentsInView=BabyExperiment.fixRadius>distance
         if self.f-BabyExperiment.dataLag <0: agentsInView[0]=False; agentsInView[1]=False
         #print 'show ',f, self.babyStatus
@@ -910,8 +921,13 @@ class TobiiExperiment(Gao10e3Experiment):
     
 
 if __name__ == '__main__':
-    from Settings import Q
-    E=AdultExperiment()
+    path='/home/matus/Desktop/chase/tobiiOutput/'
+    suf=['','adultcontrol/'][int(sys.argv[2])]
+    vp=int(sys.argv[1])
+    E=BabyExperiment(vp=vp+100,fin=path+suf+'VP%03dB0.csv'%vp,
+                     fout=['baby/','ac/'][int(sys.argv[2])])
     E.run()
+    E.destroy()
+    
 
 

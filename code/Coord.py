@@ -323,7 +323,7 @@ def computeSaliencyMaps(vp):
         if status!=0:
             print output
     
-def extractSaliency(channel='intensity'):
+def extractSaliency(channel='intensity',reps=100):
     ''' the saliency for each trial and position has been precomputed and saved
     '''
     print vp, channel
@@ -340,12 +340,15 @@ def extractSaliency(channel='intensity'):
         ef=ef[valid]
         lastt=-1;dim=64;k=0
         gridG=np.zeros((fw,dim,dim));radG=np.zeros((fw,radbins.size))
-        gridT=np.zeros((fw,dim,dim));radT=np.zeros((fw,radbins.size))
+        gridT=np.zeros((reps,fw,dim,dim));radT=np.zeros((reps,fw,radbins.size))
         #gridA=np.zeros((fw,dim,dim));radA=np.zeros((fw,radbins.size))
         #gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
-        rt=np.random.permutation(si.shape[0])
-        rp=np.random.permutation(si.shape[0])
+        rt=np.zeros((reps,si.shape[0]))
+        for rr in range(reps):
+            rt[rr,:]=np.random.permutation(si.shape[0])
+        #rp=np.random.permutation(si.shape[0])
         for h in range(si.shape[0]):
+            print "finished=%.2f"%(h/float(si.shape[0])*100)
             if si[h,-2]>21: continue
             if si[h,-1]!=lastt: # avoid reloading saliency map for the same trial 
                 order = np.load(inpath+'vp%03d/ordervp%03db%d.npy'%(vp,vp,si[h,-2]))
@@ -361,8 +364,9 @@ def extractSaliency(channel='intensity'):
             else: print 'saccade ignored ',h,si[h,-2],si[h,-1]
             lastt=si[h,-1]
             if vp==4:
-                temp1,temp2=vid.computeSaliency(si[rt[h],[6,7]],[sf[rt[h]],ef[rt[h]]],rdb=radbins)
-                if not temp1 is None: gridT+=temp1; radT+=temp2.T;
+                for rr in range(reps):
+                    temp1,temp2=vid.computeSaliency(si[rt[rr,h],[6,7]],[sf[rt[rr,h]],ef[rt[rr,h]]],rdb=radbins)
+                    if not temp1 is None: gridT[rr,:,:,:]+=temp1; radT[rr,:,:]+=temp2.T;
             #temp1,temp2=vid.computeSaliency(traj[sf[h]+fw/2,2,:2],[sf[h],ef[h]],rdb=radbins)
             #gridA+=temp1; radA+=temp2.T;
             #temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
@@ -378,7 +382,7 @@ def extractSaliency(channel='intensity'):
         gridG/=float(k);radG/=float(k)
         np.save(path+'E%d/grd%s.npy'%(event,channel),gridG)
         np.save(path+'E%d/rad%s.npy'%(event,channel),radG)
-        if vp==4:
+        if vp==4 and reps>0:
             gridT/=float(k);radT/=float(k)
             np.save(path+'E%d/grdT%s.npy'%(event,channel),gridT)
             np.save(path+'E%d/radT%s.npy'%(event,channel),radT)
@@ -550,6 +554,7 @@ def plotDur():
         ti=np.load(path+'ti.npy')
         dur=(ti[:,5]-ti[:,4])*2
         meddur.append([[],[]])
+        print vp, np.mean(dur)
 
         for i in range(2):
             for k in range(len(evs[i])+1):
@@ -646,10 +651,11 @@ def computeTrackInfo():
     told=999;
     for vp in range(1,5):
         initVP(vp,1)
+        ti=np.load(path+'ti.npy')
+        #print np.median(ti[:,-1]-ti[:,-2])*2
         inpath=os.getcwd().rstrip('code')+'input/' 
         f=open(path+'trackxy.pickle','rb')
         trackxy=pickle.load(f);f.close()
-        ti=np.load(path+'ti.npy') 
         txy=_computeAgTime(trackxy,ti)
         dist=[];dirch=[];gs=[];trajs=[]
         for j in range(len(txy)):
@@ -683,6 +689,7 @@ def computeTrackInfo():
         np.save(path+'trackDirch.npy',dirch)
         np.save(path+'trackGaze.npy',gs)
         np.save(path+'trackTraj.npy',trajs)
+
         
 def plotAgdist():
     dist,discard,the,rest=computeTrackInfo()
@@ -816,6 +823,9 @@ def createIdealObserver(vpnr=999,N=5000,rseed=10):
     np.save(path+'E1/DG.npy',D)  
          
 if __name__ == '__main__':
+    plotDur()
+    
+    bla
     for event in range(0,3)+range(96,100):
         for vpl in range(1,5):
             initVP(vpl=vpl,evl=event)

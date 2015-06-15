@@ -34,7 +34,7 @@ from copy import copy
 import time,os
 
 # choose one from these two
-#from ETSettingsBaby import *
+# from ETSettingsBaby import *
 from ETSettingsAdult import *
 
 PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep
@@ -255,8 +255,8 @@ def computeLongSaccades(tser,vel,acc,hz):
     return computeState(isFix,[LSACMINDUR*hz,np.inf])
 
 def computeBlinks(tser,hz):
-    isFix=np.isnan(tser[:,7])
-    return computeState(isFix,[BLKMINDUR*hz*0,np.inf])
+    isblink=np.isnan(tser[:,7])
+    return computeState(isblink,[BLKMINDUR*hz*0,np.inf])
                    
 class ETData():
     def __init__(self,dat,calib,t0,info,recTime="0:0:0",fs=None,
@@ -275,7 +275,6 @@ class ETData():
         #fsa=self.computeFs()
         #m=min(self.fs.shape[0],fsa.shape[0])
         #print np.round(np.max(np.abs(self.fs[:m,:2]-fsa[:m,:])),1), self.t0[1]-self.t0[0]
-        np.save('fs',self.fs)
         self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
         if self.t0[0]>=0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
@@ -289,7 +288,8 @@ class ETData():
     def computeFs(self):
         path = getcwd()
         path = path.rstrip('code')
-        f=open(path+'input/vp%03d/SettingsExp.pkl'%self.vp)
+        try: f=open(path+'input/vp%03d/SettingsExp.pkl'%self.vp)
+        except: f=open(path+'input/vp%03d/Settings.pkl'%self.vp)
         while f.readline().count('refreshRate')==0: pass
         f.readline();
         monhz=float(f.readline().lstrip('F').rstrip('\r\n'))
@@ -340,8 +340,6 @@ class ETData():
         self.traj=np.zeros((g.shape[0],traj.shape[1],traj.shape[2]))
         self.dev=np.zeros((g.shape[0]-1,traj.shape[1]))
         for a in range(traj.shape[1]):
-            #print tt.shape, traj[:,a,0].shape
-            #print self.fs.shape, traj.shape, self.traj.shape
             self.traj[:,a,0]=interpRange(self.fs[:,1], traj[:,a,0],g[:,0])
             self.traj[:,a,1]=interpRange(self.fs[:,1], traj[:,a,1],g[:,0])
             dx=np.roll(self.traj[:,a,0],int(0*self.hz),axis=0)-g[:,7]
@@ -620,13 +618,50 @@ class ETData():
         plt.xlim([0,10000])
         plt.ylim([-1,41])
         plt.show()
+
+    def plotMsgs(self,st=0):
+        ''' messages in baby data'''
+        ax=plt.gca()
+        row=self.vp
+        plt.plot([st,st],[row,row+1],'r')
+        
+        for ev in self.bev:
+            s=ev[0];e=ev[1]
+            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='k')
+            ax.add_patch(r)
+        for ev in self.fev:
+            s=ev[0];e=ev[1]
+            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='g')
+            ax.add_patch(r)
+        for ev in self.sev:
+            e=ev[1]-1
+            plt.plot([st+e,st+e],[row+0.2,row+0.8],'b')
+            #r=mpl.patches.Rectangle((,row+0.25),
+            #        ev[1]-ev[0],0.25,color='b')
+            #ax.add_patch(r)
+        for msg in self.msgs:
+            temp=msg[2].split('th ')
+            if len(temp)==2:
+                plt.plot(st+msg[3]-5,row+int(temp[0])/12.,'r.')
+            elif len(temp)>2:
+                print 'plotMsgs:',msg[2],temp
+                raise         
+        #plt.ylim([69,86])
+        plt.xlim([0, 6*60*60])
+        plt.grid(b=False)
+        #print self.gaze.shape[0], self.bev[-1][1],self.gaze[-1,0],self.gaze[self.bev[-1][1],0]
+        #print self.gaze.shape, self.fs.shape,self.fs[-1], self.revfs.shape
+        return st+self.te-self.ts
+
+        
         
     @staticmethod
     def helpf(fev,inds):
+        #if inds[1]==579: print fev[-1],inds
         out=[]
         for ff in fev:
-            if ((ff[0]>inds[0] and ff[0]<inds[1])
-                or (ff[1]>inds[0] and ff[1]<inds[1])):
+            if ((ff[0]>=inds[0] and ff[0]<=inds[1])
+                or (ff[1]>=inds[0] and ff[1]<=inds[1])):
                 temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
                 out.append(temp)
         return out
@@ -639,6 +674,7 @@ class ETData():
         dat=self.gaze
         # add two columns with binocular gaze point
         if self.focus==BINOCULAR:
+            print self.gaze.shape
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
             temp=dat[np.isnan(dat[:,1]),:]
             if temp.size>0: gazep[np.isnan(dat[:,1]),:]=temp[:,[4,5]]
@@ -666,16 +702,20 @@ class ETData():
         self.acc=computeAcceleration(self.gaze,self.hz)
         self.isFix,fev=computeFixations(self.gaze,self.vel,self.acc,self.hz)
         self.isSac,sev=computeSaccades(self.gaze,self.vel,self.acc,self.hz)
-        self.isLSac,discard=computeLongSaccades(self.gaze,self.vel,self.acc,self.hz)
+        #self.isLSac,discard=computeLongSaccades(self.gaze,self.vel,self.acc,self.hz)
         self.isBlink,bev=computeBlinks(self.gaze,self.hz)
+        self.bev=ETData.helpf(bev,[self.ts,self.te])
         self.fev=ETData.helpf(fev,[self.ts,self.te])
         self.sev=ETData.helpf(sev,[self.ts,self.te])
-        self.bev=ETData.helpf(bev,[self.ts,self.te])
-        self.computeAgentDistances()
-        for i in range(len(self.fev)):
-            s=self.fev[i][0];e=self.fev[i][1]-1
-            a=selectAgentFIX(self.dist[s:e,:],self.hz)
-            self.fev[i].extend(a)
+        # missing trajectories for the following subjects
+        if self.vp>=100 and self.vp<140:
+            self.traj=np.zeros((0,0,2))
+        else:
+            self.computeAgentDistances()
+            for i in range(len(self.fev)):
+                s=self.fev[i][0];e=self.fev[i][1]-1
+                a=selectAgentFIX(self.dist[s:e,:],self.hz)
+                self.fev[i].extend(a)
         self.opev=[];self.cpev=[]
     def extractPursuitEvents(self):
         # find pursuit states for phase 2

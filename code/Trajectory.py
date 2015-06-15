@@ -20,11 +20,13 @@
 ## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ## THE SOFTWARE.
 
-from Constants import *
-from Settings import Q
 from psychopy.event import xydist
 import numpy as np
 import random, os, pickle
+
+
+from Settings import Q
+from Constants import *
 from Maze import *
 
 class Diagnosis:
@@ -470,9 +472,10 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         os.chdir('..')
     os.chdir('..')
     
-def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],
+def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],rd=0,pdch=None,
         dispSize=29,maze=None):
     #os.chdir('..')
+    if not pdch is None: Q.setpDirChange(pdch)
     os.chdir(Q.inputPath)
     mazes=[]
     Q.nrframes+= Q.refreshRate *5
@@ -497,7 +500,7 @@ def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],
                     trajectories=None
                     while trajectories ==None:
                         trajectories=generateTrial(condition, 
-                            maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=3.0)
+                            maze=EmptyMaze((1,1),dispSize=(dispSize,dispSize)),rejectionDistance=rd)
                     #fn='%str%03dcond%02d'% (vpname,trial,conditions[order[trial]])
                     #fn = 'trial%03d' % trial
                     trajectories=trajectories[(Q.refreshRate*5):]
@@ -661,18 +664,16 @@ def exportSvmGao09(nrtrials=10000):
     
 
 if __name__ == '__main__':
-    random.seed(3)
-    maze=EmptyMaze((1,1),dispSize=(32,24))
-    generateMixedExperiment([1],40,blocks=25,condition=14,dispSize=26,probeTrials=True)
+    random.seed(4)
+    from AnalysisBaby import BABYVPN
+    vpn=BABYVPN
+    f= lambda x: x+100
+    generateBabyExperiment(map(f,vpn[0]),rd=3.0,pdch=[4.8,5.4,4],nrtrials=15)
+    generateBabyExperiment(map(f,vpn[1]),rd=0.0,pdch=[4,4,4],nrtrials=15)
+    generateBabyExperiment(map(f,vpn[2]),rd=0.0,pdch=[5.4,5.4,5.4],nrtrials=15)
+    generateBabyExperiment(map(f,vpn[3]),rd=0.0,pdch=[5.4,5.4,5.4],nrtrials=15)
+    
 
-    #generateBabyExperiment([201])
-    
-    #d=Diagnosis(replications=100,nragents=[6],dispSizes=[29], rejDists=[3.0])
-    #Diagnosis.save(d,'diagBaby6.pkl')
-    #D=Diagnosis.multiload(6,prefix='diagBaby')
-    #generateGao10e4(308)
-    
-    #generateGao10e3(range(350,370))
 
 
         

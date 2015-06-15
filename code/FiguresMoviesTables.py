@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 ## The MIT License (MIT)
 ##
 ## Copyright (c) <2015> <Matus Simkovic>
@@ -28,28 +29,48 @@ from Coord import initVP
 import os
 
 LINEWIDTH=5.74 # peerj line width in inches
-DPI=300
+DPI=600
 FMT='.avi' # movie export format
-FIG=(('behdata.png',('Detection Time','' ),
-                     ('Subject',''),
+FIG=(('behdata.png',('Detection Time','Probability' ),
+                     ('Subject','Detection Time'),
                      ('Subject','Detection Time'),
                      ('Subject','Proportion Correct'),
                       ('Subject','Proportion Correct')),
      ('bdtime.png',('Trial','Proportion Correct',['S1','S2','S3','S4'])),
-     ('Coord/agdens',('Radial Distance','Agent Density',['S1','S2','S3','S4','RT']),
-      ('Time to Saccade Onset','Agent Density'),
-      ('Radial Distance','Direction Changes'),
-      ('Time to Saccade Onset','Direction Changes'),
-      ('Radial Distance', 'Contrast Saliency'),
-      ('Radial Distance', 'Motion Saliency'),
-      ('Time to Saccade Onset', 'Light Contrast Saliency'),
-      ('Time to Saccade Onset', 'Motion Saliency')),
-     ('Pixel/buttonPress',()),
-     ('Coord/trackEv',()),
-     ('Coord/trackVel',('Time','Velocity',['S1','S2','S3','S4'])),
-     ('Coord/trackPFrail',('','',['Start','Middle','End'],'S'))
+     ('Coord/agdens',('Distance to Saccade Target in Degrees','Agent Density',['S1','S2','S3','S4','RT']),
+      ('Time to Saccade Onset in Seconds','Agent Density'),
+      ('Distance to Saccade Target in Degrees','Direction Changes'),
+      ('Time to Saccade Onset in Seconds','Direction Changes'),
+      ('Distance to Saccade Target in Degrees', 'Contrast Saliency'),
+      ('Distance to Saccade Target in Degrees', 'Motion Saliency'),
+      ('Time to Saccade Onset in Seconds', 'Contrast Saliency'),
+      ('Time to Saccade Onset in Seconds', 'Motion Saliency')),
+     ('Pixel/buttonPress','Time in seconds','Distance in degrees','S',-15,30,72),
+     ('Coord/trackEv','ES CS1           ...           CS9           ...           CS19','S'),
+     ('Coord/trackVel',('Time in seconds','Velocity in deg/s',['S1','S2','S3','S4'])),
+     ('Coord/trackPFrail',('Start','Middle','End'),'S',-15),
+     ('S',-15,'CS1','ES')
      )
-
+FIG2=(('behdata.png',('Reaktionszeit','Wahrscheinlichkeit' ),
+                     ('Versuchsperson','Reaktionszeit'),
+                     ('Versuchsperson','Reaktionszeit'),
+                     ('Versuchsperson','Genauigkeit'),
+                      ('Versuchsperson','Genauigkeit')),
+     ('bdtime.png',('Trial','Genauigkeit',['VP1','VP2','VP3','VP4'])),
+     ('Coord/agdens',('Entfernung zum Sakkadenziel in Grad','Ringedichte',['VP1','VP2','VP3','VP4','RZ']),
+      ('Zeit zum Sakkadenanfang in Ms','Ringedichte'),
+      ('Entfernung zum Sakkadenziel in Grad',u'Bewegungsänderungen'),
+      ('Zeit zum Sakkadenanfang in Ms','Bewegungsändereungen'),
+      ('Entfernung zum Sakkadenziel in Grad', 'Kontrastsalienz'),
+      ('Entfernung zum Sakkadenziel in Grad', 'Bewegungssalienz'),
+      ('Zeit zum Sakkadenanfang in Ms', 'Kontrastsalienz'),
+      ('Zeit zum Sakkadenanfang in Ms', 'Bewegungssalienz')),
+     ('Pixel/buttonPress','Zeit in Sek','Entfernung in Grad','VP',-20,35,75),
+     ('Coord/trackEv','ES AS1           ...           AS9           ...           AS19','VP'),
+     ('Coord/trackVel',('Zeit in Sek','Geschwindigkeit in Grad/Sek',['VP1','VP2','VP3','VP4'])),
+     ('Coord/trackPFrail',('Anfang','Mitte','Ende'),'VP',-20),
+     ('VP',-20,'AS1','ES')
+     )
 
 inpath = os.getcwd().rstrip('code')+'evaluation'+os.path.sep
 figpath = os.getcwd().rstrip('code')+'figures'+os.path.sep
@@ -74,7 +95,7 @@ def plotBehData():
                 sigma=rtmc[vp,-1,:].mean()).pdf(x-0.5),'k')
     plt.xlabel(FIG[0][1][0])
     plt.ylabel(FIG[0][1][1])
-    subplot_annotate(loc='ne',nr=0)
+    subplotAnnotate(loc='ne',nr=0)
     #plt.subplot(2,2,i+1);i+=1
     for k in range(4):
         subplot(2,3,[4,5,3,6][k])
@@ -92,7 +113,7 @@ def plotBehData():
         #if k%2==1: plt.gca().set_yticklabels([])
         
         errorbar(rtmc[:,k,:].T,x=range(1,5))
-        subplot_annotate(loc='ne',nr=k+1)
+        subplotAnnotate(loc='ne',nr=k+1)
     plt.subplots_adjust(wspace=0.01,hspace=-0.2)
     plt.savefig(figpath+FIG[0][0],dpi=DPI,bbox_inches='tight')
 
@@ -122,8 +143,8 @@ def plotBehData():
 def plotAnalysis(event=-1):
     plt.close()
     #lim=[[0.25,2.5],[0.37,2.5]]
-    if event==0: lim=[[0.25,0.022],[0.4,0.022]]
-    else: lim=[[0.25,0.025],[0.4,0.025]]
+    if event==0: lim=[[0.25,0.022],[0.4,0.022,],[0.4,0.03]]
+    else: lim=[[0.25,0.025],[0.4,0.025],[0.4,0.03]]
     figure(size=3,aspect=0.99)
     for vp in range(1,5):
         
@@ -165,7 +186,13 @@ def plotAnalysis(event=-1):
         hhh=0
         plt.plot(x,np.reshape(I[0,hhh,:,0],[x.size,2]).mean(1))
         if vp==4:
-            plt.plot(x,np.reshape(I[2,hhh,:,0],[x.size,2]).mean(1))
+            xx=np.concatenate([x,x[::-1]])
+            ci=np.concatenate([np.reshape(I[2,hhh,:,2],[x.size,2]).mean(1),
+                np.reshape(I[2,hhh,:,1],[x.size,2]).mean(1)[::-1]])
+            print xx.shape,ci.shape
+            plt.gca().add_patch(plt.Polygon(np.array([xx,ci]).T,
+                        alpha=0.2,fill=True,fc='red',ec='red'))
+            #plt.plot(xx,np.reshape(I[2,hhh,:,0],[xx.size,2]).mean(1))
             subplotAnnotate(loc='ne')
         plt.ylim([0,lim[event][0]]);
         plt.gca().set_yticks(np.linspace(0,lim[event][0],6))
@@ -239,11 +266,17 @@ def plotAnalysis(event=-1):
             hh+=1
             K=np.load(path+'E%d/grd%s.npy'%(event,chan))
             I=np.load(path+'E%d/rad%s.npy'%(event,chan)).T
-            if vp==4:IR=np.load(path+'E%d/radT%s.npy'%(event,chan)).T
+            if vp==4:IR=np.load(path+'E%d/radT%s.npy'%(event,chan))
             subplot(4,2,5+2*hh)
             plt.plot(np.arange(1,15),I[:,I.shape[1]/2])
             if vp==4:
-                plt.plot(np.arange(1,15),IR[:,IR.shape[1]/2])
+                x=np.concatenate([np.arange(1,15),np.arange(14,0,-1)])
+                IR=np.sort(IR,axis=0)
+                m=IR.shape[1]/2
+                ci=np.concatenate([IR[2,m,:],IR[97,m,:][::-1]])
+                plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
+                        alpha=0.2,fill=True,fc='red',ec='white'))
+                #plt.plot(np.arange(1,15),IR[[49,50],m,:].mean(0))
                 subplotAnnotate(loc='ne')
             if chan=='COmotion': plt.xlabel(FIG[2][5+hh][0])  
             plt.ylabel(FIG[2][5+hh][1])
@@ -256,7 +289,10 @@ def plotAnalysis(event=-1):
             #plt.plot(x,np.nanmean(I[:hhh,:],0))
             plt.plot(x,I[0,:])
             if vp==4:
-                plt.plot(x,IR[0,:])
+                xx=np.concatenate([x,x[::-1]])
+                ci=np.concatenate([IR[2,:,0],IR[97,:,0][::-1]])
+                plt.gca().add_patch(plt.Polygon(np.array([xx,ci]).T,
+                    alpha=0.2,fill=True,fc='red',ec='white'))
                 subplotAnnotate(loc='ne')
             if chan=='COmotion':plt.xlabel(FIG[2][7+hh][0])
             #plt.ylabel(FIG[2][7+hh][1])
@@ -294,8 +330,8 @@ def plotCoeff(event,rows=8,cols=5,pcs=10):
             if h<pcs: small[-1].append(pc.T)
         panels.append(np.copy(R))
     lbl=[]
-    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,-15])
-    for i in range(10):lbl.append(['PC'+str(i+1),20,-10,27+i*72])
+    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,FIG[6][1][5]])
+    for i in range(10):lbl.append([FIG[6][1][4]+str(i+1),20,-10,FIG[6][1][6]+i*FIG[6][1][7]])
     lbl[-1][3]-=10
     plotGifGrid(small, fn=figpath+'Pixel/pcE%ds'%(event)+FMT,tpL=True,
                 duration=0.1,text=lbl,plottime=True,snapshot=1,bcgclr=1)   
@@ -352,6 +388,7 @@ def pcAddition():
         out[-1].append(pc1)
         out[-1].append(pc2)
         out[-1].append((pc1-pc2+1)/2.)
+        #out[-1].append((pc1+pc2)/2.)
         if False:
             out.append([])
             out[-1].append(pc1)
@@ -414,9 +451,11 @@ def plotBTmean(MAX=16):
             d=np.squeeze(np.load(fn))
             #print np.max(d.mean(axis=0)),np.min(d.mean(axis=0))
             dat[-1].append(d.mean(axis=0)/float(MAX))
-    lbl=[]
-    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,-15])
-    for i in range(6):lbl.append([str([500,400,300,200,100,50][i]),20,-10,30+i*72])
+    lbl=[]    
+    #for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,32+i*72,-15])
+    for i in range(4):lbl.append([FIG[3][3]+str(i+1),20,32+i*72,FIG[3][4]])
+    #for i in range(6):lbl.append([str([500,400,300,200,100,50][i]),20,-10,30+i*72])
+    for i in range(6):lbl.append([str([500,400,300,200,100,50][i]),20,-10,FIG[3][5]+i*FIG[3][6]])
     plotGifGrid(dat,fn=figpath+'buttonPressMean'+FMT,bcgclr=1,
                 text=lbl,plottime=True)
     return dat
@@ -447,47 +486,55 @@ def plotBTpt(vpn=range(1,5),pcaEv=97):
     pm=np.repeat(p[:,np.newaxis],T,axis=1)
     rows=len(vpn)
     #cols=len(dat[0])
-    figure(size=3,aspect=0.3)
+    fig=figure(size=3,aspect=0.35)
+    fig.tight_layout()
     #m=[-251,-201,-151,-101,-51,-1]
     bnds=[(1,None),(None,0),(None,None)]
     est=[]
-    for i in range(rows):
+    for i in range(-1,rows):
         #for k in [1]:
         #est.append([])
         j=4# 200 ms 
-        fn=inpath+'vp%03d/E%d/'%(vpn[i],pcaEv)+'X/coeff.npy'
-        pc=_getPC(np.load(fn),0)
+        fn=inpath+'vp%03d/E%d/'%(vpn[max(0,i)],pcaEv)+'X/coeff.npy'
+        if i==0: pc=(_getPC(np.load(fn),0)+_getPC(np.load(fn),1))/2.
+        elif i==-1: pc=(_getPC(np.load(fn),0)-_getPC(np.load(fn),1)+1)/2.
+        else: pc=_getPC(np.load(fn),0)
         if pc.mean()>=0.4: pc=1-pc
-        D= pc.T[:,31:33,:].mean(1)
+        inc=[-2,2,0,0,0,0][i+1]
+        D= pc.T[:,(31+inc):(33+inc),:].mean(1)
         #else: D=dat[i][j][31:33,:,:].mean(0)
         D/=D.sum()
         #print i,k,D.shape,D.sum()
         
-        subplot(1,4,i+1)
+        subplot(1,5,i+2)
         plt.pcolor(p,t,D.T,cmap='gray')
         # below we set the initial guess 
         if vpn[i]==999: x0=np.array((3,-12,0.1,7,-12,0.1))
-        elif vpn[i]==1: x0=np.array((1.3,-12,0.1))
+        elif vpn[max(0,i)]==1:
+            if i==-1: x0=np.array((1,-12,0.3,-2,-12,0.1))
+            else:x0=np.array((3,-12,0.1,0,-12,0.1))
         else: x0=np.array((3,-12,0.1,-2,-12,0.1))
         xopt=fmin(func=fun,x0=x0,args=(D,False))
         est.append(xopt.tolist())
         plt.plot(xopt[0]-xopt[1]*t,t,'r',lw=1,alpha=0.4)
-        if vpn[i]!=1:
-            plt.plot(xopt[3]-xopt[4]*t,t,'r',lw=1,alpha=0.4)
-        else:est[-1].extend([np.nan]*3)
+        #if vpn[i]!=1:
+        plt.plot(xopt[3]-xopt[4]*t,t,'r',lw=1,alpha=0.4)
+        #else:est[-1].extend([np.nan]*3)
         plt.grid(True,'both');
         plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
         ax=plt.gca();ax.set_axisbelow(False)
-        ax.set_xticks([-5,-2.5,0,2.5,5])
+        ax.set_xticks([-4,-2,0,2,4])
         ax.set_yticks(np.linspace(-0.8,0,5))
-        if i in set((1,2,3)): ax.set_yticklabels([])
+        if i in set((0,1,2,3)): ax.set_yticklabels([])
         else:
             ax.set_yticklabels(np.linspace(-1,-0.2,5))
-            plt.ylabel('Time to button press')
-        
+            plt.ylabel(FIG[3][1])
+        #if i==1: plt.text(2,-1,FIG[3][2],size=8)
+        if i==1: plt.xlabel(FIG[3][2])
         #else: plt.ylabel('subject %d'%(i+1))
         #if i==0: plt.title(str(m[j]*2+2))
-        plt.text(2.2,-0.75,'S'+str(vpn[i]),color='w')
+        plt.text(1,-0.75,FIG[3][3]+str(vpn[max(i,0)])+['a','b',''][min(i+1,2)],color='w')
+    plt.subplots_adjust(wspace=-1)
     plt.savefig(figpath+FIG[3][0]+'%d'%pcaEv,
                 dpi=DPI,bbox_inches='tight')
     est=np.array(est)
@@ -535,16 +582,16 @@ def plotEvStats():
             plt.bar(ev,b,color='#bcc4c4',bottom=a,width=1)
             plt.bar(ev,1,color='#FF9797',bottom=b,width=1)
         ax=plt.gca()
-        if vp<3:
-            ax.set_xticks(np.arange(0,20,3)+0.5)
-            ax.set_xticklabels(np.arange(0,20,3))
-        else: 
-            ax.set_xticks([])
-        if vp%2: ax.set_yticks([])
-        else: ax.set_yticks([0,0.25,0.5,0.75,1])
+        #if vp<3:
+        #ax.set_xticks(np.arange(0,20,1)+0.5)
+        plt.xlabel(FIG[4][1])
+        #ax.set_xticklabels(np.arange(0,20,1))
+        #else: 
+        ax.set_xticks([])
+        ax.set_yticks([0,0.25,0.5,0.75,1])
         plt.ylim([0,1])
         for hh in [0.25,0.5,0.75]:plt.plot([0,20],[hh,hh],'gray',lw=0.5)
-        plt.text(0.15,0.8,'S'+str(vp),color='k')
+        plt.text(0.15,0.8,FIG[4][2]+str(vp),color='k')
     plt.subplots_adjust(wspace=0.01,hspace=-0.2)
     plt.savefig(figpath+FIG[4][0],dpi=DPI,bbox_inches='tight')
 
@@ -584,10 +631,12 @@ def plotVel():
     print FIG[5][0]
     plt.savefig(figpath+FIG[5][0],dpi=DPI,bbox_inches='tight')
 
-def plotMeanPF():
+def plotTrack(MOVIE=True):
     plt.close()
     vp,ev,path=initVP(4,1)
     D=np.load(path+'trackPF.npy')
+    count=np.load(path+'trackPFcount.npy')
+    
     FFs=[]
     for vp in range(D.shape[0]): FFs.append([[],[],[]])
     Fs=[]
@@ -595,24 +644,24 @@ def plotMeanPF():
         Fs=[];
         for vp in range(D.shape[0]):
             Fs.append([])
-            
+            temp=np.float32(np.max(count[vp,:,g,:],1))
+            if not g:print 'vp=%d, nrags=%d, prop=%.3f'%(vp+1,2,temp[2]/temp[1:].sum())
             for h in range(1,D.shape[1]):
-                
                 denom=[0.003,0.15,0.05,0.05][h]
                 temp=D[vp,h,g,:,:,:]/denom
                 Fs[-1].append(temp)
                 temp[temp>1]=1
                 if h==2:FFs[vp][[0,2,1][g]]=temp       
         lbl=[]
-        for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,65+i*137,-15])
+        for i in range(4):lbl.append([FIG[6][2]+str(i+1),20,65+i*137,FIG[6][3]])
         for i in range(3):lbl.append([['1','2','>2'][i],20,-10,85+i*135])
-        plotGifGrid(Fs,fn=figpath+'Coord/'+['trackPFforw',
+        if MOVIE: plotGifGrid(Fs,fn=figpath+'Coord/'+['trackPFforw',
                     'trackPFback','trackPFmid'][g]+FMT,
                     bcgclr=1,plottime=True,text=lbl,P=129,F=85)
     lbl=[]
-    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,65+i*137,-15])
-    lbl.extend([['Start',20,-10,40],['Middle',20,-10,160],['End',20,-10,340]])
-    plotGifGrid(FFs,fn=figpath+'Coord/trackPF'+FMT,bcgclr=1,
+    for i in range(4):lbl.append([FIG[6][2]+str(i+1),20,65+i*137,FIG[6][3]])
+    lbl.extend([[FIG[6][1][0],20,-10,40],[FIG[6][1][1],20,-10,190],[FIG[6][1][2],20,-10,330]])
+    if MOVIE: plotGifGrid(FFs,fn=figpath+'Coord/trackPF'+FMT,bcgclr=1,
                 forclr=0,plottime=True,P=129,F=85,text=lbl)
     figure(size=3,aspect=1)
     for g in range(D.shape[2]):
@@ -623,8 +672,8 @@ def plotMeanPF():
             t=[np.linspace(-T*1000/85,0,T),
                np.linspace(-T/2*1000/85,T/2*1000/85,T),
                np.linspace(0,T*1000/85,T)][g]
-            if not g:plt.ylabel(FIG[6][1][3]+str(vp+1),size=18)
-            if not vp:plt.title(FIG[6][1][2][g],size=18)
+            if not g:plt.ylabel(FIG[6][2]+str(vp+1),size=18)
+            if not vp:plt.title(FIG[6][1][g],size=18)
             p=np.linspace(-5,5,P)
             plt.pcolor(p,t,d.T,cmap='gray',vmax=0.05)
             plt.xlim([p[0],p[-1]])
@@ -663,8 +712,8 @@ def svmPlotExtrRep(event=0,plot=True,suf=''):
                 temp=np.reshape(temp,[P,P,F])
                 dat[-1].append(np.bool8(g-1**g *temp))
     lbl=[]
-    for i in range(4):lbl.append([FIG[6][1][3]+str(i+1),20,18+i*40,-15])
-    lbl.append(['TS1',20,-10,70]);lbl.append(['SS',20,-10,245])
+    for i in range(4):lbl.append([FIG[7][0]+str(i+1),20,18+i*40,FIG[7][1]])
+    lbl.append([FIG[7][2],20,-10,70]);lbl.append([FIG[7][3],20,-10,245])
     if plot: plotGifGrid(dat,fn=figpath+'svm%sExtremaE%d'%(suf,event)+FMT,
                          F=34,P=32,text=lbl,bcgclr=0.5)
     return dat
@@ -685,17 +734,20 @@ def svmPlotExtrema():
 
 
 if __name__=='__main__':
-##    #figures
-##    plotBehData()
-##    plotEvStats()
-##    plotBTpt()
-##    plotAnalysis(event=0)
-##    plotAnalysis(event=1)
-##    plotVel()
-    plotMeanPF()
-##    from ReplayData import compareCoding
-##    compareCoding(vp=2,block=18,cids=[0,1,2,4])
-##
+    plotTrack(False)
+    bla
+
+    #figures
+    plotBehData()
+    plotAnalysis(event=0)
+    plotAnalysis(event=1)
+    plotEvStats()
+    plotBTpt()
+    plotVel()
+    plotTrack()
+    from ReplayData import compareCoding
+    compareCoding(vp=2,block=18,cids=[0,1,2,4])
+
     #movies
     pcAddition()
     plotBTmean()

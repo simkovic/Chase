@@ -42,6 +42,40 @@ def loadData(vpn, verbose=False):
     D=np.concatenate(D,0)
     return D
 
+################################################
+#
+#
+#
+################################################
+
+BLMAX=4 # maximum number of block per subject
+T=40 # number of trials
+vpn=range(20,70) # subject ids
+D=loadData(vpn)
+
+acc=-np.ones((len(vpn),BLMAX*T),dtype=int) # detection accuracy
+rts=np.zeros((len(vpn),BLMAX*T))*np.nan # detection speed
+rejs=-np.ones((len(vpn),BLMAX*T),dtype=int) # 1 - trial with min dist 3 deg
+for i in range(len(vpn)):
+    sel= D[:,0]==vpn[i]
+    acc[i,:sel.sum()]= D[sel,-1]
+    rts[i,:sel.sum()]= D[sel,6]
+    rejs[i,:sel.sum()]=np.int32(D[sel,3]<35)
+# code ommisions with -1    
+acc[rts==30]=-1
+rts[rts==30]=-1
+# data format for stan
+D=[]
+for vp in range(rejs.shape[0]):
+    sel=acc[vp,:]>-1
+    omit=[(rejs[vp,~sel]==0).sum(),(rejs[vp,~sel]==1).sum()]
+    D.append({'T':sel.sum(),'omit':omit,'rts': rts[vp,sel],
+           'acc':acc[vp,sel],'rejs':rejs[vp,sel],'ind':np.arange(BLMAX*T)[sel]/10000.0})
+
+print rts.shape
+successs
+
+
 BLMAX=25 # maximum number of block per subject
 T=40 # number of trials
 vpn=[1,2,3,4] # subject ids

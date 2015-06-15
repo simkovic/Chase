@@ -22,7 +22,7 @@
 
 from Settings import Q
 from Constants import *
-from psychopy import visual, core, event,gui
+from psychopy import visual, core, event
 from psychopy.misc import pix2deg
 import numpy as np
 from scipy.interpolate import interp1d
@@ -46,7 +46,8 @@ class Trajectory():
             highlightChase=False,phase=1,eyes=1,coderid=0):
         self.wind=wind
         self.phase=phase
-        self.cond=gazeData.oldtraj.shape[1]
+        try: self.cond=gazeData.oldtraj.shape[1]
+        except AttributeError:  self.cond=0
         self.pos=[]
         self.eyes=eyes
         self.behsel=None
@@ -57,7 +58,8 @@ class Trajectory():
         self.t=np.linspace(ts,te,int(round((te-ts)*Q.refreshRate/1000.0)))
         # put data together
         g=gazeData.getGaze(phase,hz=self.t)
-        tr=gazeData.getTraj(hz=self.t)
+        if self.cond: tr=gazeData.getTraj(hz=self.t)
+        else: tr=np.zeros((g.shape[0],0,2))*np.nan
         if eyes==1: g=g[:,[7,8]];g=np.array(g,ndmin=3)
         else: g=np.array([g[:,[1,2]],g[:,[4,5]]])
         
@@ -74,7 +76,6 @@ class Trajectory():
             clrs[-1,[0,1,2]]=-1
             if eyes==2: clrs[-2,[0,1,2]]=-1
             if highlightChase: clrs[0,[0,2]]=0; clrs[1,[0,2]]=-1
-            print 'test', self.cond, type(clrs)
             self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
                 nElements=self.cond,sizes=Q.agentSize,interpolate=False,
                 colorSpace='rgb',elementMask='circle',elementTex=None)
@@ -116,7 +117,7 @@ class Trajectory():
                     clrs=np.copy(self.elem.colors)
                     ags,clrr=self.highlightedAgents()
                     #print ags
-                    for a in range(self.cond-self.eyes): 
+                    for a in range(self.cond-self.eyes):
                         if a in ags: clrs[a,:]=clrr[ags.index(a)]
                         else: clrs[a,:]=[1,1,1]
                     if not self.behsel is None and self.f==(self.pos.shape[0]-1) and self.behsel[0]>=0:
@@ -158,10 +159,10 @@ class Trajectory():
     def highlightedAgents(self): return [],[]
         
 class GazePoint(Trajectory):
-    def __init__(self, gazeData,wind=None):
-        self.gazeData=gazeData
-        self.wind=wind
-        self.pos=[]
+    def __init__(self, gazeData,phase=1,wind=None,eyes=1):
+        from ETData import interpRange
+        self.gazeData=gazeData;self.eyes=eyes
+        self.wind=wind;self.phase=phase;self.behsel=None
         g=self.gazeData.getGaze()
         self.trialDur=g.shape[0]/self.gazeData.hz*1000
         step=1000/float(Q.refreshRate)
@@ -171,6 +172,7 @@ class GazePoint(Trajectory):
         t=np.arange(0,g.shape[0]*step,step)
         self.gaze=np.array((interpRange(t,g[:,1],tcur),
             interpRange(t,g[:,2],tcur)))
+        self.pos=np.ones((self.gaze.shape[0],1,2))*np.nan
         try:
             if type(self.wind)==type(None):
                 self.wind=Q.initDisplay()
@@ -303,15 +305,19 @@ class ETReplay(Trajectory):
         self.tmsg.setText('t%d Time %d:%02d:%06.3f' % (self.gazeData.trial,rct.hour,
                 rct.minute+ (rct.second+int(self.t[self.f]/1000.0))/60,
                 np.mod(rct.second+ self.t[self.f]/1000.0,60)))
-#        for m in self.gazeData.msgs:
-#            if m[0]>self.t[self.f] and m[0]<self.t[self.f]+100:
-#                m.append(True)
-#                self.msg.setText(m[2])
-#                self.msg.draw()
+        
+        for m in self.gazeData.msgs[::-1]:
+            if m[0]>self.t[self.f] and m[0]<self.t[self.f]+100:
+                #m.append(True)
+                self.msg.setText(m[2])
+                self.msg.draw()
+                
         self.frame.draw()
         self.tmsg.draw()
         Trajectory.showFrame(self,positions)
-    def highlightedAgents(self): return self.gazeData.getAgent(self.t[self.f]),[]
+    def highlightedAgents(self):
+        #return self.gazeData.getAgent(self.t[self.f]),[]
+        return [],[]
     
 class Coder(ETReplay):
     def showFrame(self,positions):
@@ -538,7 +544,7 @@ class Coder(ETReplay):
 
 def replayTrial(vp,block,trial,tlag=0,coderid=0):
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
-    from ETData import readEyelink
+    from Preprocess import readEyelink
     data=readEyelink(vp,block)
     trl=data[trial]
     trl.extractBasicEvents()
@@ -555,7 +561,7 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     trialStart=trial
     #win = Q.initDisplay((1280,1100))
-    from ETData import readEyelink
+    from Preprocess import readEyelink
     data=readEyelink(vp,block)
     #PATH+='coder%d'% coderid +os.path.sep
     for trial in range(trialStart,len(data)):
@@ -638,7 +644,23 @@ def checkBehData():
            
 if __name__ == '__main__':
     RH=0 # set right handed (1) or left handed (0) layout
-    replayBlock(vp =1,block=1,trial=0,tlag=0.0,coderid=4)
-    
+    replayTrial(vp =22,block=1,trial=5,tlag=0.0,coderid=0)
+    bla
     #missingTEfiles()
     #checkBehData()
+
+    from Preprocess import readTobii
+    
+    data=readTobii(100,0)
+    for trl in data[4:]:
+        #trl=data[0]
+        trl.extractBasicEvents()
+        trl.opur=trl.cpur=np.zeros(trl.te-trl.ts)
+        trl.events=[]
+        trl.extractComplexEvents()
+        #trl.extractPursuitEvents()
+        #trl.driftCorrection(jump=manualDC(vp,block,trial))
+        R=ETReplay(gazeData=trl,eyes=1)
+        R.play()
+
+
