@@ -23,15 +23,38 @@
 from psychopy.event import xydist
 import numpy as np
 import random, os, pickle
-
-
-from Settings import Q
+# NOTE: most of the motion settings are setup in Settings.py, not here
+#   in particular check that the monitor frame rate parameter is set up
+#   correctly in Settings.py, the actual monitor frame rate doesnt matter
+#   for the trajectory generation
+from Settings import Q 
 from Constants import *
 from Maze import *
 
 class Diagnosis:
+    ''' Due to the rejection sampling procedure that manipulates the
+        chaser-chasee minimum distance the motion properties are do not have
+        the average nominal values designated in Settings.py
+        This class measures the average empirical values for a
+        groups of nominal values. It can be used to choose nominal values
+        such that the empirical values are matched across conditions
+        or studies.
+    '''
     def __init__(self,replications=100,nragents=[8,11,14,17,20],
                  dispSizes=[18,22,26,29,32], rejDists=[0.0,1.5,3.0]):
+        '''
+            The function samples batches of trials
+            replications - number of trials that will be sampled
+            nragents - tuple of ints, each element gives the number
+                of agents in the batch
+            dispSizes - tuple of ints, each element gives the size of
+                the square movement area in degrees (defines NxN area)
+            rejDists - tuple of floats, chaser-chasee minimum distance
+                in degrees
+            Function computes one sample batch for each combination
+                parameters ie the total nr of batches is
+                len(nragents)*len(dispSizes)*len(rejDists)
+        '''
         def dist(a,b):
             return np.sqrt((a[:,0]-b[:,0])**2+(a[:,1]-b[:,1])**2)
         self.rejDists=rejDists
@@ -96,6 +119,14 @@ class Diagnosis:
         self.adens=self.adens/float(replications)/float(Q.nrframes)
         self.acrashes= self.acrashes/float(replications)/float(Q.trialDur)
     def plot(self):
+        '''
+            Plots the results of the sampling, plots
+            * average number of direction changes per second
+            * number of crashes, ie average number of wall/boundary contacts
+            * average number of rejectios of the rejection sampling algo
+            * average agent distance in degrees
+            * average agent density (agents per degree squared?)
+        '''
         plt.close('all')
         print self.rejDists
         plt.figure(figsize=(12,6))
@@ -190,6 +221,9 @@ class Diagnosis:
         plt.subplots_adjust(wspace=0.1)
 
     def plotDirs(self):
+        '''
+            Plots the angle distribution during direction changes
+        '''
         plt.close('all')
         ags=['Chasee','Chaser','Distr']
         plt.figure(figsize=(12,12))
@@ -209,6 +243,8 @@ class Diagnosis:
                 else: plt.gca().set_xticklabels([])
                 if na==0 and ds==0: plt.legend(ags,loc=0)
         plt.subplots_adjust(wspace=0.1)
+######################################
+# load/save routines
     @staticmethod
     def save(d,fname):
         f=open(fname,'w')
@@ -232,14 +268,27 @@ class Diagnosis:
         print D.mean(0)
         print D.std(0)
         return D
+
+######################################
+# trajectory generation routines
         
 class RandomAgent():
+    '''generates the trajectory for a random agent '''
     def __init__(self,nrframes,dispSize,pos,pdc,sd,moveRange):
+        ''' nrframes - number of frames (consecutive positions) to generate
+            dispSize - size of the square movement area
+            pos - initial position
+            pdc - probability of a direction change
+            sd - agent speed
+            moveRange - size of the range from which new motion
+                direction is selected after a direction change
+        '''
         self.offset=pos
         self.ds=dispSize
         self.nrframes=nrframes
         self.traj=np.zeros((nrframes,3))
         self.reset()
+        # some vars used for loging stats for the Diagnosis class
         self.pdc=pdc
         self.sd=sd
         self.nrcrashes=np.zeros((nrframes))
@@ -247,22 +296,28 @@ class RandomAgent():
         self.moveRange=moveRange/2.0
     
     def reset(self):
-        """ choose Random position within arena """
+        """ reset the agent to initial position
+            discards any previously generated trajectory
+        """
         self.ndc=np.zeros((self.nrframes))
         self.nrcrashes=np.zeros((self.nrframes))
         self.f=0
         self.i=0
         self.traj[self.f,:]=np.array((random.random()*self.ds[X]-self.ds[X]/2.0+self.offset[X],
             random.random()*self.ds[Y]-self.ds[Y]/2.0+self.offset[Y],random.random()*360))
-        
     def backtrack(self):
+        ''' should the algorithm backtrack to previous position?
+            returns boolean
+        '''
         self.f-=51#31
         return self.f<0 or self.i>100000#10000
     def getPosition(self,dec=0):
+        ''' return current/latest position'''
         return self.traj[self.f+dec,[X,Y]]
     def getTrajectory(self):
         return self.traj
     def move(self):
+        ''' generate next position'''
         self.f+=1
         self.i+=1
         f=self.f
@@ -279,16 +334,29 @@ class RandomAgent():
         self.traj[f,[X,Y]]=self.traj[f-1,[X,Y]]+adjust
         return (f+1)==self.nrframes
     def crashed(self,newD):
+        ''' adjust direction and position after a contact with the boundary
+            newD - new direction
+        '''
         self.nrcrashes[self.f]=1
         self.traj[self.f,PHI]=newD[1]
         self.traj[self.f,[X,Y]]=newD[0]
 
 class HeatSeekingChaser(RandomAgent):
+    '''generates the trajectory for a heat-seeking chaser '''
     def __init__(self,*args,**kwargs):
+        ''' the last argument (isGreedy) determines how boundary
+            colisions are handle
+            if True chaser makes random direction change after collision
+            otherwise it moves towards chasee
+        '''
         isGreedy=args[-1]        
         RandomAgent.__init__(self,*args[:-1],**kwargs)
         self.isGreedy=isGreedy
     def move(self,targetPos,crash=False):
+        ''' generate next position
+            targetPos - chasee's position
+            crash - chaser made contact with boundary
+        '''
         if not crash:
             self.f+=1
             self.i+=1
@@ -306,6 +374,10 @@ class HeatSeekingChaser(RandomAgent):
                 *self.sd,np.sin(self.traj[f,PHI]/180.0*np.pi)*self.sd))
         self.traj[f,[X,Y]]=self.traj[f-1,[X,Y]]+adjust
     def crashed(self,newD=None,targetPos=(0,0)):
+        ''' adjust direction and position after a contact with the boundary
+            targetPos - chasee's position
+            newD - new direction
+        '''
         #print 'crashed', self.f
         if not self.isGreedy:
             RandomAgent.crashed(self,newD)
@@ -317,6 +389,24 @@ class HeatSeekingChaser(RandomAgent):
 
             
 def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
+    ''' generates the agent trajectories for a single trial
+        the generation may take considerably longer when rejectionDistance>0
+        nragents - number of agents to generate
+        maze - Maze class instance (see Maze.py)
+        rejectionDistance - chaser-chasee minimum distance in degrees
+        STATISTICS - if True will log stats for the Diagnosis class
+        
+        returns ndarray of size (nrframes x nragents x 3)
+            first dim - number of frames is derived based on trial duration
+                and frame rate (both in Settings.py)
+            second dim - the first agents is chasee,
+                         the second agents is chaser,
+                         the rest are distractors
+            third dim - X position in degrees, Y position in degrees,
+                direction in radians  
+        if STATISTICS is True returns statistics
+        
+    '''
     if STATISTICS: nrbacktracks=0
     # init chaser chasee
     chasee=RandomAgent(Q.nrframes,maze.dispSize,maze.pos,
@@ -339,7 +429,6 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
         while d<=Q.agentRadius:
             agents[a].reset()
             d,edge=maze.shortestDistanceFromWall(agents[a].getPosition())
-            
     # generate the movement of chasee and chaser
     finished=False
     while not finished:
@@ -349,7 +438,7 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
             if STATISTICS: nrbacktracks+=1
             deadend=chaser.backtrack()
             chasee.backtrack()
-            if deadend:
+            if deadend: # reset the algorithm 
                 print 'dead end', chasee.f
                 if STATISTICS: return None, None, None, None,None
                 else: return None
@@ -395,17 +484,15 @@ def generateTrial(nragents,maze,rejectionDistance=0.0,STATISTICS=False):
             statistics[2][a]=agents[a].nrcrashes.sum()
         return statistics
     else: return trajectories
-    
-def generateShortTrial(maze,nrdirch=4,rejectionDistance=0.0):
-    Q.trialDur=5
-    Q.nrframes=Q.trialDur*Q.refreshRate+1
-    traj=generateTrial(2,maze,rejectionDistance)
-    ende=np.nonzero(np.cumsum(np.diff(traj[:,1,PHI])>1)==nrdirch)[0]
-    print len(ende)
-    ende=np.array(ende).min()
-    return traj[:ende,:,:]
 
-def generateExperiment(vpn,nrtrials,conditions=None,dispSizes=None,maze=None,rejectionDistance=0):
+###########################################################
+# Routines for generating trajectories for some published experiments
+# The experiments are based on information provided in the publication
+# TODO use path prefix instead of os.chdir()
+
+def generateExperiment(vpn,nrtrials,conditions=None,dispSizes=None,
+                       maze=None,rejectionDistance=0):
+    '''my work in progress, experiment without chatch trials'''
     #os.chdir('..')
     os.chdir('input/')
     conditions=np.repeat(conditions,nrtrials)
@@ -434,6 +521,7 @@ def generateExperiment(vpn,nrtrials,conditions=None,dispSizes=None,maze=None,rej
     
 def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
         dispSize=26,maze=None,probeTrials=False):
+    '''my work in progress, experiment with chatch trials'''
     #os.chdir('..')
     os.chdir(Q.inputPath)
     mazes=[]
@@ -474,6 +562,7 @@ def generateMixedExperiment(vpn,trialstotal,blocks=4,condition=14,
     
 def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],rd=0,pdch=None,
         dispSize=29,maze=None):
+    '''my work in progress, baby experiment'''
     #os.chdir('..')
     if not pdch is None: Q.setpDirChange(pdch)
     os.chdir(Q.inputPath)
@@ -519,6 +608,14 @@ def generateBabyExperiment(vpn,nrtrials=10,blocks=1,conditions=[6,8],rd=0,pdch=N
     os.chdir('..')
 
 def generateTremouletTrial(phi=0, lam=1):
+    ''' Reference: Tremoulet, P. D., & Feldman, J. (2000).
+        Perception of animacy from the motion of a single object.
+        Perception, 29(8), 943-952.
+        phi - magnitude of the direction change in degrees
+        lam - velocity change as vel_after/vel_before
+        returns ndarray of the same shape as generateTrial()
+        TODO: use settings from Settings.py
+    '''
     refreshRate=60 # Hz
     speed=3.25/refreshRate
     angle=0
@@ -533,8 +630,18 @@ def generateTremouletTrial(phi=0, lam=1):
             speed=speed*lam
             angle=angle+phi
     return traj
+
+
 def generateGao09e1(vpn):
+    ''' Experiment 1 from Gao et al. (2009)
+        Gao, T., Newman, G. E., & Scholl, B. J. (2009).
+        The psychophysics of chasing: A case study in
+        the perception of animacy.
+        Cognitive psychology, 59(2), 154-179.
+        vpn - tuple of ints, each value gives the subject id
+    '''
     # gao09e1 settings
+    # TODO move settings to Settings.py
     nrtrials=15
     maze=EmptyMaze((1,1),dispSize=(32,24),lw2cwRatio=0)
     chs=[0,60,120,180,240,300]
@@ -573,6 +680,13 @@ def generateGao09e1(vpn):
     os.chdir('..')
     
 def generateGao10e4(vpn):
+    ''' Experiment 4 from Gao et al. (2010)
+        Gao, T., McCarthy, G., & Scholl, B. J. (2010).
+        The Wolfpack Effect Perception of Animacy Irresistibly
+        Influences Interactive Behavior.
+        Psychological science, 21(12), 1845-1853.
+        vpn - tuple of ints, each value gives the subject id
+    '''
     # gao10e4 settings
     maze=EmptyMaze((1,1),dispSize=(18,18),lw2cwRatio=0)
     Q.setTrialDur(8); nrtrials=90; 
@@ -592,6 +706,13 @@ def generateGao10e4(vpn):
         os.chdir('..')
 
 def generateGao10e3(vpn):
+    ''' Experiment 3 from Gao et al. (2010)
+        Gao, T., McCarthy, G., & Scholl, B. J. (2010).
+        The Wolfpack Effect Perception of Animacy Irresistibly
+        Influences Interactive Behavior.
+        Psychological science, 21(12), 1845-1853.
+        vpn - tuple of ints, each value gives the subject id
+    '''
     offs=5.875; sz=(2*offs+Q.agentSize,2*offs+Q.agentSize)
     quadrants=[EmptyMaze((1,1),dispSize=sz,pos=(offs,offs),lw2cwRatio=0),
         EmptyMaze((1,1),dispSize=sz,pos=(-offs,offs),lw2cwRatio=0),
@@ -616,9 +737,14 @@ def generateGao10e3(vpn):
         Q.save('SettingsTraj.pkl')
         os.chdir('..')
 
-        
+##################################################       
     
 def exportSvmGao09(nrtrials=10000):
+    ''' exports trajectories from Experiment 1 from Gao et al. (2009)
+        to a text file that can be used for a classification with a
+        support vector machine from libsvm
+        nrtrials - number of trials/samples to generate
+    '''
     def saveTraj(fout,traj,label):
         sample=5
         fout.write('%d '%label)
@@ -646,7 +772,6 @@ def exportSvmGao09(nrtrials=10000):
 ##    fout.close()
 
     nrtrials=10000
-        
     for cond in range(5):
         print cond
         fout1=open('svmGaoCond%03dT.train'%chs[cond],'w')
@@ -664,6 +789,10 @@ def exportSvmGao09(nrtrials=10000):
     
 
 if __name__ == '__main__':
+    generateGao09e1([2])
+    bla
+    # the following code generates the trajectories for the
+    # control computation with shuffled and misaligned gaze position
     random.seed(4)
     from AnalysisBaby import BABYVPN
     vpn=BABYVPN

@@ -35,8 +35,11 @@ except ImportError: print 'Warning >> Eyelink import failed'
 try: from SMI import TrackerSMI
 except ImportError: print 'Warning >> SMI import failed'
 from eyetracking.Tobii import TobiiController,TobiiControllerFromOutput
+
 class Experiment():
     def __init__(self,vp=None):
+        ''' inits variables and presents the intro dialog
+            vp - subject id, useful for  replay functionality'''
         # ask infos
         myDlg = gui.Dlg(title="Experiment zur Bewegungswahrnehmung",pos=Q.guiPos)   
         myDlg.addText('VP Infos')   
@@ -97,12 +100,14 @@ class Experiment():
         self.nrtrials=self.permut.size
         
     def getWind(self):
+        '''returns the window handle '''
         try: return self.wind
         except AttributeError: 
             self.wind=Q.initDisplay()
             return self.wind
 
     def getJudgment(self,giveFeedback=False):
+        '''asks subject to select chaser chasee'''
         position=np.transpose(self.pos)
         cond=position.shape[1]
         self.mouse.clickReset();self.mouse.setVisible(1)
@@ -162,6 +167,11 @@ class Experiment():
         self.elem.draw()
         self.wind.flip()
     def runTrial(self,trajectories,fixCross=True):
+        ''' runs a trial
+            trajectories - NxMx2, where N is number of frames,
+                            M is number of agents
+            fixCross - if True presents fixation cross before the trial
+        '''
         self.nrframes=trajectories.shape[0]
         self.cond=trajectories.shape[1]
         self.elem=visual.ElementArrayStim(self.wind,fieldShape='sqr',
@@ -210,21 +220,25 @@ class Experiment():
         except: pass
         core.quit()
         
-    def run(self,mouse=None,prefix=''): 
+    def run(self,mouse=None,prefix='', initScreen=False):
+        ''' mouse & prefix - used for replay functionality,
+                for no replay keep at default
+        '''
         self.output = open(Q.outputPath+prefix+'vp%03d.res'%self.id,'a')
-        # show initial screen until key pressed
-#        self.text2.setText(u'Bereit ?')
-#        self.text2.draw()
-#        self.wind.flip()
-#        self.mouse.clickReset()
-#        mkey = self.mouse.getPressed(False)
-#        while not (mkey[0]>0 or mkey[1]>0 or mkey[2]>0):
-#            mkey = self.mouse.getPressed(False)
+        if initScreen: # show initial screen until key pressed
+            self.text2.setText(u'Bereit ?')
+            self.text2.draw()
+            self.wind.flip()
+            self.mouse.clickReset()
+            mkey = self.mouse.getPressed(False)
+            while not (mkey[0]>0 or mkey[1]>0 or mkey[2]>0):
+                mkey = self.mouse.getPressed(False)
         # loop trials
         for trial in range(self.initTrial,self.nrtrials):   
             self.t=trial; 
             #print self.t
             self.output.write('%d\t%d\t%d\t%s'% (self.id,self.block,trial,int(self.permut[trial])))
+            # load trajectories
             if self.id>1 and self.id<10:
                 fname=prefix+'vp001b%dtrial%03d.npy' % (self.block,self.permut[trial])
                 self.trajectories= np.load(Q.inputPath+'vp001'+Q.delim+fname)

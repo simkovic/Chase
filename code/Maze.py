@@ -24,10 +24,11 @@ import numpy as np
 import pylab as plt
 from psychopy import visual,core, event
 from psychopy.misc import pix2deg, deg2pix
-from Constants import *
-import random
 from psychopy.event import xydist
+from Constants import *
 
+###################################
+# basic geometry routines
 def circleLine(p0,lin1,lin2,r):
     """ compute circle line intersetion
         p0 - circle center
@@ -58,8 +59,9 @@ def circleLine(p0,lin1,lin2,r):
     return np.array(inter[i])+p0
 
 def lineLine(x1,y1,x2,y2,x3,y3,x4,y4):
-    """ points 1,2 belong to line 1 and
-        points 3,4 to line 2
+    """ compute intersection of two lines
+        points (x1,y1) and (x2,y2) belong to line 1 and
+        points (x3,y3) and (x4,y4) to line 2
     """
     d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4)
     if d==0:
@@ -67,8 +69,12 @@ def lineLine(x1,y1,x2,y2,x3,y3,x4,y4):
     x=((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/d
     y=((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/d
     return np.array((x,y))
+###############################################
 
 class Maze(np.ndarray):
+    ''' handles environment and agent's collisions with boundaries
+        in particular
+    '''
     H=0; V=1;I=0;J=1 # map indices of horizontal and vertical 
     def __new__(cls,sz,dispSize,pos=(0,0),lw2cwRatio=0.1):
         inst= super(Maze, cls).__new__(cls,(sz[0],sz[1],2),np.bool)
@@ -76,14 +82,17 @@ class Maze(np.ndarray):
         return inst
     def __init__(self,sz=(0,0),dispSize=(18,18),lw2cwRatio=0.1,pos=(0,0)):
         """
-            Edge type may be 'flat' 0 or 'circle' 1
+            sz - size of the grid, tuple with two values
+            dispSize - total size of the rectangular area,  tuple with two values in degrees
+            lw2cwRatio - ratio of the line width to the cell width
+            pos - position of the maze on the screen,  tuple with two values in degrees
         """
         self.pos=np.array(pos)
         #mon=visual.monitors.Monitor(Q.monname)
         self.dispSize=np.array(dispSize)
         self.cw=self.dispSize/(np.float32(self.shape)[[0,1]])
         self.lw=self.cw[0]*lw2cwRatio
-        #self.edgeType=edgeType
+        #self.edgeType=edgeType #Edge type may be 'flat' 0 or 'circle' 1
         offset=self.dispSize/2.0
         self.lineXY=[]
         for i in range(self.shape[0]):
@@ -100,6 +109,7 @@ class Maze(np.ndarray):
                     self.lineXY.append((posS,posE))
 
     def draw(self, wind):
+        ''' draws the maze to window wind'''
         try:
             self.maze.draw()
             return
@@ -119,8 +129,8 @@ class Maze(np.ndarray):
             body=visual.Line(wind,line[0],line[1],
                 lineWidth=deg2pix(self.lw,wind.monitor))
             elem.append(body)
-        frame=visual.Rect(wind,width=self.dispSize,
-            height=self.dispSize,lineColor=(1,1,1),pos=(0,0),
+        frame=visual.Rect(wind,width=self.dispSize[0],
+            height=self.dispSize[1],lineColor=(1,1,1),pos=(0,0),
             lineWidth=deg2pix(self.lw,wind.monitor),units='deg')
         if len(self.lineXY)==0:
             self.maze=frame
@@ -130,6 +140,8 @@ class Maze(np.ndarray):
         #self.maze.draw()
         
     def shortestDistanceFromWall(self, point):
+        '''returns the shortest distance of the point to
+            a maze wall in degrees'''
         from psychopy.event import xydist
         point-=self.pos
         X=Maze.I; Y = Maze.J
@@ -162,6 +174,10 @@ class Maze(np.ndarray):
         return shd-self.lw/2.0, edge
 
     def bounceOff(self,posT1,posT0,edge,agentRadius):
+        ''' returns new position and direction based on
+            two positions (posT1 and posT0) that intersect a
+            boundary (edge)
+        '''
         posT1-= self.pos; posT0-=self.pos
         if type(edge[0])==type(0.1):# edge is a point
             #print 'bounce ',posT1, posT0,edge, agentRadius
@@ -224,9 +240,10 @@ class Maze(np.ndarray):
                 newPhi=2*np.pi-oldPhi
         newPos+= self.pos
         return (newPos,(180*newPhi/np.pi)%360) 
-    
+##############################################################
+# Library of some simple mazes
 class GridMaze(Maze):
-    def __new__(cls,sz=10):
+    def __new__(cls,sz=(10,10)):
         return super(GridMaze, cls).__new__(cls,sz)
     def __init__(self):
         self.sz=self.shape[0]
@@ -267,15 +284,17 @@ class ZbrickMaze(Maze):
                     i%4==0 and j%4==0 or i%4==2 and j%4==2)
         super(ZbrickMaze, self).__init__(*args,**kwargs)
                    
-if __name__ == '__main__':            
+if __name__ == '__main__':
+    # last test: PsychoPy 1.82.01-py2.7
+    # use this script to display a maze
+    from Settings import eizo
     wind=visual.Window(fullscr=False,size=(900,900),units='deg',
-            color=[-1,-1,-1],winType='pyglet',monitor='dell')
+            color=[-1,-1,-1],winType='pyglet',monitor=eizo)
     try:
-        random.seed()
         np.random.seed()
         plt.close()       
-        #m = ZbrickMaze(10,dispSize=18)#ZbrickMaze()  
-        m=EmptyMaze((1,1),dispSize=(18,18))
+        m = ZbrickMaze(sz=(10,10),dispSize=(18,12))
+        #m=EmptyMaze((1,1),dispSize=(18,18))
         #bla
         #m.draw(wind)
         wind.flip()
@@ -286,7 +305,6 @@ if __name__ == '__main__':
                     stop=True
             m.draw(wind)
             wind.flip()
-            
         wind.close()
     except:
         wind.close()
