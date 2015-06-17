@@ -27,7 +27,14 @@ from psychopy.misc import pix2deg
 import numpy as np
 from subprocess import call
 
+####################################################
+# export functionality
 def exportFrame(positions,fn,maze=None,wind=None):
+    ''' exports a frame as an image in png format
+        positions - Nx2 ndarray with coordinates of N agents
+        fn - output file name (without suffix)
+        maze & wind - provide window and maze for drawing 
+    '''
     if type(wind)==type(None):
         wind=initDisplay()
     try:
@@ -35,10 +42,6 @@ def exportFrame(positions,fn,maze=None,wind=None):
         clrs=np.ones((cond,3))
         clrs[CHASEE,:]=(0,1,0)
         clrs[CHASER,:]=(1,0,0)
-##        if a1>1:
-##            clrs[a1]=(0,0,1)
-##        else:
-##            clrs[a2]=(0,0,1)
         if type(maze)!=type(None):
             maze.draw(wind)
             maze.draw(wind)
@@ -47,7 +50,6 @@ def exportFrame(positions,fn,maze=None,wind=None):
             elementMask='circle',elementTex=None)
         elem.setXYs(positions)      
         elem.draw()    
-        #wind.flip()
         wind.getMovieFrame(buffer='back')
         wind.saveMovieFrames(fn+'.png')
         wind.close()
@@ -56,8 +58,17 @@ def exportFrame(positions,fn,maze=None,wind=None):
         raise
     
 def exportTrial(outname,trajectories,wind=None,hz=60):
+    ''' exports trajectories as mpeg movie
+        trajectories - FxNx2 ndarray with coordinates of N agents
+            for each of the F frames
+        outname - output file name (without suffix)
+        wind - provide window for drawing
+        hz - frate rate of the output file
+    '''
     #breaks=[250,500,750,1000,1250,1500,1750,2000,2250,2550]
-    breaks=[200,400,600]
+    #breaks=[200,400,600]
+    # you may wish to define breaks which lists values of frames on
+    # which RAM will be flushed, helpful for long movies/low RAM machines
     if type(wind)==type(None):
         wind=Q.initDisplay()
     try:
@@ -95,17 +106,9 @@ def exportTrial(outname,trajectories,wind=None,hz=60):
         wind.close()
         raise
     
-    
-def exportExperiment(vp,wind):
-    dn='vp%02d' % vp
-    os.chdir('C:\Users\matus\Desktop\promotion\distractorVariation\code\%s' % dn)
-    fnames=os.listdir('.')
-    fnames.sort()
-    for fname in fnames:
-        exportTrial(np.load(fname),wind,fname[:-10])
-
-    
 def exportTremoulet(wind=None):
+    ''' creates Tremoulet & Feldman (2000) experiment and
+        exports each trial as mpeg'''
     from Trajectory import generateTremoulet
     if type(wind)==type(None):
         wind=initDisplay()
@@ -124,8 +127,8 @@ def exportTremoulet(wind=None):
     except: 
         wind.close()
         raise
-    
-    
+##################################################    
+# functionality for viewing trials
 def showFrame(positions,maze=None,wind=None, elem=None,highlightChase=False):
     if type(wind)==type(None):
         wind=initDisplay()
@@ -151,7 +154,14 @@ def showFrame(positions,maze=None,wind=None, elem=None,highlightChase=False):
 def showTrial(trajectories,maze=None,wind=None,highlightChase=False,
         origRefresh=100.0,gazeData=None,gazeDataRefresh=250.0):
     """
-        shows the trial as given by TRAJECTORIES
+        shows the trial given by trajectories
+        helpful for viewing trials
+        trajectories - FxNx2 ndarray with coordinates of N agents
+            for each of the F frames
+        maze & wind - provide window and maze for drawing
+        highlightChase - if True chaser and chasee are highlighted in color
+        origRefresh - frame rate of the trajectory data
+        gazeData & gazeDataRefresh - display gaze data (eyetracking)
     """
     
     if type(wind)==type(None):
