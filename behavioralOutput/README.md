@@ -19,11 +19,11 @@ The columns give:
 
 7. response time [0,30], 30.0 = no response
 
-8 id of the first selected agent (-1 if no agent)
+8. id of the first selected agent (-1 if no agent)
 
 9. time since the trial end when the first agent was selected 
 
-10 id of the first selected agent (-1 if no agent)
+10. id of the first selected agent (-1 if no agent)
 
 11. time since the trial end when the second agent was selected 
 
