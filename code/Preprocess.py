@@ -27,6 +27,8 @@ import os,pickle
 from ETData import ETData, interpRange
 plt.ion()
 
+##########################################################
+# helper functions
 def _isNumber(s):
     try:
         float(s)
@@ -52,8 +54,16 @@ def _reformat(trial,tstart,Qexp):
         trial[:,4]=Qexp.pix2deg(trial[:,4]-ms[0])
         trial[:,5]=-Qexp.pix2deg(trial[:,5]-ms[1])
     return trial
-
+##########################################################
+# read eyetracking data
 def readEyelink(vp,block):
+    ''' reads Eyelink text file (.asc) of subject VP and block BLOCK
+        the file should be at /eyelinkOutput/VP<VP>B<BLOCK>.asc
+        requires the corresponding input files on the input path
+        vp - subject id
+        block - experiment block
+        returns ETData instance
+    '''
     cent=(0,0)
     path = os.getcwd()
     path = path.rstrip('code')
@@ -72,7 +82,7 @@ def readEyelink(vp,block):
         t0=[0,0,0]
         calib=[]
         i=0;t=0;size=7;fr=0;ftriggers=[]
-        while True:   
+        while True: # read all lines  
             words=f.readline().split()
             i+=1            
             #if i%100==0: print i
@@ -168,9 +178,15 @@ def readEyelink(vp,block):
 
     
 def readSMI(vp,block):
-    # blinks?
-    # latency during the transport of messages?
-    
+    ''' reads SMI text file (.txt) of subject VP and block BLOCK
+        the file should be at /smiOutput/VP<VP>B<BLOCK>.asc
+        requires the corresponding input files on the input path
+        vp - subject id
+        block - experiment block
+        returns ETData instance
+        NOTE: this code is experimental
+        TODO blinks?, latency during the transport of messages?
+    '''
     path = os.getcwd()
     path = path.rstrip('code')
     f=open(path+'smiOutput/VP%03dB%d Samples.txt'%(vp,block),'r')
@@ -256,12 +272,20 @@ def readSMI(vp,block):
     return data
   
 def readTobii(vp,block,path,lagged=False,verbose=False):
-    ''' function for reading the tobii controller outputs list of ETDataTrial instances
-
+    '''
+        reads Tobii controller output of subject VP and block BLOCK
+        the file should be at <PATH>/VP<VP>B<BLOCK>.csv
+        requires the corresponding input files on the input path
+        vp - subject id
+        block - experiment block
+        path - path to the eyetracking data
+        lagged - log time stamp when the data was made available
+            (ca. 30 ms time lag), useful for replay
+        verbose - print info
+        returns ETData instance
+        
         Each trial starts with line '[time]\tTrial\t[nr]'
-        and ends with line '[time]\tOmission'
-
-        lagged - return time stamp when the data was made available (ca. 30 ms time lag)
+        and ends with line '[time]\tOmission'  
     '''
     from Settings import Qexp
     if verbose: print 'Reading Tobii Data'
@@ -345,194 +369,46 @@ def readTobii(vp,block,path,lagged=False,verbose=False):
     if verbose:print 'Finished Reading Data'
     return data
 
-
-# some raw scripts
-
-def checkDrift():
-    # lets check whether there is a drift in the tobii data
-    plt.close('all')
-    d=np.array(dcorr)
-    print d.shape
-    # left
-    for t in [0,1,2,7,8,9]:
-        plt.plot(((d[t,:,1]-640)**2+ (d[t,:,2]-512)**2)**0.5 )
-    plt.legend(['0','1','2','7','8','9'])
-    # right
-    plt.figure()
-    for t in [0,1,2,7,8,9]:
-        plt.plot(((d[t,:,4]-640)**2+ (d[t,:,5]-512)**2)**0.5 )
-    plt.legend(['0','1','2','7','8','9'])
-    plt.figure()
-    plt.plot(((d[:,:,1].mean(1)-640)**2+(d[:,:,2].mean(1)-512)**2)**0.5)
-    plt.plot(((d[:,:,4].mean(1)-640)**2+(d[:,:,5].mean(1)-512)**2)**0.5)
-    plt.legend(['left','right'])
-
-def findDriftEyelink(vp,block):
-    plt.close('all')
-    data=readEdf(vp,block)
-    #print data[1].dcorr.shape
-    for dd in range(8):
-        S=dd*5
-        E=(dd+1)*5
-        N=E-S
-        plt.figure(figsize=(16,12))
-        for i in range(N):
-            dat=data[S+i].dcorr
-            both=dat.shape[1]>4
-            plt.subplot(N,3,3*i+1)
-            plt.plot(dat[:,0],dat[:,1],'g')
-            if both: plt.plot(dat[:,0],dat[:,4],'r')
-            plt.title('X axis')
-            plt.xlim([0, 1200])
-            plt.ylim([-3, 3])
-            plt.ylabel('trial %d'% (S+i))
-            plt.plot([0,1200],[0,0],'k')
-            plt.subplot(N,3,3*i+2)
-            plt.plot(dat[:,0],dat[:,2],'g')
-            if both: plt.plot(dat[:,0],dat[:,5],'r')
-            plt.title('Y axis')
-            plt.xlim([0, 1200])
-            plt.ylim([-3, 3])
-            plt.plot([0,1200],[0,0],'k')
-
-            
-            if both:
-                difx=np.abs(np.diff(dat[:,[1,4]].mean(axis=1),3))
-                dify=np.abs(np.diff(dat[:,[2,5]].mean(axis=1),3))
-            else:
-                difx=np.abs(np.diff(dat[:,1],3))
-                dify=np.abs(np.diff(dat[:,2],3))
-            if ((vp==31 and block==4 and S+i==17) or
-                (vp==31 and block==4 and S+i==16) or
-                (vp==31 and block==4 and S+i<=12) or
-                (vp==33 and block==1 and (S+i==12 or S+i==16 or S+i==17 or S+i==22 or S+i==23))):
-                difx=np.abs(np.diff(dat[:,1],3))
-                dify=np.abs(np.diff(dat[:,2],3))
-            dif=np.sqrt(difx**2+dify**2)
-            plt.subplot(N,3,3*i+3)
-            plt.plot(dat[2:-1,0],dif)
-            plt.xlim([0, 1200])
-            start=(dat[2:-1,0]>190).nonzero()[0][0]
-            mx=np.nanmax(dif[start:])
-            if mx>0.2:
-                k=(dif==mx).nonzero()[0][0]
-                if vp==30 and block==3 and S+i==14: k=103
-                if vp==31 and block==2 and S+i==26: k=104
-                if vp==31 and block==4 and S+i==20: k=94
-                dx=dat[k+1,1]-dat[k+2,1]
-                dy=dat[k+1,2]-dat[k+2,2]
-                plt.plot(dat[k+2,0],mx,'ko')
-                #print dat[k+2,0],np.max(dif[80:]),np.argmax(dif[80:]),dat[-1,0]
-            else: dx=0;dy=0
-            if ((vp==30 and block==3 and S+i==14) or
-                (vp==30 and block==3 and S+i==36) or
-                (vp==32 and block==1 and S+i==3) or
-                (vp==33 and block==1 and S+i==26) or
-                (vp==33 and block==1 and S+i==7)): dx=0; dy=0
-            plt.title('dx=%.3f, dy=%.3f'%(dx,dy))
-            #if S+i==7: bla
-
-def plotLTbabyPilot(vpn=range(101,112),maxTrDur=120):
-    plt.close('all')
-    labels=[]
-    #vpn=range(101,112)#[102,106,113]#range(101,106)
-    N=len(vpn)
-    for ii in range(N): labels.append('vp %d'%vpn[ii])
-    
-    D=np.zeros((N,12))*np.nan
-    DC=np.zeros((N,2))
-    kk=0
-    os.chdir('..')
-    
-    for vp in vpn:
-        plt.figure()
-        data=readTobii(vp,0)
-        ordd=np.load(os.getcwd()+'/input/vp%d/ordervp%db0.npy'%(vp,vp))
-        print vp,ordd
-        for i in range(len(data)):
-            cond=np.isnan(data[i].gaze[:,1])==False
-            D[kk,i]=cond.sum()/60.0
-            x=data[i].gaze[cond,0]/1000.0
-            plt.plot(x,
-                     data[i].gaze[cond,4]*0+i+1,'.b')
-            ls=np.nan
-            for msg in data[i].msg:
-                if msg[1]=='Reward On':
-                    ls=float(msg[0])/1000.0
-                elif msg[1]=='Reward Off':
-                    if np.isnan(ls): print 'error ls is nan'
-                    plt.plot([ls, float(msg[0])/1000.0],[i+1.2,i+1.2],lw=4)
-                    ls=np.nan
-                elif msg[1]=='10 th saccade ':
-                    plt.plot(float(msg[0])/1000.0,i+1,'xr')
-            if not np.isnan(ls):
-                plt.plot([ls,x[-1]],[i+1.2,i+1.2],lw=4)
-                #print msg[1]    
-        #DC[kk,0]=D[kk,ordd<5].mean()
-        #DC[kk,1]=D[kk,ordd>=5].mean()
-        plt.ylabel('Trial')
-        plt.xlabel('Time in seconds')
-        plt.xlim([0, maxTrDur])
-        plt.ylim([0.5,len(data)+0.5])
-        plt.title('VP %d' % vp)
-        kk+=1
-    plt.figure()
-    plt.plot(D.T)
-    plt.ylabel('Total Looking Time')
-    plt.ylim([0, maxTrDur])
-    plt.xlabel('Trial')
-    plt.legend(labels)
-    plt.figure()
-    plt.plot(np.repeat([[6],[8]],4,axis=1),DC.T,'x',markersize=10)
-    plt.xlim([5,12])
-    plt.xlabel('Number of rings')
-    plt.ylabel('Average looking time per trial in seconds')
-    plt.legend(labels)
-    plt.figure()
-    plt.imshow(D,interpolation='nearest',vmin=0,
-        vmax=maxTrDur,extent=[0.5,12.5,vpn[-1]+0.5,vpn[0]-0.5])
-    ax=plt.gca()
-    ax.set_yticks(np.arange(vpn[0],vpn[-1]+1))
-    plt.show()
-    plt.colorbar()
-    
-def checkEyelinkDatasets():
-    for vp in range(20,70):
-        for block in range(0,5):
-            try:
-                data=readEdf(vp,block)
-                if not (len(data) == 40 or (len(data)==10 and  block==0)):
-                    print 'error ', vp, block, len(data)
-                else:
-                    print '    ok', vp, block, len(data)
-            except:
-                print 'missing ', vp, block
-
-    
-        
-
-
+#######################################
 def saveETinfo(vp=1):
-    ''' si output gives,
-            0- sac onset in f,
+    ''' extract and save eyetracking information for template analyses
+        vp - subject id
+        output: for each subect saves following files
+            ti.npy, si.npy both npy files are  2 dimensional ndarray
+            with a row giving info on a single sample from the
+            template analysis
+            the columns of each array give 
+        si.npy: saccade information
+            0- sac onset in frames,
             1- sac onset in sec,
-            2-sac onset posx,
-            3-sac onset pos y,
-            4-sac end in f,
-            5-sac end in sec,
-            6-sac end posx,
-            7-sac end posy,
-            8-sac speed,
-            9-sac dur,
+            2- sac onset posx degrees,
+            3- sac onset posy degrees,
+            4- sac end in frames,
+            5- sac end in sec,
+            6- sac end posx degrees,
+            7- sac end posy degrees,
+            8- sac speed,
+            9- sac duration,
             10-event type of the consecutive event,
-            11-start of tracking event in f,
-            12-trial dur in sec,
-            13-sac id within tracking event counted backwards
-            14-sac id within tracking event,
-            15-block,
-            16-trial
-        doesnt include blinks as saccades
-        will throw some runtime warnings due to nans in the gaze data 
+            11-start of tracking event in frames,
+            12-trial duration in sec,
+            13-sac order positon within pursuit event counted backwards
+            14-sac order position within pursuit event,
+            15-block id,
+            16-trial id
+        ti.npy: smooth eye movement episodes information
+            0 - sac order positon within pursuit event counted backwards
+            1 - sac order position within pursuit event,
+            2 - block id
+            3 - trial id
+            4 - episode onset in frames
+            5 - episode end in frames
+        sacxy.pickle, trackxy.pickle and purxy.pickle are nested lists
+            that give the gaze coordinates during saccades, smooth eye
+            movement episodes and catch-up saccades 
+            
+        blinks are not included as saccades
+        may throw some runtime warnings due to nans in the gaze data 
     '''
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     si=[];sacxy=[];finalev=[];ti=[];trackxy=[]
@@ -605,41 +481,13 @@ def saveETinfo(vp=1):
     pickle.dump(sacxy,f);f.close()
     np.save(path+'si.npy',si)
     np.save(path+'pi.npy',pi)
-    
 
-def saveTrackingInfo(vp):
-    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    si=np.load(path+'si.npy')
-    temp=np.int32(si[:,[15,16,0]])
-    # sort based on time order
-    indices=np.lexsort((temp[:,2],temp[:,1],temp[:,0]))
-    si=si[indices,:].tolist();ti=[];trackxy=[]
-    for b in range(1,24):
-        try: data=readEyelink(vp,b)
-        except:
-            print 'block %d is missing'%b
-            continue
-        for i in range(0,len(data)):
-            if data[i].ts>=0:
-                print 'vp',vp,'block ',b,'trial',i
-                data[i].extractBasicEvents()
-                data[i].driftCorrection()
-                g=data[i].getGaze()
-                while len(si) and si[0][-2]==b and si[0][-1]==i:
-                    if len(ti) and len(ti[-1])==6:
-                        ti[-1].extend([si[0][0],si[0][1]])
-                        trackxy.append(g[ti[-1][4]:ti[-1][6],[7,8]].flatten().tolist())
-                    if si[0][-3]>0: ti.append(si[0][13:]+[si[0][4],si[0][5]])
-                    out=si.pop(0)
-                if len(ti) and len(ti[-1])==6:
-                    ti[-1].extend([g.shape[0],g[-1,0]])
-                    trackxy.append(g[ti[-1][4]:ti[-1][6],[7,8]].flatten().tolist())
-    np.save(path+'ti.npy',ti)
-    f=open(path+'trackxy.pickle','wb')
-    pickle.dump(trackxy,f);f.close()
-                
-    
+                   
 def saveTrackedAgs(vp):
+    ''' extract an save information on which agents are being
+        pursued during each smooth eye movement episode
+        vp - subject id 
+    '''
     from ReplayData import Coder
     path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
     ti=np.int32(np.load(path+'ti.npy')).tolist()
@@ -668,7 +516,6 @@ def saveTrackedAgs(vp):
 if __name__ == '__main__':
 ##    for vp in range(1,5):
 ##        saveETinfo(vp=vp)
-##        saveTrackingInfo(vp=vp)
 ##        saveTrackedAgs(vp=vp)
     vpn=range(170,185)
     D=[]

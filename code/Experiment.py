@@ -43,17 +43,18 @@ class Experiment():
         # ask infos
         myDlg = gui.Dlg(title="Experiment zur Bewegungswahrnehmung",pos=Q.guiPos)   
         myDlg.addText('VP Infos')   
-        myDlg.addField('Subject ID:',201)
-        myDlg.addField('Block:',0)
-        #myDlg.addField('Scale (1 or 0.6):',1)
-        myDlg.addField('Alter:', 21)
-        myDlg.addField('Geschlecht (m/w):',choices=(u'weiblich',u'maennlich'))
-        myDlg.addField(u'Händigkeit:',choices=('rechts','links'))
-        myDlg.addField(u'Dominantes Auge:',choices=('rechts','links'))
-        myDlg.addField(u'Sehschärfe: ',choices=('korrigiert','normal'))
+        myDlg.addField('Subject ID:',201)# subject id
+        myDlg.addField('Block:',0) # block id
+        myDlg.addField('Alter:', 21) # age
+        myDlg.addField('Geschlecht (m/w):',choices=(u'weiblich',u'maennlich')) #gender
+        myDlg.addField(u'Händigkeit:',choices=('rechts','links'))# handedness
+        myDlg.addField(u'Dominantes Auge:',choices=('rechts','links'))# dominant eye
+        myDlg.addField(u'Sehschärfe: ',choices=('korrigiert','normal')) # visual acuity
+        # weekly hours spent on computer screen 
         myDlg.addField(u'Wochenstunden vor dem Komputerbildschirm:', choices=('0','0-2','2-5','5-10','10-20','20-40','40+'))
+        # weekly hours spent playing video games
         myDlg.addField(u'Wochenstunden Komputerspielen:', choices=('0','0-2','2-5','5-9','10-20','20+'))
-        myDlg.addField('Starte bei Trial:', 0)
+        myDlg.addField('Starte bei Trial:', 0) # start trial id, for debug only
         if vp is None:
             myDlg.show()#show dialog and wait for OK or Cancel
             vpInfo = myDlg.data
@@ -935,13 +936,7 @@ class TobiiExperiment(Gao10e3Experiment):
     
 
 if __name__ == '__main__':
-    path='/home/matus/Desktop/chase/tobiiOutput/'
-    suf=['','adultcontrol/'][int(sys.argv[2])]
-    vp=int(sys.argv[1])
-    E=BabyExperiment(vp=vp+100,fin=path+suf+'VP%03dB0.csv'%vp,
-                     fout=['baby/','ac/'][int(sys.argv[2])])
-    E.run()
-    E.destroy()
+    pass
     
 
 

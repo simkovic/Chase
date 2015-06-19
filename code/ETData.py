@@ -23,8 +23,6 @@
 import numpy as np
 import pylab as plt
 import matplotlib as mpl
-from Settings import *
-from Constants import *
 from psychopy import core,event,visual
 from scipy import signal
 from scipy.interpolate import interp1d
@@ -33,13 +31,14 @@ from scipy.stats import nanmean
 from copy import copy
 import time,os
 
-# choose one from these two
-# from ETSettingsBaby import *
-from ETSettingsAdult import *
+from Settings import *
+from ETSettings import *
+from Constants import *
 
 PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep
 
-plt.ion()
+########################################
+# helper functions
 def t2f(t,tser):
     out=np.diff(tser<t).nonzero()[0]
     if out.size==0: return tser.size
@@ -60,6 +59,9 @@ def norm(x,axis=0):
     return np.sqrt(x)
 
 def interpRange(xold,yold,xnew):
+    ''' interpolate values for elements in xnew
+        based on the mapping between xold and yold
+    '''
     ynew=np.float32(xnew.copy())
     f=interp1d(xold,yold,bounds_error=False)
     
@@ -72,7 +74,7 @@ def interpRange(xold,yold,xnew):
             raise
     return ynew
 
-
+########################################################################
 # conversion functions, avoid invoking monitors and can convert x,y axis separately
 def myPix2cm(pix,cent,width):
     return (pix-cent)/float(cent)/2.0*width
@@ -83,16 +85,14 @@ def myCm2deg(cm,dist):
 def myDeg2cm(deg,dist):
     return deg*dist*0.017455
 def myPix2deg(pix,dist,cent,width):
-    ''' avoids invoking monitors'''
     cm= myPix2cm(pix,cent,width)
     #return np.arctan((pix/37.795275591)/float(dist))*180/np.pi
     return myCm2deg(cm,dist)
 def myDeg2pix(deg,dist,cent,width):
     cm = myDeg2cm(deg,dist)
     return myCm2pix(cm,cent,width)
-
-# computation functions
-
+####################################################################
+# functions that determine whether agent is focused during an event 
 def selectAgentCL(dist,dev,hz):
     #a=(dist.max(0)<3).nonzero()[0]
     #b=norm(np.median(dev,axis=0),axis=1)<MAXPHI
@@ -126,7 +126,8 @@ def selectAgentTRACKING(fs,fe,evs):
     out=(acounter>=min(0.5*float(tot),3)).nonzero()[0].tolist()
     if len(out)==0: print 'NO AGENTS SELECTED !!!'
     return out,[[fs,fe]]*len(out)
-
+###########################################################3
+# basic preprocessing and filtering
 def filterGaussian(x,hz):
     #return self.filterCausal(x)
     # cutoff in hz
@@ -150,8 +151,19 @@ def computeAcceleration(tser,hz ,filt=False):
     acc=np.concatenate([acc,[acc[-1]]])
     if filt: acc=filterGaussian(acc,hz)
     return acc
-
-def computeState(isFix,md,nfm=np.inf):
+################################################################
+# helper functions for identification of basic events
+def computeState(isFix,md):
+    ''' generic function that determines event start and end
+        isFix - 1d array, time series with one element for each
+            gaze data point, 1 indicates the event is on, 0 - off
+        md - minimum event duration
+        returns
+            list with tuples with start and end for each
+                event (values in frames)
+            timeseries analogue to isFix but the values
+                correspond to the list
+    '''
     fixations=[]
     if isFix.sum()==0: return np.int32(isFix),[]
     fixon = np.bitwise_and(isFix,
@@ -170,8 +182,93 @@ def computeState(isFix,md,nfm=np.inf):
     #fixations=np.array(fixations)
     return isFix,fixations
 
+def tseries2eventlist(tser):
+    ''' translates from the time series to the event list
+        representation '''
+    tser=np.int32(tser)
+    if tser.sum()==0: return []
+    d=np.bitwise_and(tser,np.bitwise_not(np.roll(tser,1)))
+    on = (d[1:].nonzero()[0]+1).tolist()
+    d=np.bitwise_and(np.roll(tser,1),np.bitwise_not(tser))
+    off=d[1:].nonzero()[0].tolist()
+    if len(off)==0:off.append(tser.shape[0]-1)
+    if len(on)==0: on.insert(0,0)
+    if on[-1]>off[-1]: off.append(tser.shape[0]-1)
+    if on[0]>off[0]: on.insert(0,0)
+    if len(on)!=len(off): print 'invalid fixonoff';raise TypeError
+    out=np.array([on,off]).T
+    return out.tolist()
+################################################################
+# functions for identification of basic events   
+def computeFixations(tser,vel,acc,hz):
+    ''' identify fixations
+        tser - 1d array, gaze data, not used by the computation
+        vel - 1d array, gaze velocity
+        acc - 1d array, gaze acceleration
+        hz - gaze data recording rate
+    ''' 
+    isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
+    if isFix.sum()==0: return np.int32(isFix),[]
+    fev=tseries2eventlist(isFix)
+    fe=0
+    for fix in fev:
+        if  fix[0]-fe <NFIXMINDUR*hz:
+            isFix[fe:(fix[1]+1)]=True
+        fe=fix[1] 
+    return computeState(isFix,[FIXMINDUR*hz,np.inf])
+
+##def computePursuit(tser,vel,acc,hz):
+##    isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
+##    isFix,b=computeState(isFix,[FIXMINDUR*hz,np.inf])
+##    isPur=np.logical_and(np.logical_and(vel<PURVTHU,np.abs(acc)<PURATHU),
+##        np.logical_or(vel>PURVTHL,np.abs(acc)>PURATHL))
+##    isPur=np.logical_and(isPur,~isFix)
+##    return computeState(isPur,[PURMINDUR*hz,np.inf])
+def computeOLpursuit(tser,vel,acc,hz):
+    ''' identify slow smooth eye movements
+        tser - 1d array, gaze data, not used by the computation
+        vel - 1d array, gaze velocity
+        acc - 1d array, gaze acceleration
+        hz - gaze data recording rate
+    ''' 
+    temp=np.logical_and(vel>OLPURVTHL,
+        np.logical_and(vel<OLPURVTHU,np.abs(acc)<OLPURATH))
+    return computeState(temp,[OLPURMD*hz,np.inf])
+def computeCLpursuit(tser,vel,acc,hz):
+    ''' identify fast smooth eye movements
+        tser - 1d array, gaze data, not used by the computation
+        vel - 1d array, gaze velocity
+        acc - 1d array, gaze acceleration
+        hz - gaze data recording rate
+    ''' 
+    temp=np.logical_and(vel>CLPURVTHL,
+        np.logical_and(vel<CLPURVTHU,np.abs(acc)<CLPURATH))
+    return computeState(temp,[CLPURMD*hz,np.inf])
+
+def computeSaccades(tser,vel,acc,hz):
+    ''' identify saccades
+        tser - gaze data
+        vel - 1d array, gaze velocity
+        acc - 1d array, gaze acceleration
+        hz - gaze data recording rate
+    ''' 
+    isFix=np.logical_or(np.isnan(vel),
+        np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
+    discard, b = computeState(np.logical_or(vel>SACVTH,np.abs(acc)>SACATH),[SACMINDUR*hz,np.inf])
+    #compute info statistics: length, duration
+    for sac in b:
+        length=((tser[sac[0],7]-tser[sac[1],7])**2 +
+                (tser[sac[0],8]-tser[sac[1],8])**2)**0.5
+        dur=(tser[sac[1],0]-tser[sac[0],0])
+        sac.extend([length,dur])
+    a,discard= computeState(isFix,[SACMINDUR*hz,np.inf])
+    return a,b
+########################################################
+# blink handling
 def interpolateBlinks(t,d,hz):
-    ''' interpolate short missing intervals 
+    ''' Interpolate short missing intervals
+        d - 1d array, time series with gaze data, np.nan indicates blink
+        hz - gaze data recording rate
     '''
     isblink= np.isnan(d)
     if isblink.sum()<2 or isblink.sum()>(isblink.size-2): return d
@@ -195,72 +292,28 @@ def interpolateBlinks(t,d,hz):
             #for c in [7,8]: tser[bs:be,c]=np.nan
     return d
 
-def tseries2eventlist(tser):
-    tser=np.int32(tser)
-    if tser.sum()==0: return []
-    d=np.bitwise_and(tser,np.bitwise_not(np.roll(tser,1)))
-    on = (d[1:].nonzero()[0]+1).tolist()
-    d=np.bitwise_and(np.roll(tser,1),np.bitwise_not(tser))
-    off=d[1:].nonzero()[0].tolist()
-    if len(off)==0:off.append(tser.shape[0]-1)
-    if len(on)==0: on.insert(0,0)
-    if on[-1]>off[-1]: off.append(tser.shape[0]-1)
-    if on[0]>off[0]: on.insert(0,0)
-    if len(on)!=len(off): print 'invalid fixonoff';raise TypeError
-    out=np.array([on,off]).T
-    return out.tolist()
-    
-def computeFixations(tser,vel,acc,hz):
-    isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
-    if isFix.sum()==0: return np.int32(isFix),[]
-    fev=tseries2eventlist(isFix)
-    fe=0
-    for fix in fev:
-        if  fix[0]-fe <NFIXMINDUR*hz:
-            isFix[fe:(fix[1]+1)]=True
-        fe=fix[1] 
-    return computeState(isFix,[FIXMINDUR*hz,np.inf])
-
-##def computePursuit(tser,vel,acc,hz):
-##    isFix=np.logical_and(vel<FIXVTH,np.abs(acc)<FIXATH)
-##    isFix,b=computeState(isFix,[FIXMINDUR*hz,np.inf])
-##    isPur=np.logical_and(np.logical_and(vel<PURVTHU,np.abs(acc)<PURATHU),
-##        np.logical_or(vel>PURVTHL,np.abs(acc)>PURATHL))
-##    isPur=np.logical_and(isPur,~isFix)
-##    return computeState(isPur,[PURMINDUR*hz,np.inf])
-def computeOLpursuit(tser,vel,acc,hz):
-    temp=np.logical_and(vel>OLPURVTHL,
-        np.logical_and(vel<OLPURVTHU,np.abs(acc)<OLPURATH))
-    return computeState(temp,[OLPURMD*hz,np.inf])
-def computeCLpursuit(tser,vel,acc,hz):
-    temp=np.logical_and(vel>CLPURVTHL,
-        np.logical_and(vel<CLPURVTHU,np.abs(acc)<CLPURATH))
-    return computeState(temp,[CLPURMD*hz,np.inf])
-
-def computeSaccades(tser,vel,acc,hz):
-    isFix=np.logical_or(np.isnan(vel),
-        np.logical_or(vel>SACVTH,np.abs(acc)>SACATH))
-    discard, b = computeState(np.logical_or(vel>SACVTH,np.abs(acc)>SACATH),[SACMINDUR*hz,np.inf])
-    #compute info statistics: length, duration
-    for sac in b:
-        length=((tser[sac[0],7]-tser[sac[1],7])**2 +
-                (tser[sac[0],8]-tser[sac[1],8])**2)**0.5
-        dur=(tser[sac[1],0]-tser[sac[0],0])
-        sac.extend([length,dur])
-    a,discard= computeState(isFix,[SACMINDUR*hz,np.inf])
-    return a,b
-
-def computeLongSaccades(tser,vel,acc,hz):
-    isFix=np.logical_or(vel>LSACVTH,np.abs(acc)>LSACATH)
-    return computeState(isFix,[LSACMINDUR*hz,np.inf])
-
 def computeBlinks(tser,hz):
+    ''' identify blinks
+        tser - gaze data
+        hz - gaze data recording rate
+    ''' 
     isblink=np.isnan(tser[:,7])
     return computeState(isblink,[BLKMINDUR*hz*0,np.inf])
-                   
+###############################################################                   
 class ETData():
     def __init__(self,dat,calib,t0,info,recTime="0:0:0",fs=None,
-                 INTERPBLINKS=False,fcutoff=70,focus=BINOCULAR,msgs=[]):
+                 focus=BINOCULAR,msgs=[]):
+        '''dat - eyetracking data with columns: 0-time,1-left eye x,
+                2 - left eye y, 3 - left eye pupil size, 4 - right eye x,
+                5 - right eye y, 6 - right eye pupil size
+            calib - calibration info
+            t0 - tuple with information on trial start and trial end
+            info - [subject id, block id, trial id, True if both eyes]
+            recTime - string with recording time in H:M:S format
+            fs - ids of the trajectory frames corresponding to the gaze data
+            focus - dominant eye, if BINOCULAR eyes will be averaged
+            msgs - additional messages for debuging of gaze-contingent ET
+        '''
         self.calib=calib
         self.gaze=dat
         self.vp=int(info[0])
@@ -275,7 +328,7 @@ class ETData():
         #fsa=self.computeFs()
         #m=min(self.fs.shape[0],fsa.shape[0])
         #print np.round(np.max(np.abs(self.fs[:m,:2]-fsa[:m,:])),1), self.t0[1]-self.t0[0]
-        self.focus=focus # which eye use to indicate focus, if binocular, use gaze average
+        self.focus=focus
         if self.t0[0]>=0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
         #print 'hhh',self.t0, self.ts
@@ -286,6 +339,10 @@ class ETData():
         self.recTime=datetime.strptime(recTime,"%H:%M:%S")
         
     def computeFs(self):
+        '''if the frame ids for the gaze points was not recorded
+            this function can be used to interpolate frame ids
+            assumes equal frame spacing
+        '''
         path = getcwd()
         path = path.rstrip('code')
         try: f=open(path+'input/vp%03d/SettingsExp.pkl'%self.vp)
@@ -298,30 +355,35 @@ class ETData():
         inc=1000/monhz
         N=min(int(round((dur)/inc)), int(Q.trialDur*monhz)+1)
         return np.array([range(N),np.linspace(inc/2.0,dur-inc,N)]).T
-        
-    
-    def getDist(self,a=0):
-        return self.dist[:,a]/20.0
-    def getAgent(self,t):
-        g=self.gaze[self.ts:self.te]
-        for p in self.opev:
-            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
-                return p[2:]
-        for p in self.cpev:
-            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
-                return p[2:]
-        for p in self.fev:
-            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
-                return p[2:]
-        return []
-    def getTrackedAgent(self,t):
-        g=self.gaze[self.ts:self.te,0]
-        gmax=g.size-1
-        for tr in self.track:
-            if t>g[tr[0]]-self.t0[0] and t<g[min(gmax,tr[1])]-self.t0[0]: 
-                return tr[2]
-        return []
+#######################################################
+# helper functions for drift correction and extraction of basic events   
+    @staticmethod
+    def helpf(fev,inds):
+        #if inds[1]==579: print fev[-1],inds
+        out=[]
+        for ff in fev:
+            if ((ff[0]>=inds[0] and ff[0]<=inds[1])
+                or (ff[1]>=inds[0] and ff[1]<=inds[1])):
+                temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
+                out.append(temp)
+        return out
+    @staticmethod
+    def resample(g,hz):
+        """
+            g - rowise data, with first collumn time dimension
+                all remaining columns will be rescaled to frequency hz
+        """
+        if hz== None: return g
+        if np.isscalar(hz):
+            tm=np.linspace(g[0,0],g[-1,0],int(round((g[-1,0]-g[0,0])*hz/1000.0)))
+        else: tm=hz
+        out=[tm]
+        #print g.shape,tm.shape
+        for kk in range(1,g.shape[1]):
+            out.append(interpRange(g[:,0], g[:,kk],tm))
+        return np.array(out).T
     def loadTrajectories(self):
+        ''' load trajectories '''
         path = getcwd()
         path = path.rstrip('code')
         order = np.load(path+'/input/vp%03d/ordervp%03db%d.npy'%(self.vp,self.vp,self.block))[self.trial]
@@ -331,7 +393,10 @@ class ETData():
         traj=np.load(s)
         self.oldtraj=traj
         
-    def computeAgentDistances(self,gaze=True):
+    def computeAgentDistances(self):
+        ''' self.dist computes the distance from gaze to agent
+            self.dev is the angle difference between the direction
+            of the gaze motion and the direction of the agent motion'''
         self.loadTrajectories()
         #self.traj=traj
         g=self.getGaze()
@@ -352,11 +417,14 @@ class ETData():
                 -np.arctan2(dt[:,0],dt[:,1]))
         self.dev=np.mod(self.dev/np.pi*180.0+180,360)-180
 
-            
+############################################################
+# drift correction
     def driftCorrection(self,jump=0):
         """ performs drift correction for each eye and axis
             separately based on the fixation location immediately
             preceding the trial onset
+            jump - determines the frame at which the drift correction
+                is done relative to trial onset
         """
         s= '\tt= %d, '%(self.trial)
         kk=(np.diff(self.gaze[:,0])>8).nonzero()[0]
@@ -416,260 +484,13 @@ class ETData():
                     ev=copy(d[k][ind[k]]);
                     ev.append(k);ind[k]+=1;
                     self.events.append(ev)
-                    
-    def extractSearch(self):
-        # build search events
-        from copy import copy
-        for tr in self.track: tr.extend([[],[]])
-        self.search=[];tracked=False
-        for k in range(0,len(self.events)-1):
-            if (self.events[k+1][-1] in [FIX,OLPUR,CLPUR] and
-                self.events[k][-1] in [SAC]):
-                tracked=False
-                for tr in self.track:
-                    if (tr[0]<=self.events[k][0] and tr[1]>=self.events[k][1] or 
-                        tr[0]<=self.events[k+1][0] and tr[1]>=self.events[k+1][1]):
-                        tracked=True
-                        temp=copy(self.events[k][:-1])
-                        temp.append(self.events[k+1][-1])
-                        if self.events[k+1][-1] in [OLPUR,CLPUR]:
-                            temp.append(self.events[k+1][:-1])
-                        tr[4].append(temp)
-                if not tracked:
-                    temp=copy(self.events[k][:-1])
-                    temp.extend([self.events[k+1][-1]])
-                    self.search.append(temp)
 
-                
-    def extractComplexEvents(self):
-        """ extracts high-level events -  search,tracking"""
-        # build high-level events
-        hev=[]
-        A=[]; lastA=[]
-        info=[-1,-1,False,[]]; lastEtype=-1
-        trackon=False
-        acounter=np.zeros(self.traj.shape[1])
-        for ev in self.events:
-            if not ev[-1] in [FIX,OLPUR,CLPUR]: 
-                if len(info[-1]): info.append([]);
-                continue
-            #if not ev[-1] in [FIX,OLPUR,CLPUR] or (ev[1]-ev[0])/self.hz<0.07:    continue
-            lastA=copy(A) ;
-            A= ev[2:-1]
-            if ( ev[-1] in [FIX,OLPUR,CLPUR] and not trackon and len(set(lastA) & set(A)) # standard case
-                or ev[-1]==CLPUR and not len(set(lastA) & set(A)) and (ev[1]-ev[0])/self.hz>0.03 # no search but long pursuit
-                ): # start tracking event
-                if len(info):
-                    if len(info[-1])==0: info.pop(-1)
-                    hev.append(info);
-                info=[ev[0],ev[1],True,[]]
-                trackon=True
-                #acounter=np.zeros(self.traj.shape[1])
-            elif (len(set(lastA) & set(A)) or (len(A) and np.any(acounter[A]>len(info[3])/2))) and trackon: # continue tracking
-                info[1]=ev[1]
-            else: # terminate event
-                if len(info):
-                    if len(info[-1])==0: info.pop(-1)
-                    hev.append(info);
-                info=[ev[0],ev[1],False,[]]
-                trackon=False
-            info[-1].append(ev);
-            #if ev[-1]==CLPUR: acounter[A]+=1 
-            lastEtype=ev[-1]
-        if len(info)>0: hev.append(info)
-        self.hev=hev
-        # identify search and tracking, look 
-        #for first block isolated by saccades wheter it contians pursuit
-        # also look at the agents being tracked
-        track=[];
-        for h in hev:
-            s=-1;e=-1
-            for i in range(3,len(h)):
-                for ev in h[i]: 
-                    if ev[-1]==CLPUR: 
-                        if s==-1: s=h[i][0][0];
-                        e=h[i][-1][1]
-            if h[2] and s!=-1: track.append([s,h[1]])
-            #else: track.append([h[0],h[1],h,False])
-        # remove events that are too short, this can only happen
-        # at the start or the end, when an event got split by the trial window
-        rem=[]
-        for i in range(len(track)):
-            if track[i][1]-track[i][0]<8: 
-                print 'WARNING!: extractComplexEvents: s>=e, removing event'
-                rem.append(i)
-        for ri in rem[::-1]: track.pop(ri)
-        self.track=track
-        # identify tracked agents
-        self.computeTrackedAgents()
-        # and merge tracking events with similar agents
-        i=1
-        while i < len(self.track):
-            if len(set(self.track[i][2]) & set(self.track[i-1][2])):
-                # count saccades between the two tracking events
-                nrsac=0
-                for sev in self.sev:
-                    if self.track[i-1][1]<=sev[0] and self.track[i][0]>=sev[1]:
-                        nrsac+=1
-                if nrsac>2: i+=1
-                else: # merge 
-                    self.track[i-1]= [self.track[i-1][0], self.track[i][1]]
-                    #self.track[i-1].append(set(self.track[i][2]) | set(self.track[i-1][2]))
-                    ags,fs=selectAgentTRACKING(self.track[i-1][0],self.track[i-1][1],self.events)
-                    self.track[i-1].extend([ags,fs])
-                    self.track.pop(i)
-            else: i+=1
-        self.extractSearch()
-    def importComplexEvents(self,coderid=1):
-        from ReplayData import Coder
-        try:
-            dat=Coder.loadSelection(self.vp,self.block,self.trial,coder=coderid)
-            self.track=[]
-            for tr in dat:
-                fs=[]
-                for k in tr[-2]: fs.append([k[2],k[5]])
-                self.track.append([tr[2],tr[5],tr[-3],fs])
-            self.extractSearch()
-        except IOError:
-            try: self.track # dont overwrite existing track
-            except: self.track=None;self.search=None # avoid unknown attribute error
-            print 'import of complex events failed'
-        
-        
-        
-    def computeTrackedAgents(self):
-        for tr in self.track:
-            if len(tr)==2:
-                ags,fs=selectAgentTRACKING(tr[0],tr[1],self.events)
-                tr.extend([ags,fs])
-            
-    def plotTracking(self):
-        ''' plots events '''
-        #plt.figure()
-        ax=plt.gca()
-        for f in self.track:
-            if f[-1]:r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.4,color='k')
-            else: r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.8,color='r')
-            ax.add_patch(r)
-        plt.xlim([0,15000])
-        plt.ylim([-1,41])
-        plt.show()
-    def exportEvents(self):
-        out=[]
-        for ev in self.events:
-            if ev[-1]!=SAC:
-                out.append([ev[0]*2,ev[1]*2,ev[-1]])
-        np.savetxt('vp%02db%02dt%02d.evt'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
-    def exportTracking(self):
-        out=[]
-        ei=0
-        for tr in self.track:
-            for k in tr[2][5]:
-                out.append([int(k[0]*2),int(k[1]*2),k[-1],ei,
-                            int(tr[-1])])   
-            ei+=1
-        np.savetxt('vp%02db%02dt%02d.trc'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
-        
-    def plotAgents(self):
-        ''' plot which agents were tracked'''
-        plt.figure()
-        ax=plt.gca()
-        for f in self.events:
-            for i in range(2,len(f)-1):
-                a=f[i]
-                #print a
-                r=mpl.patches.Rectangle((f[0],a),f[1]-f[0],0.8,color='k')
-                ax.add_patch(r)
-        plt.xlim([0,self.gaze[1].shape[0]])
-        plt.ylim([-1,15])
-        plt.show()
-
-    def plotMissingData(self):
-        g=self.getGaze()
-        #plt.cla()
-        ax=plt.gca()
-        clrs=['g','r'];xy=[0.8,0.4];idd=[7]
-        for e in range(len(idd)):
-            m=np.isnan(g[:,idd[e]])
-            on = np.bitwise_and(m,np.bitwise_not(np.roll(m,1))).nonzero()[0].tolist()
-            off=np.bitwise_and(np.roll(m,1),np.bitwise_not(m)).nonzero()[0].tolist()
-            if len(on)==0 and len(off)==0: continue
-            if on[-1]>off[-1]: off.append(m.shape[0]-1)
-            if on[0]> off[0]: on.insert(0,0)
-            if len(on)!=len(off): print 'invalid onoff';raise TypeError
-            for f in range(len(on)):
-                fs=g[on[f],0];fe=g[off[f],0];dur=fe-fs
-                if dur>10:
-                    r=mpl.patches.Rectangle((fs,self.trial-0.1),fe-fs,xy[e],color=clrs[e])
-                    ax.add_patch(r)
-        plt.xlim([0,30000])
-        plt.ylim([-1,41])
-
-        
-    def plotEvents(self):
-        ''' plots events '''
-        #plt.figure()
-        ax=plt.gca()
-        clrs=['r','g','b','k']
-        for f in self.events:
-            r=mpl.patches.Rectangle((f[0],self.trial-0.1),
-                    f[1]-f[0],0.8,color=clrs[f[-1]])
-            ax.add_patch(r)
-        plt.xlim([0,10000])
-        plt.ylim([-1,41])
-        plt.show()
-
-    def plotMsgs(self,st=0):
-        ''' messages in baby data'''
-        ax=plt.gca()
-        row=self.vp
-        plt.plot([st,st],[row,row+1],'r')
-        
-        for ev in self.bev:
-            s=ev[0];e=ev[1]
-            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='k')
-            ax.add_patch(r)
-        for ev in self.fev:
-            s=ev[0];e=ev[1]
-            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='g')
-            ax.add_patch(r)
-        for ev in self.sev:
-            e=ev[1]-1
-            plt.plot([st+e,st+e],[row+0.2,row+0.8],'b')
-            #r=mpl.patches.Rectangle((,row+0.25),
-            #        ev[1]-ev[0],0.25,color='b')
-            #ax.add_patch(r)
-        for msg in self.msgs:
-            temp=msg[2].split('th ')
-            if len(temp)==2:
-                plt.plot(st+msg[3]-5,row+int(temp[0])/12.,'r.')
-            elif len(temp)>2:
-                print 'plotMsgs:',msg[2],temp
-                raise         
-        #plt.ylim([69,86])
-        plt.xlim([0, 6*60*60])
-        plt.grid(b=False)
-        #print self.gaze.shape[0], self.bev[-1][1],self.gaze[-1,0],self.gaze[self.bev[-1][1],0]
-        #print self.gaze.shape, self.fs.shape,self.fs[-1], self.revfs.shape
-        return st+self.te-self.ts
-
-        
-        
-    @staticmethod
-    def helpf(fev,inds):
-        #if inds[1]==579: print fev[-1],inds
-        out=[]
-        for ff in fev:
-            if ((ff[0]>=inds[0] and ff[0]<=inds[1])
-                or (ff[1]>=inds[0] and ff[1]<=inds[1])):
-                temp=[max(ff[0]-inds[0],0),min(ff[1]-inds[0],inds[1]-inds[0]-1)]+ff[2:]
-                out.append(temp)
-        return out
-        
+#####################################################
+# identification of basic events
     def extractBasicEvents(self):
         """ extract and filter gaze location,
             compute velocity, acceleration
-            and find fixations
+            and find fixations and saccades
         """
         dat=self.gaze
         # add two columns with binocular gaze point
@@ -718,7 +539,7 @@ class ETData():
                 self.fev[i].extend(a)
         self.opev=[];self.cpev=[]
     def extractPursuitEvents(self):
-        # find pursuit states for phase 2
+        ''' extracts smooth eye movements'''
         opur,opev=computeOLpursuit(self.gaze,self.vel,self.acc,self.hz)
         cpur,cpev=computeCLpursuit(self.gaze,self.vel,self.acc,self.hz)
         self.opev=ETData.helpf(opev,[self.ts,self.te])
@@ -738,30 +559,270 @@ class ETData():
             s=self.opev[i][0];e=self.opev[i][1]-1
             a=selectAgentOL(self.dist[s:e,:])
             self.opev[i].extend(a)
+#####################################################
+# identification of complex events
+    def extractSearch(self):
+        ''' identifies exploration saccades based on catch-up saccades
+            in self.track
+            puts them into self.search which is a list similart to self.track'''
+        from copy import copy
+        for tr in self.track: tr.extend([[],[]])
+        self.search=[];tracked=False
+        for k in range(0,len(self.events)-1):# go through all basic events
+            if (self.events[k+1][-1] in [FIX,OLPUR,CLPUR] and
+                self.events[k][-1] in [SAC]):
+                # found saccade now check whether its catch-up sac
+                tracked=False
+                for tr in self.track: 
+                    if (tr[0]<=self.events[k][0] and tr[1]>=self.events[k][1] or 
+                        tr[0]<=self.events[k+1][0] and tr[1]>=self.events[k+1][1]):
+                        tracked=True
+                        temp=copy(self.events[k][:-1])
+                        temp.append(self.events[k+1][-1])
+                        if self.events[k+1][-1] in [OLPUR,CLPUR]:
+                            temp.append(self.events[k+1][:-1])
+                        tr[4].append(temp)
+                if not tracked:
+                    temp=copy(self.events[k][:-1])
+                    temp.extend([self.events[k+1][-1]])
+                    self.search.append(temp)
+
+                
+    def extractComplexEvents(self):
+        """ identifies complex events: pursuit and exploration"""
+        # build smooth eye movements episodes (SEME)
+        hev=[]
+        A=[]; lastA=[]
+        info=[-1,-1,False,[]]; lastEtype=-1
+        trackon=False
+        acounter=np.zeros(self.traj.shape[1])
+        for ev in self.events:
+            if not ev[-1] in [FIX,OLPUR,CLPUR]: 
+                if len(info[-1]): info.append([]);
+                continue
+            #if not ev[-1] in [FIX,OLPUR,CLPUR] or (ev[1]-ev[0])/self.hz<0.07:    continue
+            lastA=copy(A) ;
+            A= ev[2:-1]
+            if ( ev[-1] in [FIX,OLPUR,CLPUR] and not trackon and len(set(lastA) & set(A)) # standard case
+                or ev[-1]==CLPUR and not len(set(lastA) & set(A)) and (ev[1]-ev[0])/self.hz>0.03 # no search but long pursuit
+                ): # start SEME
+                if len(info):
+                    if len(info[-1])==0: info.pop(-1)
+                    hev.append(info);
+                info=[ev[0],ev[1],True,[]]
+                trackon=True
+                #acounter=np.zeros(self.traj.shape[1])
+            elif (len(set(lastA) & set(A)) or (len(A) and np.any(acounter[A]>len(info[3])/2))) and trackon: # continue tracking
+                info[1]=ev[1]
+            else: # terminate SEME
+                if len(info):
+                    if len(info[-1])==0: info.pop(-1)
+                    hev.append(info);
+                info=[ev[0],ev[1],False,[]]
+                trackon=False
+            info[-1].append(ev);
+            #if ev[-1]==CLPUR: acounter[A]+=1 
+            lastEtype=ev[-1]
+        if len(info)>0: hev.append(info)
+        self.hev=hev
+        # identify exploration and pursuit, look 
+        #for first block isolated by saccades wheter it contians SEME
+        # also look at the agents being tracked
+        track=[];
+        for h in hev:
+            s=-1;e=-1
+            for i in range(3,len(h)):
+                for ev in h[i]: 
+                    if ev[-1]==CLPUR: 
+                        if s==-1: s=h[i][0][0];
+                        e=h[i][-1][1]
+            if h[2] and s!=-1: track.append([s,h[1]])
+            #else: track.append([h[0],h[1],h,False])
+        # remove events that are too short, this can only happen
+        # at the start or the end, when an event got split by the trial window
+        rem=[]
+        for i in range(len(track)):
+            if track[i][1]-track[i][0]<8: 
+                print 'WARNING!: extractComplexEvents: s>=e, removing event'
+                rem.append(i)
+        for ri in rem[::-1]: track.pop(ri)
+        self.track=track
+        # identify tracked agents
+        self.computeTrackedAgents()
+        # and merge consecutive pursuit events with similar agent sets
+        i=1
+        while i < len(self.track):
+            if len(set(self.track[i][2]) & set(self.track[i-1][2])):
+                # count saccades between the two tracking events
+                nrsac=0
+                for sev in self.sev:
+                    if self.track[i-1][1]<=sev[0] and self.track[i][0]>=sev[1]:
+                        nrsac+=1
+                if nrsac>2: i+=1
+                else: # merge 
+                    self.track[i-1]= [self.track[i-1][0], self.track[i][1]]
+                    #self.track[i-1].append(set(self.track[i][2]) | set(self.track[i-1][2]))
+                    ags,fs=selectAgentTRACKING(self.track[i-1][0],self.track[i-1][1],self.events)
+                    self.track[i-1].extend([ags,fs])
+                    self.track.pop(i)
+            else: i+=1
+        self.extractSearch()
+    def computeTrackedAgents(self):
+        ''' identify agents that are tracked during pursuit'''
+        for tr in self.track:
+            if len(tr)==2:
+                ags,fs=selectAgentTRACKING(tr[0],tr[1],self.events)
+                tr.extend([ags,fs])
+#########################################################
+# load/save basic and complex events
+    def importComplexEvents(self,coderid=1):
+        ''' imports complex events from the coding file
+            coderid - coder id determines which file to use
+                0 - automatic
+                1 - human coder 1
+                2 - human coder 2
+                4 - merge of 1 and 2 used in the analysis
+        '''
+        from ReplayData import Coder
+        try:
+            dat=Coder.loadSelection(self.vp,self.block,self.trial,coder=coderid)
+            self.track=[]
+            for tr in dat:
+                fs=[]
+                for k in tr[-2]: fs.append([k[2],k[5]])
+                self.track.append([tr[2],tr[5],tr[-3],fs])
+            self.extractSearch()
+        except IOError:
+            try: self.track # dont overwrite existing track
+            except: self.track=None;self.search=None # avoid unknown attribute error
+            print 'import of complex events failed'
+    def exportEvents(self):
+        ''' exports events to text file'''
+        out=[]
+        for ev in self.events:
+            if ev[-1]!=SAC:
+                out.append([ev[0]*2,ev[1]*2,ev[-1]])
+        np.savetxt('vp%02db%02dt%02d.evt'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
+    def exportTracking(self):
+        ''' saves pusruit events to a text file'''
+        out=[]
+        ei=0
+        for tr in self.track:
+            for k in tr[2][5]:
+                out.append([int(k[0]*2),int(k[1]*2),k[-1],ei,
+                            int(tr[-1])])   
+            ei+=1
+        np.savetxt('vp%02db%02dt%02d.trc'%(self.vp,self.block,self.trial),np.array(out).T,fmt='%d')
+########################################################
+# plotting routinates for debugging
+    def plotEvents(self):
+        ''' plots basic events '''
+        #plt.figure()
+        ax=plt.gca()
+        clrs=['r','g','b','k']
+        for f in self.events:
+            r=mpl.patches.Rectangle((f[0],self.trial-0.1),
+                    f[1]-f[0],0.8,color=clrs[f[-1]])
+            ax.add_patch(r)
+        plt.xlim([0,10000])
+        plt.ylim([-1,41])
+        plt.show()  
+    def plotTracking(self):
+        ''' plots pursuit '''
+        #plt.figure()
+        ax=plt.gca()
+        for f in self.track:
+            if f[-1]:r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.4,color='k')
+            else: r=mpl.patches.Rectangle((f[0],self.trial-0.1),f[1]-f[0],0.8,color='r')
+            ax.add_patch(r)
+        plt.xlim([0,15000])
+        plt.ylim([-1,41])
+        plt.show()
+    def plotAgents(self):
+        ''' plot which agents were tracked'''
+        plt.figure()
+        ax=plt.gca()
+        for f in self.events:
+            for i in range(2,len(f)-1):
+                a=f[i]
+                #print a
+                r=mpl.patches.Rectangle((f[0],a),f[1]-f[0],0.8,color='k')
+                ax.add_patch(r)
+        plt.xlim([0,self.gaze[1].shape[0]])
+        plt.ylim([-1,15])
+        plt.show()
+    def plotMissingData(self):
+        '''plots missing data '''
+        g=self.getGaze()
+        #plt.cla()
+        ax=plt.gca()
+        clrs=['g','r'];xy=[0.8,0.4];idd=[7]
+        for e in range(len(idd)):
+            m=np.isnan(g[:,idd[e]])
+            on = np.bitwise_and(m,np.bitwise_not(np.roll(m,1))).nonzero()[0].tolist()
+            off=np.bitwise_and(np.roll(m,1),np.bitwise_not(m)).nonzero()[0].tolist()
+            if len(on)==0 and len(off)==0: continue
+            if on[-1]>off[-1]: off.append(m.shape[0]-1)
+            if on[0]> off[0]: on.insert(0,0)
+            if len(on)!=len(off): print 'invalid onoff';raise TypeError
+            for f in range(len(on)):
+                fs=g[on[f],0];fe=g[off[f],0];dur=fe-fs
+                if dur>10:
+                    r=mpl.patches.Rectangle((fs,self.trial-0.1),fe-fs,xy[e],color=clrs[e])
+                    ax.add_patch(r)
+        plt.xlim([0,30000])
+        plt.ylim([-1,41])
+    def plotMsgs(self,st=0):
+        ''' plot messages from the baby data'''
+        ax=plt.gca()
+        row=self.vp
+        plt.plot([st,st],[row,row+1],'r')
         
-    
-    @staticmethod
-    def resample(g,hz):
-        """
-            g - rowise data, with first collumn time dimension
-                all remaining columns will be rescaled to frequency hz
-        """
-        if hz== None: return g
-        if np.isscalar(hz):
-            tm=np.linspace(g[0,0],g[-1,0],int(round((g[-1,0]-g[0,0])*hz/1000.0)))
-        else: tm=hz
-        out=[tm]
-        #print g.shape,tm.shape
-        for kk in range(1,g.shape[1]):
-            out.append(interpRange(g[:,0], g[:,kk],tm))
-        return np.array(out).T
+        for ev in self.bev:
+            s=ev[0];e=ev[1]
+            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='k')
+            ax.add_patch(r)
+        for ev in self.fev:
+            s=ev[0];e=ev[1]
+            r=mpl.patches.Rectangle((st+s,row+0.25),e-s,0.5,color='g')
+            ax.add_patch(r)
+        for ev in self.sev:
+            e=ev[1]-1
+            plt.plot([st+e,st+e],[row+0.2,row+0.8],'b')
+            #r=mpl.patches.Rectangle((,row+0.25),
+            #        ev[1]-ev[0],0.25,color='b')
+            #ax.add_patch(r)
+        for msg in self.msgs:
+            temp=msg[2].split('th ')
+            if len(temp)==2:
+                plt.plot(st+msg[3]-5,row+int(temp[0])/12.,'r.')
+            elif len(temp)>2:
+                print 'plotMsgs:',msg[2],temp
+                raise         
+        #plt.ylim([69,86])
+        plt.xlim([0, 6*60*60])
+        plt.grid(b=False)
+        #print self.gaze.shape[0], self.bev[-1][1],self.gaze[-1,0],self.gaze[self.bev[-1][1],0]
+        #print self.gaze.shape, self.fs.shape,self.fs[-1], self.revfs.shape
+        return st+self.te-self.ts
+
+
+##################################################################
+# getter functions
     def selectPhase(self,data,phase,hz):
-        """ phase:
-            -1 - select all (used with opur, cpur)
-            0 - drift correction
-            1 - trial
-            2 - target selection
-            3 - [-200,200] ms around trial start (used for checking drift correction)
+        """ used by the getter functions below to select a portion 
+            (phase) of the data based on the time.
+            data - data from which the portion is selected
+            phase - determines which portion of the data is selected,
+                following options are available:
+                -1 - select all portions (used with opur, cpur)
+                0 - drift correction
+                1 - presentation (from presentation onset to presentation end)
+                2 - target selection (if subject detected chase)
+                3 - [-200,200] ms around trial start (used for
+                    checking drift correction)
+            hz - data rate of the output, will be interpolated
+                if different from the recording rate
         """
         dat=np.array([self.gaze[:,0]-self.t0[0],data]).T
         if phase ==-1:  out=np.array([self.gaze[self.ts:self.te,0]-self.t0[0],data]).T
@@ -779,6 +840,8 @@ class ETData():
         out=ETData.resample(out,hz)
         return out[:,1]
     def getTraj(self,hz=None):
+        '''returns agent trajectories
+            3d ndarray (sample size x nr agents x 2)  '''
         t=self.fs[:,1]
         try: out=self.oldtraj[:t.size,:,:]
         except AttributeError: self.loadTrajectories(); out=self.oldtraj[:t.size,:,:]
@@ -788,8 +851,16 @@ class ETData():
         res= np.array(res)
         res=np.rollaxis(res,0,3)
         return res[:,1:,:]
-    
     def getGaze(self,phase=1,hz=None):
+        ''' returns gaze information
+            2d ndarray (sample size x 9), columns give
+            0-time,1-left eye x, 2 - left eye y,
+            3 - left eye pupil size, 4 - right eye x,
+            5 - right eye y, 6 - right eye pupil size
+            7 - gaze point left, 8 - gaze point right
+            phase - see ETData.selectPhase() for details
+            hz - data rate of the output, will be interpolated
+                if different from the recording rate'''
         if phase==-1: out=self.gaze
         elif phase==0: out= self.gaze[:self.ts,:]
         elif phase==1:
@@ -810,7 +881,6 @@ class ETData():
         else: print 'Phase not supported'
         out=ETData.resample(out,hz)
         return out
-
     def getVelocity(self,phase= 1,hz=None):
         return self.selectPhase(self.vel,phase,hz)
     def getAcceleration(self,phase=1,hz=None):
@@ -821,22 +891,47 @@ class ETData():
         return self.selectPhase(self.isSac,phase,hz)
     def getLongSaccades(self,phase=1,hz=None):
         return self.selectPhase(self.isLSac,phase,hz)
-    def getCLP(self,phase=1,hz=None):
+    def getCLP(self,phase=1,hz=None):#fast smooth eye movement
         return self.selectPhase(self.cpur,-1,hz)
-    def getOLP(self,phase=1,hz=None):
+    def getOLP(self,phase=1,hz=None):# slow smooth eye movement
         return self.selectPhase(self.opur,-1,hz)
     def getHEV(self,phase,hz=None):
         out=np.zeros(hz.size)
         for tr in self.hev:
             if tr[2]: out[t2f(tr[0]/float(self.hz)*1000,hz):t2f(tr[1]/float(self.hz)*1000,hz) ]=1
         return out
-    def getTracking(self,phase,hz=None):
+    def getTracking(self,phase,hz=None):# pursuit events
         out=np.zeros(hz.size)
         for tr in self.track:
             out[t2f(tr[0]/float(self.hz)*1000,hz):t2f(tr[1]/float(self.hz)*1000,hz) ]=1
         return out
-
+    def getAgent(self,t):
+        ''' returns tuple with ids of the agents that are
+            focused at time t by any of the basic events'''
+        g=self.gaze[self.ts:self.te]
+        for p in self.opev:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
+                return p[2:]
+        for p in self.cpev:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
+                return p[2:]
+        for p in self.fev:
+            if t>g[p[0],0]-self.t0[0] and t<g[p[1]-1,0]-self.t0[0]:
+                return p[2:]
+        return []
+    def getTrackedAgent(self,t):
+        ''' returns tuple with ids of the agents that are
+            focused at time t during a pursuit'''
+        g=self.gaze[self.ts:self.te,0]
+        gmax=g.size-1
+        for tr in self.track:
+            if t>g[tr[0]]-self.t0[0] and t<g[min(gmax,tr[1])]-self.t0[0]: 
+                return tr[2]
+        return []
+#########################################################
+# functions for manual drift correction
 def plotDC(vp,block,trial):
+    ''' plot gaze during drift correction'''
     from Preprocess import readEyelink
     plt.interactive(False)
 #    vp=1
@@ -869,6 +964,7 @@ def plotDC(vp,block,trial):
     plt.cla()
 
 def plotMD():
+    '''plots the effect of drift correction '''
     vp=1
     from Preprocess import readEyelink
     for b in range(1,22):
@@ -880,7 +976,7 @@ def plotMD():
             d.plotMissingData()
         plt.show()
         plt.savefig('fb%02d'%(d.block))
-
+        
 def manualDC(vp,b,t):
     """ the automatic drift correction failed on some trials
         manualDC returns time in ms relative to trial onset
