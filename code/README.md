@@ -11,7 +11,7 @@ Python Code
 
 * ETData.py - contains ETData class used for pre-processing of the eyetracking data
 
-* ETSettingsAdult.py - pre-processing settings used by the ETData class
+* ETSettings.py - pre-processing settings used by the ETData class
 
 * Preprocess.py - read the ET data, create ETData class and pre-processes the data
 
@@ -25,7 +25,7 @@ Python Code
 
 * FiguresMoviesTables.py - produces the figures, movies and tables included with the manuscript
 
-There is a script at the end of the files that actually do something. This script can be used to follow the analyses. In principle it can be used to reproduce the analyses, however note that it will take some months with current (2015) desktop computers to finish.
+In each file there is a script at the end of the file that documents how the code was used in the research project. This script can be used to follow the analyses. In principle it can be used to reproduce the analyses, however note that it will take some months with current (2015) desktop computers to execute.
 
 
 Dependencies
@@ -39,3 +39,14 @@ Dependencies
 * [Eyelink routines](http://github.com/simkovic/eyetracking/blob/master/Eyelink.py) to run eyetracking experiment
 
 * [matustools](https://github.com/simkovic/matustools) to reproduce the figures
+
+Looking to Reuse Code?
+=======
+
+The code in this repository is meant as an documentation for the published research. The code has not been developed since the publication and may no longer work with the latest versions of its dependencies (such as Psychopy or PyStan). If you are interested in an maintained and (hopefully) up-to-date version of my code please have a look at the following repositories:
+
+* [goal-directed motion toolkit](https://github.com/simkovic/GoaldirectedMotionPsychoexperiments) to create Stimuli and run Experiments
+
+* [eyetracker](https://github.com/simkovic/eyetracking) to run Eyetracking experiments with Psychopy
+
+* [matusplotlib](https://github.com/simkovic/matusplotlib/) to plot figures
