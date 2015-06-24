@@ -31,6 +31,7 @@ from ETData import tseries2eventlist, t2f, selectAgentTRACKING, manualDC
 from copy import copy
 import os
 import pylab as plt
+# color settings
 hclrs=[]
 cm = plt.get_cmap('Paired')
 for i in range(14):
@@ -38,10 +39,15 @@ for i in range(14):
 hclrs.append([-1,-1,-1])
 sclrs=['red','green','black']
 #hclrs=[[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1], [-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1],[-1,1,-1],[1,-1,1],[-1,1,1],[1,1,-1],[-1,-1,-1]]
+# keyboard layout
 KL=[['j','k','l','semicolon'],['q','w','e','r']]
 PATH = os.getcwd().rstrip('code')+'evaluation'+os.path.sep+'coding'+os.path.sep
 
 class Trajectory():
+    ''' displays the agetnts' movement
+        base clase for ET data display, probably won't work on
+        if you wish to display trajectories use showTrial()
+        from Tools.py instead'''
     def __init__(self,gazeData,maze=None,wind=None,
             highlightChase=False,phase=1,eyes=1,coderid=0):
         self.wind=wind
@@ -99,9 +105,6 @@ class Trajectory():
             raise
     
     def play(self,tlag=0):
-        """
-            shows the trial as given by TRAJECTORIES
-        """
         try:
             self.wind.flip()
             playing=False
@@ -123,15 +126,15 @@ class Trajectory():
                     if not self.behsel is None and self.f==(self.pos.shape[0]-1) and self.behsel[0]>=0:
                         clrs[self.behsel,:]=[-1,1,-1]
                     self.elem.setColors(clrs)
-##                elif self.phase==2:
-##                    if sel<1 and f>self.gazeData.behdata[8]*Q.refreshRate:
-##                        clrs=np.copy(self.elem.colors)
-##                        clrs[int(self.gazeData.behdata[7]),:]=np.array([1,1,0])
-##                        self.elem.setColors(clrs);sel+=1
-##                    if sel<2 and f>self.gazeData.behdata[10]*Q.refreshRate:
-##                        clrs=np.copy(self.elem.colors)
-##                        clrs[int(self.gazeData.behdata[9]),:]=np.array([1,1,0])
-##                        self.elem.setColors(clrs);sel+=1
+                elif self.phase==2:
+                    if sel<1 and f>self.gazeData.behdata[8]*Q.refreshRate:
+                        clrs=np.copy(self.elem.colors)
+                        clrs[int(self.gazeData.behdata[7]),:]=np.array([1,1,0])
+                        self.elem.setColors(clrs);sel+=1
+                    if sel<2 and f>self.gazeData.behdata[10]*Q.refreshRate:
+                        clrs=np.copy(self.elem.colors)
+                        clrs[int(self.gazeData.behdata[9]),:]=np.array([1,1,0])
+                        self.elem.setColors(clrs);sel+=1
                 self.showFrame(position)
                 if playing and tlag>0: core.wait(tlag)
                 for key in event.getKeys():
@@ -159,6 +162,7 @@ class Trajectory():
     def highlightedAgents(self): return [],[]
         
 class GazePoint(Trajectory):
+    '''replays the gaze data '''
     def __init__(self, gazeData,phase=1,wind=None,eyes=1):
         from ETData import interpRange
         self.gazeData=gazeData;self.eyes=eyes
@@ -187,6 +191,7 @@ class GazePoint(Trajectory):
             raise
 
 class ETReplay(Trajectory):
+    ''' replays the gaze data, displays basic events '''
     def __init__(self,gazeData,**kwargs):
         wind = kwargs.get('wind',None)
         if wind is None: wind = Q.initDisplay(sz=(1280,1100))
@@ -318,8 +323,9 @@ class ETReplay(Trajectory):
     def highlightedAgents(self):
         #return self.gazeData.getAgent(self.t[self.f]),[]
         return [],[]
-    
+
 class Coder(ETReplay):
+    '''class used for coding'''
     def showFrame(self,positions):
         # draw saccades and blinks in the selection tool
         sws=np.float(self.sws); 
@@ -541,8 +547,17 @@ class Coder(ETReplay):
         
         if coderid!=0: self.msg.setText('Selection Saved')
         self.save=False
-
+##################################33
+# replay scripts
 def replayTrial(vp,block,trial,tlag=0,coderid=0):
+    ''' replays a trial from the chase experiment
+        vp - subject id
+        block - block id
+        trial - trial id
+        tlag - lag in ms on each frame, useful for slowing down the replay
+        coderid - coder id whose coding data will be displayed
+            if the coding data are not available automated coding will be created
+    '''
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     from Preprocess import readEyelink
     data=readEyelink(vp,block)
@@ -558,6 +573,14 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     R.play(tlag=tlag)
     
 def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
+        ''' replays the remaining block from the chase experiment starting at <trial>
+        vp - subject id
+        block - block id
+        trial - trial id on which the replay will start
+        tlag - lag in ms on each frame, useful for slowing down the replay
+        coderid - coder id whose coding data will be displayed
+            if the coding data are not available automated coding will be created
+    '''
     behdata=np.loadtxt(os.getcwd().rstrip('code')+'behavioralOutput/vp%03d.res'%vp)
     trialStart=trial
     #win = Q.initDisplay((1280,1100))
@@ -579,8 +602,13 @@ def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
             R.saveSelection(coderid=coderid)
             R.wind.close()
         else: R.play(tlag=tlag)
+###########################################################        
 # coding verification routines       
 def compareCoding(vp,block,cids=[0,1,2]):
+    ''' visual comparison of coding results for single subject and block
+        vp - subject id
+        block - blockid
+        cids - list of coderids which will be compared'''
     import pylab as plt
     import matplotlib as mpl
     plt.figure(figsize=(20,60))
@@ -614,6 +642,7 @@ def compareCoding(vp,block,cids=[0,1,2]):
     #plt.show()
      
 def missingTEfiles():
+    ''' checks for missing coding files'''
     vp=1
     for b in range(1,22):
         for t in range(40):
@@ -622,45 +651,19 @@ def missingTEfiles():
                     dat=Coder.loadSelection(vp,b,t,coder=c+1)
                 except IOError:
                     print vp,b,t,c+1
-def checkBehData():
-    vp=1
-    trajpath=os.getcwd().rstrip('code')+'behavioralOutput'+os.path.sep
-    traj=np.loadtxt(trajpath+'vp%03d.res'%vp)
-    for b in range(1,(traj.shape[0]-10)/40):
-        for t in range(40):
-            try:
-                dat=Coder.loadSelection(vp,b,t,coder=3)
-                ind=-30+t+b*40
-                if traj[ind,1]!=b or traj[ind,2]!=t: print 'Error', traj[ind,:3],b,t
-                if int(traj[ind,7])==-1: continue
-                ik=-1;hk=-1
-                for k in range(len(dat)):
-                    if dat[kk][0]>hk: hk=dat[kk][0];ik=kk
-                if not int(traj[ind,7]) in dat[ik][6] or not int(traj[ind,9]) in dat[ik][6]:
-                    print b,t,[int(traj[ind,7]), int(traj[ind,9])],dat[ik][6]
-            except IOError:
-                print 'IO',vp,b,t
-    
-           
+         
 if __name__ == '__main__':
     RH=0 # set right handed (1) or left handed (0) layout
-    replayTrial(vp =22,block=1,trial=5,tlag=0.0,coderid=0)
-    bla
-    #missingTEfiles()
-    #checkBehData()
-
-    from Preprocess import readTobii
     
-    data=readTobii(100,0)
-    for trl in data[4:]:
-        #trl=data[0]
-        trl.extractBasicEvents()
-        trl.opur=trl.cpur=np.zeros(trl.te-trl.ts)
-        trl.events=[]
-        trl.extractComplexEvents()
-        #trl.extractPursuitEvents()
-        #trl.driftCorrection(jump=manualDC(vp,block,trial))
-        R=ETReplay(gazeData=trl,eyes=1)
-        R.play()
-
-
+    replayTrial(vp =22,block=1,trial=5,tlag=0.0,coderid=0)
+    '''usage:
+        space - stop/resume replay
+        q - skip backwards 10 frames
+        w - skip backwards 1 frame
+        e - skip forwards 1 frame
+        r - skip forwards 10 frames
+        s - save the changes to the coding file
+        output is written to evaluation/coding/coder<coderid> 
+        esc - close/terminate program, unsaved changes will be lost
+        for more details see evaluation/coding/tracking.prot
+    '''

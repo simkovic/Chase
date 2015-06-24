@@ -33,6 +33,16 @@ from time import time, sleep
 from multiprocessing import Process,Pool
 import os as oss
 
+# each function that performs data analysis loads the data from hard drive
+# and saves its results to the hard drive
+# most functions feature arguments vp, event and suf which indicate:
+# vp - subject id
+# event - which samples were analyzed, samples are locked either at the onset of
+#   0: exploration saccade, 1: 1st catch-up saccade, 2: 2nd catch-up saccade etc.
+#   or
+#   95-99: sample 500,400,300,200,100 and 50 ms before the button press respectively
+# suf - output file suffix
+
 def initPath(vpp,eventt):
     #global event,vp,path,inpath,figpath
     event=eventt;vp=vpp
@@ -40,14 +50,9 @@ def initPath(vpp,eventt):
     if event>=0: inpath=path+'E%d/'%event
     else: inpath=path+'E%d/'%(100+event)
     figpath=os.getcwd().rstrip('code')+'figures/Pixel/'
-    #print 'initPath: vp=%d, ev=%d'%(vp,event)
     return path,inpath,figpath
 #########################################################
-#                                                       #
-#   Translate Coordinates to Images                     #
-#                                                       #
-#########################################################
-
+# functions for Translating Coordinates to Images
 def position2image(positions,elem=None,wind=None):
     '''transforms vector of agent positions to display snapshot
         output format is HxW matrix of light intensity values (uint8)
@@ -125,6 +130,9 @@ def traj2movie(traj,width=5,outsize=64,elem=None,wind=None,rot=2,
         raise
 
 def traj2avi(traj,fn='test'):
+    ''' outputs trajectory as avi
+        traj - trajectory matrix (rows-frames,cols-agents)
+        fn - filename'''
     for f in range(traj.shape[0]):
         plt.plot(traj[f,:,0],traj[f,:,1],'o')
         plt.xlim([-5,5]);plt.ylim([-5,5])
@@ -138,6 +146,9 @@ def traj2avi(traj,fn='test'):
     commands.getstatusoutput('rm fig***.png');
 
 def pf2avi(pf,fn='test'):
+    ''' outputs template movie as a avi
+        pf - template movie,
+        fn - ouput file name'''
     for f in range(pf.shape[2]):
         plt.imshow(pf[:,:,f],vmax=255,vmin=0)
         plt.grid()
@@ -149,10 +160,18 @@ def pf2avi(pf,fn='test'):
         plt.cla()
     commands.getstatusoutput('ffmpeg -i fig%03d.png -r 50 -y '+fn+'.avi')
     commands.getstatusoutput('rm fig***.png');
-
+########################################3
+# routines that translate trajectories to movie representation
+# which is used to compute template movies
+# this code does parallel computation in a clumsy way
+# as I wrote it before I figured out how python's multiprocessing module works
 def PFextract(E,part=[0,1],wind=None,elem=None,inpath='',suf=''):
-    """ part[0] - current part
-        part[1] - total number of parts
+    """
+        part[0] - current part
+        part[1] - total number of parts in the paralel computation
+        wind - psychopy window, elem - psychopy ElementArrayStim
+        inpath - input path
+        suf - output name suffix
     """
     f=open(inpath+'PF%s.pars'%suf,'r');dat=pickle.load(f);f.close()
     inc=E.shape[0]/part[1]
@@ -197,6 +216,7 @@ def PFextract(E,part=[0,1],wind=None,elem=None,inpath='',suf=''):
         raise
 
 def PFinit(vp,event,suf=''):
+    ''' suf - output name suffix'''
     path,inpath,fp=initPath(vp,event)
     if event>=0: N=[50,15,8,2][event]
     else: N=1
@@ -210,6 +230,7 @@ def PFinit(vp,event,suf=''):
     
 def PFparallel(vp,event,suf=''):
     ''' please run PFinit() first
+        suf - output name suffix
     '''
     path,inpath,fp=initPath(vp,event)
     E=np.load(inpath+'DG%s.npy'%suf)[:,:,:,:2]
@@ -236,10 +257,8 @@ def PFparallel(vp,event,suf=''):
     wind.close()
 
 #########################################################
-#                                                       #
-#                SVM                                    #
-#                                                       #
-#########################################################
+# support vector machine classification
+
 def createMask(P,F):
     # create mask with circular aperture
     mid=(P-1)/2.0
@@ -248,7 +267,8 @@ def createMask(P,F):
         for j in range(P):
             if np.sqrt((i-mid)**2+(j-mid)**2)<=P/2.0: mask[i,j,:]=True
     return mask 
-
+######################################
+# svm data preparation
 def pfExport(vp,evA,evB,suf=''):
     ''' compute similarity matrix between perceptive fields
         vp - subject id
@@ -294,10 +314,9 @@ def pfExport(vp,evA,evB,suf=''):
     np.save(inpa+'S'+suf+evsuf,S)
     print strid+'finished'
     
-
-
 def pfSubsample(vp,ev,s=2,suf=''):
-    ''' s - multiplicative subsampling factor'''
+    ''' subsamples the output of PFextract() for svm classification
+        s - multiplicative subsampling factor'''
     strid='pfSubsample vp=%d, ev=%d,s=%d: '%(vp,ev,s)
     print strid+'started'
     path,inpath,figpath=initPath(vp,ev)
@@ -322,6 +341,7 @@ def pfSubsample(vp,ev,s=2,suf=''):
     print strid+'finished'
     
 def exportScript(suf=''):
+    '''script does data preprocessing'''
     pool=Pool(processes=8)
     vps=[1,2,3,4];
     for ags in [[0,0],[0,1],[1,1]]:
@@ -333,9 +353,12 @@ def exportScript(suf=''):
     pool.close()
     pool.join()
 
-
-def SexportSvm(vp,ev,beta,fn,suf=''):
-    ''' beta on log scale '''
+##################################################
+# train SVM
+def SsimilSvm(vp,ev,beta,fn,suf=''):
+    ''' computes and saves similarity matrix
+        beta - value of beta parameter on log scale
+        fn - output file name'''
     strid='SexportSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,beta)
     #print strid+'started'
     e1=ev; e2=ev+1
@@ -354,7 +377,7 @@ def SexportSvm(vp,ev,beta,fn,suf=''):
     S=np.exp(-np.exp(beta)*S/5000.)
     f=open(pth+'E%d/svm%s/svm%d.in'%(e1,suf,int(beta*10)),'w')
     for row in range(n1+n2):
-        s='%d 0:%d'%(int(row<n1),row+1)
+        s='%d 0:%d'%(int(row<n1,row+1)
         for col in range(n1+n2):
             s+=' %d:%.4f'%(col+1,S[row,col])
         s+='\n'
@@ -364,10 +387,12 @@ def SexportSvm(vp,ev,beta,fn,suf=''):
     print strid+'finished'
 
 def SevalSvm(vp,ev,b,fn,suf):
+    '''calls libsvm to train the svm
+        libsvm 3.12 was used'''
     strid='SevalSvm vp=%d, ev=%d,beta=%.1f: '%(vp,ev,b)
     print strid+'started'
-    cs=np.arange(-10,10,0.5)
-    SexportSvm(vp,ev,b,fn,suf)
+    cs=np.arange(-10,10,0.5) # range of C values
+    SsimilSvm(vp,ev,b,fn,suf)
     fn= fn+'%d'%int(b*10)
     logf=open(fn+'.log','w')
     for c in cs:
@@ -383,11 +408,11 @@ def SevalSvm(vp,ev,b,fn,suf):
     logf.close()
     print strid+'finished'
     
-def gridSearchScript(suf=''):   
+def gridSearchScript(suf=''):
+    ''' script that performs training'''
     pool=Pool(processes=8)
-    vps=[1,2,3,4]
-    betas=np.arange(-5,10,0.5)
-
+    vps=[1,2,3,4]# subject ids
+    betas=np.arange(-5,10,0.5)# range of beta values
     for ev in [0]:
         for vp in vps:
             path,inpath,figpath=initPath(vp,ev)
@@ -397,8 +422,10 @@ def gridSearchScript(suf=''):
                 if ev==0: sleep(20)
     pool.close()
     pool.join()
-
+############################################3
+# analyzing and validating the svm solution
 def getWeights(vp,event,suf):
+    ''' returns the weights of the svm solution'''
     # validate the model and save it
     path,inpath,fp=initPath(vp,event)
     opt=np.load(inpath+'svm%s/opt.npy'%suf)
@@ -439,6 +466,7 @@ def getWeights(vp,event,suf):
     return np.array(info)
 
 def plotSvm(event=0,suf=''):
+    ''' plots the grid search results '''
     print 'plotSvm started'
     plt.figure()
     infos=[]
@@ -495,7 +523,8 @@ def plotSvm(event=0,suf=''):
     from matustools.matusplotlib import ndarray2latextable
     ndarray2latextable(np.array(infos),decim=[0,2,2,0,0,0,2,1,1])
     return infos
-
+#################################################
+# hill climbing the objective function
 def svmObjFun(*args):
     [wid,np,P,F,svvs,beta,weights,D,inpath,suf,invert,x]=args
     SMAX=128
@@ -515,6 +544,8 @@ def svmObjFun(*args):
     return  (-1)**invert * res
 
 def inithc(vp,event,s,suf=''):
+    ''' initialize hillclimbing
+        s- subsampling factor'''
     path,inpath,fp=initPath(vp,event)
     D0=np.load(inpath+'sPF%s%d.npy'%(suf,s))
     D1=np.load(path+'E%d/sPF%s%d.npy'%(event+1,suf,s))
@@ -532,7 +563,8 @@ def inithc(vp,event,s,suf=''):
 
 
 
-def hillClimb(*args): 
+def hillClimb(*args):
+    ''' perform hillclimbing'''
     # these are read-only vars
     [wid,np,P,F,svvs,beta,ww,D,inpath,suf]=args
     seed=wid/2-1
@@ -574,6 +606,7 @@ def hillClimb(*args):
 
 
 def hcscript(vp,event,nworkers=8,s=2,suf=''):
+    '''script that performs the hill climbing '''
     ags=inithc(vp,event,s,suf)
     ps=[]
     for wid in range(0,nworkers):
@@ -585,13 +618,11 @@ def hcscript(vp,event,nworkers=8,s=2,suf=''):
 
 
 #########################################################
-#                                                       #
-#                       PCA                             #
-#                                                       #
-#########################################################
+# principal component analysis
 
 def PF2X(merge=1,verbose=True):
-    ''' merge - # of pf files to merge into one x file
+    ''' translates samples into format for PCA
+        merge - # of pf files to merge into one x file
                 by default merge=1 and no files are merged
     '''
     pfpath=inpath.rstrip('/X/')+'/PF/'
@@ -629,80 +660,10 @@ def PF2X(merge=1,verbose=True):
         out =np.concatenate(out,0).T
         out=np.float64(out)/255.0
         np.save(inpath+'XT%d'%g,out)
-
-def pcaEIG(A,highdim=None):
-    """ performs principal components analysis 
-     (PCA) on the n-by-p data matrix A
-     Rows of A correspond to observations, columns to features/attributes. 
-
-    Returns :  
-    coeff :
-    is a p-by-p matrix, each column containing coefficients 
-    for one principal component.
-    score : 
-    the principal component scores; that is, the representation 
-    of A in the principal component space. Rows of SCORE 
-    correspond to observations, columns to components.
-    latent : 
-    a vector containing the normalized eigenvalues (percent variance explained)
-    of the covariance matrix of A.
-    Reference: Bishop, C. (2006) PRML, Chap. 12.1
-    """
-    A=np.array(A)
-    n=A.shape[0];m=A.shape[1]
-    highdim = n<m
-    assert n!=m
-    M = (A-A.mean(1)[:,np.newaxis]) # mean-center data
-    if highdim:
-        [latent,coeff] = np.linalg.eigh(np.cov(M))
-        coeff=M.T.dot(coeff)
-        denom=np.sqrt((A.shape[1]-1)*latent[np.newaxis,:])
-        coeff/=denom #make unit vector length
-    else:
-        [latent,coeff] = np.linalg.eigh(np.cov(M.T))
-    score = M.dot(coeff)
-    latent/=latent.sum()
-    # sort the data
-    indx=np.argsort(latent)[::-1]
-    latent=latent[indx]
-    coeff=coeff[:,indx]
-    score=score[:,indx]
-    assert np.allclose(np.linalg.norm(coeff,axis=0),1)
-    return coeff,score,latent
   
-def pcaNIPALS(K=5,tol=1e-4,verbose=False):
-    ''' Reference:
-            Section 2.2 in Andrecut, M. (2009).
-            Parallel GPU implementation of iterative PCA algorithms.
-            Journal of Computational Biology, 16(11), 1593-1599.
-        TODO - replace custom linear algebra (e.g. XmeanCenter) with
-        numpy algebra
-            
-    '''
-    if verbose: print 'Mean centering columns'
-    XmeanCenter(1)
-    latent=[]
-    for k in range(K):
-        lam0=0;lam1=np.inf
-        T=np.matrix(XgetColumn(k))
-        if verbose: print 'Computing PC ',k
-        h=0
-        while abs(lam1-lam0)>tol and h<100:
-            P=Xleftmult(T,True)
-            P=P/np.linalg.norm(P)
-            T=Xleftmult(P)
-            lam0=lam1
-            lam1=np.linalg.norm(T)
-            if verbose: print '\t Iteration '+str(h)+', Convergence =', abs(lam1-lam0)
-            h+=1
-        latent.append(lam1)
-        XminusOuterProduct(T,P)
-        #np.save(inpath+'T%02d'%k,T)
-        np.save(inpath+'coeffT%d'%k,P.T)
-    np.save(inpath+'latent',latent)
-
-
 def pcaScript(vp,ev):
+    ''' performs pca, reference:
+        Reference: Bishop, C. (2006) PRML, Chap. 12.1'''
     global inpath,N
     path,inpath,figpath=initPath(vp,ev)
     f=open(inpath+'PF.pars','r');dat=pickle.load(f);f.close()
@@ -711,7 +672,6 @@ def pcaScript(vp,ev):
     mrg=[50,15,8][ev]+1;N=dat['N']/mrg+1
     N=1
     X=PF2X(merge=mrg)
-    #X=np.load(inpath+'X.npy')
     print 'demeaning'
     X = (X-X.mean(1)[:,np.newaxis])
     print 'computing cov matrix'
@@ -726,8 +686,7 @@ def pcaScript(vp,ev):
     assert np.allclose(np.linalg.norm(coeff,axis=0),1)
     assert np.allclose(np.linalg.norm(coeff,axis=1),1)
     coeff=coeff[:,indx]
-    coeff=X.T.dot(coeff)#coeff=Xleftmult(coeff,True)
-    # this is the formula from Bishop, C. (2006) PRML, Chap. 12.1
+    coeff=X.T.dot(coeff)
     denom=np.sqrt((64*64*68-1)*latent[np.newaxis,indx])
     coeff/=denom #make unit vector length
     np.save(inpath+'coeff.npy',coeff)
@@ -736,85 +695,15 @@ def pcaScript(vp,ev):
     latent=latent[indx]
     np.save(inpath+'latent',latent)
     print 'computing score'
-    score = X.dot(coeff)#score=Xleftmult(coeff)
+    score = X.dot(coeff)
     np.save(inpath+'score',score)
 
-def controlSimulationsPIX():
-    P=64;T=50
-    I=np.random.rand(P,P,T)*1e-2
-    for t in range(T):
-        I[t:t+3,P/2-2:P/2+2,t] = 1
-        #I[[t+10,t+11],P/2,t] = 1
-        #I[[t+10,t+11],P/2+1,t] = 1
-    it=10
-    D=[np.matrix((1-I).flatten())]
-    for phi in range(it,360,it):
-        print phi
-        Im=np.copy(I)
-        for t in range(T):
-            M=Image.fromarray(Im[:,:,t])
-            M=M.rotate(float(phi))
-            Im[:,:,t]=np.asarray(M)
-        D.append(np.matrix((1-Im).flatten()))
-    D=np.concatenate(D)
-    ndarray2gif('dat',1-I.T,addblank=True)
-    D=D-np.matrix(D.mean(0))
-
-    coeff,score,latent=pcaSVD(D)
-    for k in range(coeff.shape[1]):
-        cff=coeff[:,k].reshape((P,P,T)).T
-        cff-=np.min(cff)
-        cff/=np.max(cff)
-        ndarray2gif('pc%02d'%k,cff,addblank=True)
-
-def controlSimulationsXY():
-    def rotate(x,phi):
-        phi=phi/180.0*np.pi
-        R=np.array([[np.cos(phi),np.sin(phi)],[-np.sin(phi),np.cos(phi)]])
-        return R.dot(x)
-    def traj2gif(K,T,A,P,fn='pf'):
-        K=np.reshape(np.array(K),(T,A,2))
-        I=[]
-        for t in range(T):
-            Im=np.zeros((P,P,1))
-            for a in range(A):
-                Im[P/2+K[t,a,1],P/2+K[t,a,0],0]=1
-            I.append(Im)
-        I=np.concatenate(I,axis=2)
-        PFlist2gif(I,fname=fn)
-    plt.close('all')
-    A=2
-    T=20; P=50
-    I=np.zeros((T,A,2))
-    for t in range(T):
-        I[t,0,0] = t
-        I[t,1,0] = t-T
-    #I[:,:,1]=10
-    it=10
-    D=[np.matrix(I.flatten())]
-    for phi in range(it,360,it):
-        Im=np.copy(I)
-        for t in range(T):
-            Im[t,:,:]=rotate(Im[t,:,:].T,float(phi)).T
-            Im[t,:,1]+=10
-        D.append(np.matrix(Im.flatten()))
-    D=np.concatenate(D)
-       
-    coeff,score,latent=pcaSVD(D)
-    traj2gif(coeff[:,0]*50,T,A,P,fn='PC0')
-    traj2gif(coeff[:,1]*50,T,A,P,fn='PC1')
-    plt.plot(score[0,:],score[1,:],'o')
-
 #########################################################
-#                                                       #
-#           Find optimal perc field rotation            #
-#                                                       #
-#########################################################
-
-
+# Find optimal sample rotation
 def weight(traj):
     ''' third order polynomial spatial window
         no time-dependent weighting
+        traj - agent trajectories
     '''
     traj=(traj[:,:-1,:,:]+traj[:,1:,:,:])/2.
     out=np.zeros((traj.shape[0],traj.shape[1],traj.shape[2]))
@@ -824,6 +713,8 @@ def weight(traj):
     return out
 
 def radialkde(x,y,weights=None,bandwidth=np.pi/6,kernel=None):
+    ''' kernel density estimation
+        see Wasserman (2004) All of Statistics, chap 20.3  '''
     if weights is None: weights=np.ones(y.size)
     if kernel is None: 
         kernel= lambda x:(2*np.pi)**(-0.5)*np.exp(-np.square(x)/2)
@@ -867,6 +758,7 @@ def plotTraj(D,clr='k',rad=5):
     plt.ylim([-lim,lim])
 
 def rotateTraj(traj,phi,PLOT=False):
+    ''' rotates trajectory traj by phi radians '''
     c=np.cos(phi);s=np.sin(phi)
     R=np.array([[c,-s],[s,c]])
     if PLOT:

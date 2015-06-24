@@ -24,38 +24,41 @@ import numpy as np
 # settings, eyelink data
 FILTERCUTOFF = 50 #hz, cutoff of the gaussian filter
 # blink handling
-BLKMINDUR=0.05
-EYEDEV=4 
-BLINK2SAC =2# deg, mininal blink before-after distance to create saccade
-INTERPMD=0.1 # max duration for which blink interpolation is performed
-# events
-LSACVTH=80
-LSACATH=np.inf
-LSACMINDUR=0.02
-
-SACVTH=21
+BLKMINDUR=0.05 # minimum duration in seconds of missing value block to qualify as blink
+EYEDEV=4 # minimum discrepancy between position of the two eyes that qualifies as blink
+BLINK2SAC =2# deg, maximal blink before-after distance to turn blink into saccade
+INTERPMD=0.1 # max duration in seconds for which blink interpolation is performed
+# threshold values for basic events
+# velocity in deg/s, acceleration in deg/s^2, minimum duration in seconds
+SACVTH=21 
 SACATH=4000
 SACMINDUR=0.02
 
 FIXVTH=6
 FIXATH=800
-FIXMINDUR=0.08 #second
-NFIXMINDUR=0.05
-FIXFOCUSRADIUS=4
-FIXSACTARGETDUR=30
-
-OLPURVTHU= SACVTH
-OLPURVTHL= 4
+FIXMINDUR=0.08
+NFIXMINDUR=0.05  # minimum allowed duration (seconds) of gap between two consecutive fixations
+FIXFOCUSRADIUS=4 # agents within this distance in degrees are flagged as being focussed
+FIXSACTARGETDUR=30 # period after saccade in ms during which agents in focus are identified
+# slow smooth eye movement
+OLPURVTHU= SACVTH #upper threshold
+OLPURVTHL= 4 # lower threshold
 OLPURATH= FIXATH
 OLPURMD=0.08
-OLFOCUSRADIUS=4 # focus radius for agents
-
+OLFOCUSRADIUS=4 #agents within this distance in degrees are flagged as being focussed
+# fast smooth eye movement
 PLAG = 0.15 # lag between agent movement and pursuit movement in sec
 CLPURVTHU=SACVTH
 CLPURVTHL=9
 CLPURATH=FIXATH
 CLPURMD=0.1
-CLFOCUSRADIUS=4
-CLSACTARGETDUR=0.1 # sec
-CLSACTARGETRADIUS=1 # deg
-MAXPHI=25#10 #
+# three criteria for identification of FSM
+CLFOCUSRADIUS=4 #agent's with average distance (over the entire FSM) in degrees
+# has to be smaller than this threshold
+CLSACTARGETDUR=0.1 # critical period after the saccade in seconds during
+#which the criteria below are applied 
+CLSACTARGETRADIUS=1 # agent's with average distance (deg) during critical period
+# needs to be smaller than this value
+MAXPHI=25# the absolute angle difference between the direction of motion of
+# the agent and the direction of motion of gaze has to be smaller than this
+# value in degrees

@@ -29,7 +29,7 @@ from Coord import initVP
 import os
 
 LINEWIDTH=5.74 # peerj line width in inches
-DPI=600
+DPI=300
 FMT='.avi' # movie export format
 FIG=(('behdata.png',('Detection Time','Probability' ),
                      ('Subject','Detection Time'),
@@ -66,7 +66,7 @@ FIG2=(('behdata.png',('Reaktionszeit','Wahrscheinlichkeit' ),
       ('Zeit zum Sakkadenanfang in Ms', 'Kontrastsalienz'),
       ('Zeit zum Sakkadenanfang in Ms', 'Bewegungssalienz')),
      ('Pixel/buttonPress','Zeit in Sek','Entfernung in Grad','VP',-20,35,75),
-     ('Coord/trackEv','ES AS1           ...           AS9           ...           AS19','VP'),
+     ('Coord/trackEv','ES AS1         ...         AS9        ...         AS19','VP'),
      ('Coord/trackVel',('Zeit in Sek','Geschwindigkeit in Grad/Sek',['VP1','VP2','VP3','VP4'])),
      ('Coord/trackPFrail',('Anfang','Mitte','Ende'),'VP',-20),
      ('VP',-20,'AS1','ES')
@@ -74,6 +74,9 @@ FIG2=(('behdata.png',('Reaktionszeit','Wahrscheinlichkeit' ),
 
 inpath = os.getcwd().rstrip('code')+'evaluation'+os.path.sep
 figpath = os.getcwd().rstrip('code')+'figures'+os.path.sep
+
+##############################################
+# behavioral data
 def plotBehData():
     plt.close()
     from matustools.matustats import lognorm
@@ -138,9 +141,10 @@ def plotBehData():
     box.set_facecolor([0.9]*3)
     plt.savefig(figpath+FIG[1][0],dpi=DPI,bbox_inches='tight')
     plt.close('all')
-
-
-def plotAnalysis(event=-1):
+#######################################
+# saccades
+def plotAnalysis(event=-1,clr='gray'):
+    '''event - id of the catch-up saccade, 0=exploration saccade '''
     plt.close()
     #lim=[[0.25,2.5],[0.37,2.5]]
     if event==0: lim=[[0.25,0.022],[0.4,0.022,],[0.4,0.03]]
@@ -168,7 +172,7 @@ def plotAnalysis(event=-1):
             x=np.concatenate([bnd,bnd[::-1]])
             ci=np.concatenate([I[2,:,m,2],I[2,:,m,1][::-1]])
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
-                        alpha=0.2,fill=True,fc='red',ec='red'))
+                        alpha=0.2,fill=True,fc=clr,ec=clr))
             subplotAnnotate(loc='ne')
         #plt.xlabel(FIG[2][1][0])
         plt.ylabel(FIG[2][1][1])
@@ -191,7 +195,7 @@ def plotAnalysis(event=-1):
                 np.reshape(I[2,hhh,:,1],[x.size,2]).mean(1)[::-1]])
             print xx.shape,ci.shape
             plt.gca().add_patch(plt.Polygon(np.array([xx,ci]).T,
-                        alpha=0.2,fill=True,fc='red',ec='red'))
+                        alpha=0.2,fill=True,fc=clr,ec=clr))
             #plt.plot(xx,np.reshape(I[2,hhh,:,0],[xx.size,2]).mean(1))
             subplotAnnotate(loc='ne')
         plt.ylim([0,lim[event][0]]);
@@ -228,7 +232,7 @@ def plotAnalysis(event=-1):
             x=np.concatenate([d,d[::-1]])
             ci=np.concatenate([h,l[::-1]])
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
-                        alpha=0.2,fill=True,fc='red',ec='white'))
+                        alpha=0.2,fill=True,fc=clr,ec='w'))
             subplotAnnotate(loc='ne')
         #plt.xlabel(FIG[2][3][0])  
         plt.ylabel(FIG[2][3][1])
@@ -252,7 +256,7 @@ def plotAnalysis(event=-1):
             ci=np.concatenate([h,l[::-1]])
             
             plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
-                        alpha=0.2,fill=True,fc='red',ec='white'))
+                        alpha=0.2,fill=True,fc=clr,ec='w'))
             subplotAnnotate(loc='ne')
         #plt.xlabel(FIG[2][4][0])  
         #plt.ylabel(FIG[2][4][1])
@@ -275,7 +279,7 @@ def plotAnalysis(event=-1):
                 m=IR.shape[1]/2
                 ci=np.concatenate([IR[2,m,:],IR[97,m,:][::-1]])
                 plt.gca().add_patch(plt.Polygon(np.array([x,ci]).T,
-                        alpha=0.2,fill=True,fc='red',ec='white'))
+                        alpha=0.2,fill=True,fc=clr,ec='w'))
                 #plt.plot(np.arange(1,15),IR[[49,50],m,:].mean(0))
                 subplotAnnotate(loc='ne')
             if chan=='COmotion': plt.xlabel(FIG[2][5+hh][0])  
@@ -292,7 +296,7 @@ def plotAnalysis(event=-1):
                 xx=np.concatenate([x,x[::-1]])
                 ci=np.concatenate([IR[2,:,0],IR[97,:,0][::-1]])
                 plt.gca().add_patch(plt.Polygon(np.array([xx,ci]).T,
-                    alpha=0.2,fill=True,fc='red',ec='white'))
+                    alpha=0.2,fill=True,fc=clr,ec='w'))
                 subplotAnnotate(loc='ne')
             if chan=='COmotion':plt.xlabel(FIG[2][7+hh][0])
             #plt.ylabel(FIG[2][7+hh][1])
@@ -312,6 +316,10 @@ def _getPC(pf,h):
     return np.rollaxis(pf.squeeze(),1).T
 
 def plotCoeff(event,rows=8,cols=5,pcs=10):
+    '''event - id of the catch-up saccade, 0=exploration saccade
+        rows - nr rows in the movie
+        cols - nr columns in the movie
+        pcs - number of principal components that will be displayed'''
     plt.close()
     panels=[];small=[]
     for vp in range(1,5):
@@ -366,6 +374,7 @@ def plotLatent():
     plt.savefig(figpath+'Pixel/pcaVar.png',
                 dpi=DPI,bbox_inches='tight')
 def tabLatent(ev,pcs=5):
+    '''pcs - number of principal components that will be displayed'''
     dat=[]
     if ev==1: vps=range(1,5)+[999]
     else: vps=range(1,5)
@@ -399,6 +408,10 @@ def pcAddition():
              
 
 def plotScore(vp,event,pcs=5,scs=3):
+    ''' vp - subject id
+        event - id of the catch-up saccade, 0=exploration saccade
+        pcs - number of principal components that will be displayed
+        scs - number of score samples, total nr of rows is scs*2+1'''
     plt.close()
     path=inpath+'vp%03d/E%d/'%(vp,event)
     score=np.load(path+'X/score.npy')
@@ -434,13 +447,7 @@ def plotScore(vp,event,pcs=5,scs=3):
                 np.uint8(R*255),duration=0.1,plottime=True)
 
 #########################################################
-#                                                       #
-#                  Button press                         #
-#                                                       #
-#########################################################
-      
-   
-
+# button press
 def plotBTmean(MAX=16):
     from matustools.matusplotlib import plotGifGrid
     dat=[]
@@ -461,6 +468,9 @@ def plotBTmean(MAX=16):
     return dat
 
 def plotBTpt(vpn=range(1,5),pcaEv=97):
+    ''' vpn - list with subject ids
+        pcaEv - id of the catch-up saccade, 0=exploration saccade,
+            97 - 200 ms before button press'''
     from scipy.optimize import fmin
     def fun(x,D=None,verbose=False):
         nrlines=len(x)/3; p1=np.nan;s=0.15
@@ -543,12 +553,10 @@ def plotBTpt(vpn=range(1,5),pcaEv=97):
     print ndarray2latextable(est,decim=2)
 
 #############################
-#
-#           TRACKING
-#
-#############################
-
+# smooth eye movements
 def plotEvStats():
+    clrs=['#85dd7c','#bcc4c4','#FF9797']
+    clrs=['#333333','#999999','#CCCCCC']
     plt.close()
     from Coord import initVP
     res=[]
@@ -578,9 +586,9 @@ def plotEvStats():
         subplot(2,2,vp);plt.grid(False)
         for ev in range(20):
             a=dat[0,ev];b=dat[0,ev]+dat[1,ev]
-            plt.bar(ev,a,color='#85dd7c',bottom=0,width=1)
-            plt.bar(ev,b,color='#bcc4c4',bottom=a,width=1)
-            plt.bar(ev,1,color='#FF9797',bottom=b,width=1)
+            plt.bar(ev,a,color=clrs[0],bottom=0,width=1)
+            plt.bar(ev,b,color=clrs[1],bottom=a,width=1)
+            plt.bar(ev,1,color=clrs[2],bottom=b,width=1)
         ax=plt.gca()
         #if vp<3:
         #ax.set_xticks(np.arange(0,20,1)+0.5)
@@ -632,6 +640,7 @@ def plotVel():
     plt.savefig(figpath+FIG[5][0],dpi=DPI,bbox_inches='tight')
 
 def plotTrack(MOVIE=True):
+    '''MOVIE - if true creates movie output'''
     plt.close()
     vp,ev,path=initVP(4,1)
     D=np.load(path+'trackPF.npy')
@@ -689,11 +698,7 @@ def plotTrack(MOVIE=True):
     plt.savefig(figpath+FIG[6][0],dpi=DPI,bbox_inches='tight')
 
 #############################
-#
-#           SVM
-#
-#############################
-
+# SVM
 def svmPlotExtrRep(event=0,plot=True,suf=''):
     from Pixel import initPath
     plt.close()
@@ -734,10 +739,7 @@ def svmPlotExtrema():
 
 
 if __name__=='__main__':
-    plotTrack(False)
-    bla
-
-    #figures
+    # to create figures run
     plotBehData()
     plotAnalysis(event=0)
     plotAnalysis(event=1)
@@ -748,7 +750,7 @@ if __name__=='__main__':
     from ReplayData import compareCoding
     compareCoding(vp=2,block=18,cids=[0,1,2,4])
 
-    #movies
+    # to create movies run
     pcAddition()
     plotBTmean()
     plotCoeff(97)
@@ -757,20 +759,18 @@ if __name__=='__main__':
     svmPlotExtrema()
     plotScore(999,1,pcs=5,scs=0)
     
-##
-##    from ReplayData import replayTrial
-##    #note the following trials will be displayed but not saved as movies
-##    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#mov01
-##    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
-##    replayTrial(vp =3,block=16,trial=12,tlag=0.0,coderid=4)#mov07
-##    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
-##    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
-##    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
-##    #tables 
-##    si2tex()
-##    tabLatent(0,pcs=5)
-##    tabLatent(1,pcs=5)
-##    tabLatent(97,pcs=5)
+    from ReplayData import replayTrial
+    #note the following trials will be displayed but not saved as movies
+    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#mov01
+    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
+    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
+    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
+    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
+    # to create tables run
+    si2tex()
+    tabLatent(0,pcs=5)
+    tabLatent(1,pcs=5)
+    tabLatent(97,pcs=5)
     
 
     

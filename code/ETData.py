@@ -523,7 +523,6 @@ class ETData():
         self.acc=computeAcceleration(self.gaze,self.hz)
         self.isFix,fev=computeFixations(self.gaze,self.vel,self.acc,self.hz)
         self.isSac,sev=computeSaccades(self.gaze,self.vel,self.acc,self.hz)
-        #self.isLSac,discard=computeLongSaccades(self.gaze,self.vel,self.acc,self.hz)
         self.isBlink,bev=computeBlinks(self.gaze,self.hz)
         self.bev=ETData.helpf(bev,[self.ts,self.te])
         self.fev=ETData.helpf(fev,[self.ts,self.te])
@@ -889,8 +888,6 @@ class ETData():
         return self.selectPhase(self.isFix,phase,hz)
     def getSaccades(self,phase=1,hz=None):
         return self.selectPhase(self.isSac,phase,hz)
-    def getLongSaccades(self,phase=1,hz=None):
-        return self.selectPhase(self.isLSac,phase,hz)
     def getCLP(self,phase=1,hz=None):#fast smooth eye movement
         return self.selectPhase(self.cpur,-1,hz)
     def getOLP(self,phase=1,hz=None):# slow smooth eye movement

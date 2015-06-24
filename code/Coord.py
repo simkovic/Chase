@@ -34,7 +34,17 @@ plt.close('all')
 plt.ion()
 dtos=['G','A','T']
 radbins=np.arange(1,15)
-bs=range(1,22);HZ=85.0 #sampling frequency 
+bs=range(1,22);HZ=85.0 #monitor frame rate
+
+# each function that performs data analysis loads the data from hard drive
+# and saves its results to the hard drive
+# most functions feature arguments vp, event and suf which indicate:
+# vp - subject id
+# event - which samples were analyzed, samples are locked either at the onset of
+#   0: exploration saccade, 1: 1st catch-up saccade, 2: 2nd catch-up saccade etc.
+#   or
+#   95-99: sample 500,400,300,200,100 and 50 ms before the button press respectively
+# suf - output file suffix
 
 def initVP(vpl=1,evl=1):
     '''event - 0: search saccades,1: 1st tracking saccade,2:second ...
@@ -50,7 +60,7 @@ def initVP(vpl=1,evl=1):
 
 
 def computePhi(path,PLOT=False):
-    ''' compute rotation angles '''
+    ''' compute angles for sample rotation based on gaze direction '''
     f=open(path+'purxy.pickle','rb')
     purxy=pickle.load(f)
     f.close()
@@ -69,16 +79,13 @@ def computePhi(path,PLOT=False):
             plt.plot(np.linalg.norm(temp,axis=1),'k',alpha=alp)
             plt.grid(b=False);plt.title('velocity')
         phi=np.arctan2(temp[:,1],temp[:,0])
-        
         pold=np.copy(phi)
         df=np.diff(phi)
         df=-np.sign(df)*(np.abs(df)>np.pi)
         phi[1:]+=np.cumsum(df)*2*np.pi
-        
         assert np.all(np.diff(phi)<np.pi)
         phis[i]=np.median(phi)
         phi-=phis[i]
-
         if PLOT:
             plt.figure(3,figsize=(10,10));plt.subplot(2,2,vp)
             plt.plot(np.linspace(0,phi.size,phi.size),
@@ -98,18 +105,13 @@ def computePhi(path,PLOT=False):
 
 
 #############################################################
-#
-#                       SALIENCY
-#
-#############################################################
+# compute some basic info from the gaze data 
     
-
 def saveFigures(name):
     for i in range(1,plt.gcf().number-1):
         plt.figure(i)
         plt.savefig(figpath+'E%d'%event+name+'%02dvp%03d.png'%(i,vp))
-
-        
+     
 def plotSearchInfo(plot=True,suf=''):
     si=np.load(path+'si.npy')
     if event<0:
@@ -180,8 +182,10 @@ def plotSearchInfo(plot=True,suf=''):
     if suf=='3': return si,phi
     else: return si
 
-
+#######################################################
+# compute density, rate of direction changes and saliency of the saccades
 def extractTrajectories(suf=''):
+    '''pool all sample data into a matrix '''
     si,phi=plotSearchInfo(plot=False,suf=suf)
     inpath=os.getcwd().rstrip('code')+'input/' 
     sf=np.int32(np.round((si[:,1]+sw)/1000.0*HZ))
@@ -196,7 +200,6 @@ def extractTrajectories(suf=''):
     D=np.zeros((valid.sum(),fw,14,3))*np.nan
     DG=np.zeros((valid.sum(),fw,14,3))*np.nan
     DT=np.zeros((valid.sum(),fw,14,2))*np.nan
-    #DP=np.zeros((valid.sum(),fw,14,2))*np.nan
     DA=np.zeros((valid.sum(),fw,14,2))*np.nan
     temp=np.zeros((valid.sum(),Np))*np.nan
     k=0; lastt=-1;
@@ -219,19 +222,11 @@ def extractTrajectories(suf=''):
                 DT[:,f,a,q]-= si[rt,6+q]
                 DA[:,f,a,q]= D[:,f,a,q] - D[:,D.shape[1]/2,2,q]
             DG[:,f,a,2]= D[:,f,a,2]
-# DP was used to compute random level with bootstrapping
-# was abandoned because it takes too long to compute the CI from samples
-##    for k in range(Np):
-##        for a in range(14):
-##            for f in range(fw):
-##                for q in range(2):
-##                    DP[:,f,a,q]= D[:,f,a,q] - si[rp[k],6+q]
-##        np.save(path+'E%d/DP%02d.npy'%(event,k),DP)
     D=[DG,DA,DT]       
     for d in range(len(D)): np.save(path+'E%d/D%s%s.npy'%(event,dtos[d],suf),D[d])
 
-
 def extractDensity():
+    ''' compute agent density'''
     from matustools.matusplotlib import histCI
     D=[]
     for d in range(len(dtos)): D.append(np.load(path+'E%d/D%s.npy'%(event,dtos[d])))
@@ -254,13 +249,9 @@ def extractDensity():
             #if q==2: I[q][0,f]=np.nan
     np.save(path+'E%d/agdens'%event,I)
 
-
 def extractDirC():
-    ''' extract direction change information
-    '''
+    '''compute rate of direction changes '''
     D=[]
-    #plt.close('all');
-    #print D[0].shape
     K=[];nK=[]
     bn=np.arange(0,20,0.5)
     d= bn+(bn[1]-bn[0])/2.0;d=d[:-1]
@@ -297,12 +288,12 @@ def extractDirC():
 
     
 def computeSaliencyMaps(vp):
-    import commands
-    """ Calls ezvision and get saliency maps
+    """ Calls ezvision () to compute saliency maps
         put all data into a single folder INPATH. The format of the data name
         should be <name>.mpeg. Create folder OUTPATH and run
 
     """
+    import commands
     inpath='saliency/input/vp%03d/'%vp
     outpath='saliency/output/vp%03d/'%vp
     files = os.listdir(inpath)
@@ -324,7 +315,11 @@ def computeSaliencyMaps(vp):
             print output
     
 def extractSaliency(channel='intensity',reps=100):
-    ''' the saliency for each trial and position has been precomputed and saved
+    ''' compute saliency
+        channel - indicates which saliency channel shall be computed
+            ('intensity','motion')
+        reps - number of replications to compute (replications are
+            required to compute confidence interval)
     '''
     print vp, channel
     try:
@@ -341,12 +336,9 @@ def extractSaliency(channel='intensity',reps=100):
         lastt=-1;dim=64;k=0
         gridG=np.zeros((fw,dim,dim));radG=np.zeros((fw,radbins.size))
         gridT=np.zeros((reps,fw,dim,dim));radT=np.zeros((reps,fw,radbins.size))
-        #gridA=np.zeros((fw,dim,dim));radA=np.zeros((fw,radbins.size))
-        #gridP=np.zeros((fw,dim,dim));radP=np.zeros((fw,radbins.size))
         rt=np.zeros((reps,si.shape[0]))
         for rr in range(reps):
             rt[rr,:]=np.random.permutation(si.shape[0])
-        #rp=np.random.permutation(si.shape[0])
         for h in range(si.shape[0]):
             print "finished=%.2f"%(h/float(si.shape[0])*100)
             if si[h,-2]>21: continue
@@ -357,8 +349,6 @@ def extractSaliency(channel='intensity',reps=100):
                 try: vid=Mraw(fname)
                 except IOError:
                     print 'missing file: '+ fname
-            
-            #print sf[h],ef[h],ef[h]-sf[h],fw,si[h,12]
             temp1,temp2=vid.computeSaliency(si[h,[6,7]],[sf[h],ef[h]],rdb=radbins)
             if not temp1 is None: gridG+=temp1; radG+=temp2.T;k+=1
             else: print 'saccade ignored ',h,si[h,-2],si[h,-1]
@@ -367,18 +357,6 @@ def extractSaliency(channel='intensity',reps=100):
                 for rr in range(reps):
                     temp1,temp2=vid.computeSaliency(si[rt[rr,h],[6,7]],[sf[rt[rr,h]],ef[rt[rr,h]]],rdb=radbins)
                     if not temp1 is None: gridT[rr,:,:,:]+=temp1; radT[rr,:,:]+=temp2.T;
-            #temp1,temp2=vid.computeSaliency(traj[sf[h]+fw/2,2,:2],[sf[h],ef[h]],rdb=radbins)
-            #gridA+=temp1; radA+=temp2.T;
-            #temp1,temp2=vid.computeSaliency(si[rp[h],[6,7]],[sf[h],ef[h]],rdb=radbins)
-            #gridP+=temp1; radP+=temp2.T;
-            
-
-    ##    grid=[gridG,gridT,gridP,gridA]
-    ##    rad=[radG,radT,radP,radA]
-    ##    for i in range(len(grid)):
-    ##        grid[i]/=float(k);rad[i]/=float(k)
-    ##        np.save(path+'E%d/grd%s%s.npy'%(event,dtos[i],channel),grid[i])
-    ##        np.save(path+'E%d/rad%s%s.npy'%(event,dtos[i],channel),rad[i])
         gridG/=float(k);radG/=float(k)
         np.save(path+'E%d/grd%s.npy'%(event,channel),gridG)
         np.save(path+'E%d/rad%s.npy'%(event,channel),radG)
@@ -394,125 +372,11 @@ def extractSaliency(channel='intensity',reps=100):
         np.save(path+'E%d/rad%s.npy'%(event,channel),radG)
         raise
 
-
 #############################################################
-#
-#                       PCA
-#
-#############################################################
-
-def pcaMotionSingleAgent(D,ag=3,plot=False):
-    for q in range(len(D)):
-        E=D[q]
-        F=np.zeros((E.shape[0],E.shape[3]*E.shape[1]))
-        for k in range(E.shape[0]):
-            F[k,:]= E[k,:,ag,:].reshape([F.shape[1],1]).squeeze()
-        pcs,score,lat=princomp(F)
-        plt.figure(1)
-        plt.plot(lat)
-        plt.legend(['gaze','rand pos','rand ag','rand time'])
-        plt.figure(2)
-        for i in range(6):
-            plt.subplot(2,3,i+1)
-            b=pcs[:,i].reshape([E.shape[1],E.shape[3]])
-            plt.plot(b[:,0],b[:,1]);
-        plt.legend(['gaze','rand pos','rand ag','rand time'])
-    if plot:
-        # items
-        plt.figure()
-        plt.plot(score[0,:],score[1,:],'.');plt.gca().set_aspect(1);
-        plt.figure()
-        plt.plot(score[2,:],score[3,:],'.');plt.gca().set_aspect(1);
-        plt.figure()
-        plt.plot(score[4,:],score[5,:],'.');plt.gca().set_aspect(1);
-        # traj reconstraction with help of first few components
-        for k in range(10):
-            res=0
-            for i in range(6): res+=pcs[:,i]*score[i,k]
-            res=res.reshape([E.shape[1],E.shape[3]])
-            plt.figure()
-            plt.plot(E[k,:,0,0],E[k,:,0,1]);
-            plt.plot(res[:,0],res[:,1]);
-
-def pcaMotionMultiAgent(D):
-    q=1
-    E=D[q]
-    F=np.zeros((E.shape[0],E.shape[3]*E.shape[1]*E.shape[2]))
-    for k in range(E.shape[0]):
-        B=np.copy(E[k,:,:,:])
-        r=np.random.permutation(range(E.shape[2]))
-        #B=B[:,r,:]
-        F[k,:]= B.reshape([F.shape[1],1]).squeeze()
-    pcs,score,lat=princomp(F)
-    np.save('pcs%d'%q,pcs)
-    np.save('lat%d'%q,lat)
-    np.save('score%d'%q,score)
-    
-    pcs=np.load('pcs%d.npy'%q)
-    score=np.load('score%d.npy'%q)
-    lat=np.load('lat%d.npy'%q)
-    plt.figure(1)
-    plt.plot(lat)
-    plt.xlim([0,30])
-    #plt.legend(['gaze','rand pos','rand ag','rand time'])
-    plt.figure(2)
-    for i in range(30):
-        plt.subplot(5,6,i+1)
-        b=pcs[:,i].reshape([E.shape[1],E.shape[2],E.shape[3]])
-        plotTraj(b);
-    
-    
-    
-def plotTraj(traj):
-    ax=plt.gca()
-    clr=['g','r','k']
-    for a in range(traj.shape[1]):
-        x=traj[:,a,0];y=traj[:,a,1]
-        plt.plot(x,y,clr[min(a,2)]);
-        #arr=plt.arrow(x[-2], y[-2],x[-1]-x[-2],y[-1]-y[-2],width=0.2,fc='k')
-        plt.plot(x[-1],y[-1],'.'+clr[min(a,2)])
-        #ax.add_patch(arr)
-        midf=traj.shape[0]/2
-        #arr=plt.arrow(x[midf], y[midf],x[midf+1]-x[midf],y[midf+1]-y[midf],width=0.1,fc='g')
-        #ax.add_patch(arr)
-
-    #rect=plt.Rectangle([-5,-5],10,10,fc='white')
-    #ax.add_patch(rect)
-    plt.plot(0,0,'ob')
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.set_xticks([])
-    ax.set_yticks([])
-    #plt.xlim([-20,20])
-    #plt.ylim([-20,20])
-    ax.set_aspect('equal')
-def pcaScript():
-    from matplotlib.mlab import PCA
-    from test import princomp
-
-    q=1
-    E=D[q]
-    F=[]
-    for q in range(2):
-        F.append(np.zeros((E.shape[0],E.shape[3]*E.shape[1]*E.shape[2])))
-        for k in range(E.shape[0]):
-            B=np.copy(E[k,:,:,:])
-            F[q][k,:]= B.reshape([F[q].shape[1],1]).squeeze()
-    x=np.concatenate(F,axis=0)
-    x=np.concatenate([-np.ones((x.shape[0],1)), x],axis=1)
-    y=np.zeros((F[q].shape[0]*2))
-    y[:F[q].shape[0]]=1
-    del D, E, F
-
-
-#############################################################
-#
-#                       TRACKING
-#
-#############################################################
+# smooth eye movement
 
 def _computePhi(g,sd=0.05,hz=500):
-    ''' compute the movement direction 
+    ''' compute the gaze movement direction 
         does basic smoothing with gaussian filter
         g - Tx2 array with gaze position
         sd - standard deviation of  the guass filter
@@ -546,6 +410,7 @@ def _computeAgTime(trackxy,ti):
     return txy
 
 def plotDur():
+    '''plots smooth eye movement duration statistics'''
     evs=([1,-1,-2,-3],range(1,5))
     plt.figure(0,figsize=(10,6))
     meddur=[]
@@ -596,10 +461,11 @@ def plotDur():
     plt.savefig(figpath+'trackDur')
 
 def plotTimeVsAgcount():
+    ''' plots number of pursued agents during SM against time
+        since the SM onset'''
     evs=([1,-1,-2,-3],range(1,5))
     plt.figure(0,figsize=(10,6))
     plt.figure(1,figsize=(10,6))
-
     for vp in range(1,5):
         initVP(vp,1)
         f=open(path+'trackxy.pickle','rb')
@@ -631,8 +497,46 @@ def plotTimeVsAgcount():
                 plt.plot(np.linspace(0,1000,200),countN/float(sel.sum()))
     plt.figure(0)
     initVP(1,1);plt.savefig(figpath+'trackTimeCount')
+def plotAgdist():
+    ''' plot average distance of the pursued agents'''
+    dist,discard,the,rest=computeTrackInfo()
+    del discard,the,rest
+    plt.figure(0,figsize=(10,8))
+    for vp in range(1,5):
+        xlim=500
+        ys=dist[vp-1]
+        dat=np.zeros((len(ys),int(HZ*xlim/1000.0),2))*np.nan
+        datrev=np.zeros((len(ys),int(HZ*500/1000.0),2))*np.nan
+        #datN=np.zeros((len(ys),xlim/20))
+        for i in range(len(ys)):
+            ao=np.argsort(map(np.median,ys[i]))
+            if len(ys[i])==0:continue
+            N=ys[i][ao[0]].size
+            if N==0:continue
+            dat[i,:min(dat.shape[1],N),0]=ys[i][ao[0]][:min(dat.shape[1],N)]
+            datrev[i,-min(datrev.shape[1],N):,0]=ys[i][ao[0]][-min(datrev.shape[1],N):]
+            N=ys[i][ao[-1]].size
+            dat[i,:min(dat.shape[1],N),1]=ys[i][ao[-1]][:min(dat.shape[1],N)]
+            datrev[i,-min(datrev.shape[1],N):,1]=ys[i][ao[-1]][-min(datrev.shape[1],N):]
+        nrags=np.array(map(len,ys))
+        ylims=[[[1,2.5]]*3,[[],[3,4],[3,5]]]
+        for a in range(3)[::-1]:
+            if a==2: sel=nrags>=(a+1)
+            else: sel = nrags==(a+1)
+            for i in range(2):
+                if a==0 and i==1:continue
+                plt.subplot(4,4,i*8+vp);plt.grid(b=False);#plt.ylim(ylims[i][a])
+                plt.plot(np.linspace(0,xlim/1000.,dat.shape[1]),nanmedian(dat[sel,:,i],0));
+                plt.subplot(4,4,i*8+vp+4);plt.grid(b=False);#plt.ylim(ylims[i][a])
+                ss=datrev.shape[1]/HZ
+                plt.plot(np.linspace(-ss,0,datrev.shape[1]),nanmedian(datrev[sel,:,i],0));
+    plt.subplot(441)
+    plt.legend(['> 2','2','1'],loc=4)
+    initVP(1,1)
+    plt.savefig(figpath+'trackAgdist')
     
 def computeTrackInfo():
+    ''' '''
     def _hlpfun(atraj,gaze,phiold,tphi,ttraj):           
         dchv=np.int32(np.linalg.norm(np.diff(atraj,2,axis=0),axis=1)>0.0001)
         atraj-=gaze[:atraj.shape[0],:]
@@ -690,51 +594,13 @@ def computeTrackInfo():
         np.save(path+'trackGaze.npy',gs)
         np.save(path+'trackTraj.npy',trajs)
 
-        
-def plotAgdist():
-    dist,discard,the,rest=computeTrackInfo()
-    del discard,the,rest
-    plt.figure(0,figsize=(10,8))
-    for vp in range(1,5):
-        xlim=500
-        ys=dist[vp-1]
-        dat=np.zeros((len(ys),int(HZ*xlim/1000.0),2))*np.nan
-        datrev=np.zeros((len(ys),int(HZ*500/1000.0),2))*np.nan
-        #datN=np.zeros((len(ys),xlim/20))
-        for i in range(len(ys)):
-            ao=np.argsort(map(np.median,ys[i]))
-            if len(ys[i])==0:continue
-            N=ys[i][ao[0]].size
-            if N==0:continue
-            dat[i,:min(dat.shape[1],N),0]=ys[i][ao[0]][:min(dat.shape[1],N)]
-            datrev[i,-min(datrev.shape[1],N):,0]=ys[i][ao[0]][-min(datrev.shape[1],N):]
-            N=ys[i][ao[-1]].size
-            dat[i,:min(dat.shape[1],N),1]=ys[i][ao[-1]][:min(dat.shape[1],N)]
-            datrev[i,-min(datrev.shape[1],N):,1]=ys[i][ao[-1]][-min(datrev.shape[1],N):]
-        nrags=np.array(map(len,ys))
-        ylims=[[[1,2.5]]*3,[[],[3,4],[3,5]]]
-        for a in range(3)[::-1]:
-            if a==2: sel=nrags>=(a+1)
-            else: sel = nrags==(a+1)
-            for i in range(2):
-                if a==0 and i==1:continue
-                plt.subplot(4,4,i*8+vp);plt.grid(b=False);#plt.ylim(ylims[i][a])
-                plt.plot(np.linspace(0,xlim/1000.,dat.shape[1]),nanmedian(dat[sel,:,i],0));
-                plt.subplot(4,4,i*8+vp+4);plt.grid(b=False);#plt.ylim(ylims[i][a])
-                ss=datrev.shape[1]/HZ
-                plt.plot(np.linspace(-ss,0,datrev.shape[1]),nanmedian(datrev[sel,:,i],0));
-    plt.subplot(441)
-    plt.legend(['> 2','2','1'],loc=4)
-    initVP(1,1)
-    plt.savefig(figpath+'trackAgdist')
-
 def computeMeanPF(P=129,T=85,pvar=0.3**2):
-    ''' compute mean pf with gaussian kernel
-        out - mean pf of size 4x3xPxPxT
+    ''' compute mean template image with nonparametric regression
+        reference Wasserman (2004) All of statistics, Chap. 20.4
+        the template's size is 4x3xPxPxT
         pvar - determines the sd of smoothing across pixels
         no smoothing along the time axis
-
-        math formula: $$f(x,y,t)= \frac{1}{N}\sum_n^N w_n(\left[x-x_{nt},y-y_{nt}\right])$$
+        latex math formula: $$f(x,y,t)= \frac{1}{N}\sum_n^N w_n(\left[x-x_{nt},y-y_{nt}\right])$$
 $$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \mathbf{\Sigma^{-1}} \mathbf{h} \right)$$
     '''
     p=np.linspace(-5,5,P)
@@ -798,8 +664,11 @@ $$w_n(\mathbf{h},\mathbf{\Sigma}) \sim \exp \left(-\frac{1}{2}\mathbf{h^T} \math
     np.save(path+'trackPF.npy',D)
     np.save(path+'trackPFcount.npy',J)
     np.save(path+'trackVel',Lout)
-
+############################################################
 def createIdealObserver(vpnr=999,N=5000,rseed=10):
+    ''' creates samples for the computation of ideal observer
+        samples are centered at random time on midpoint
+        between chaser and chasee'''
     np.random.seed(rseed)
     initVP(vpnr,0);wdur=(ew-sw)/1000.
     inpath=os.getcwd().rstrip('code')+'input/' 
@@ -823,9 +692,6 @@ def createIdealObserver(vpnr=999,N=5000,rseed=10):
     np.save(path+'E1/DG.npy',D)  
          
 if __name__ == '__main__':
-    plotDur()
-    
-    bla
     for event in range(0,3)+range(96,100):
         for vpl in range(1,5):
             initVP(vpl=vpl,evl=event)

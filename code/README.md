@@ -40,6 +40,10 @@ Dependencies
 
 * [matustools](https://github.com/simkovic/matustools) to reproduce the figures
 
+* [Libsvm](http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
+
+* [iNVT](http://ilab.usc.edu/toolkit/)
+
 Looking to Reuse Code?
 =======
 
