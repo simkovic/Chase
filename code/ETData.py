@@ -324,7 +324,8 @@ class ETData():
         self.t0=[t0[1]-t0[0],t0[2]-t0[0]]
         self.fs=fs
         self.msgs=msgs
-        if self.fs==None or self.fs.size==0: self.fs= self.computeFs()
+        if self.fs==None or self.fs.size==0:
+            self.fs= self.computeFs()
         #fsa=self.computeFs()
         #m=min(self.fs.shape[0],fsa.shape[0])
         #print np.round(np.max(np.abs(self.fs[:m,:2]-fsa[:m,:])),1), self.t0[1]-self.t0[0]
@@ -353,7 +354,7 @@ class ETData():
         f.close()
         dur=self.t0[1]-self.t0[0]
         inc=1000/monhz
-        N=min(int(round((dur)/inc)), int(Q.trialDur*monhz)+1)
+        N=min(int(round((dur)/inc)), int(Qexp.trialDur*monhz)+1)
         return np.array([range(N),np.linspace(inc/2.0,dur-inc,N)]).T
 #######################################################
 # helper functions for drift correction and extraction of basic events   
@@ -495,7 +496,7 @@ class ETData():
         dat=self.gaze
         # add two columns with binocular gaze point
         if self.focus==BINOCULAR:
-            print self.gaze.shape
+            #print self.gaze.shape
             gazep=np.array([dat[:,[1,4]].mean(1),dat[:,[2,5]].mean(1)]).T
             temp=dat[np.isnan(dat[:,1]),:]
             if temp.size>0: gazep[np.isnan(dat[:,1]),:]=temp[:,[4,5]]

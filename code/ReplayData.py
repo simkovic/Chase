@@ -573,7 +573,7 @@ def replayTrial(vp,block,trial,tlag=0,coderid=0):
     R.play(tlag=tlag)
     
 def replayBlock(vp,block,trial,tlag=0,coderid=0,exportAlgo=False):
-        ''' replays the remaining block from the chase experiment starting at <trial>
+    ''' replays the remaining block from the chase experiment starting at <trial>
         vp - subject id
         block - block id
         trial - trial id on which the replay will start
@@ -641,16 +641,20 @@ def compareCoding(vp,block,cids=[0,1,2]):
     plt.savefig(PATH+'comparison'+os.path.sep+'vp%db%d.jpg'%(vp,block),format='jpg',dpi=100,bbox_inches='tight')
     #plt.show()
      
-def missingTEfiles():
+def missingTEfiles(vp=1):
     ''' checks for missing coding files'''
-    vp=1
     for b in range(1,22):
         for t in range(40):
-            for c in range(2):
+            coded=[0,0,0]
+            for c in [1,2,4]:
                 try:
-                    dat=Coder.loadSelection(vp,b,t,coder=c+1)
+                    dat=Coder.loadSelection(vp,b,t,coder=c)
                 except IOError:
-                    print vp,b,t,c+1
+                    coded[[7,0,1,7,2][c]]=1
+            if sum(coded)>0 and sum(coded)<3: print vp,b,t,coded
+                
+                
+    
          
 if __name__ == '__main__':
     RH=0 # set right handed (1) or left handed (0) layout

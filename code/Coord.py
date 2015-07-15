@@ -689,9 +689,49 @@ def createIdealObserver(vpnr=999,N=5000,rseed=10):
         g=(D[n,mdp,0,:]+D[n,mdp,1,:])/2.
         D[n,:,:,0]-=g[0]
         D[n,:,:,1]-=g[1]
-    np.save(path+'E1/DG.npy',D)  
-         
+    np.save(path+'E1/DG.npy',D)
+###########################################################
+def codingComparison():
+    res=[];
+    for vp in [2,1]:
+        initVP(vpl=vp,evl=0)
+        si1=np.load(path+'sicoder1.npy').tolist()
+        si2=np.load(path+'sicoder2.npy').tolist()
+        sel=[]
+        for i in range(len(si1)):
+            for j in range(i+1,len(si1)):
+                if si1[i][0]==si1[j][0] and si1[i][-1]==si1[j][-1] and si1[i][-2]==si1[j][-2]:
+                    sel.append(j)
+        print sel
+        j=-1
+        for a in si1:
+            j+=1
+            if j in sel: continue
+            for b in si2:
+                if a[0]==b[0] and a[-1]==b[-1] and a[-2]==b[-2]: res.append([a[14],b[14]])
+        print vp,len(res),len(si1),len(si2)
+    def analyze(dat):
+        tp=np.logical_and(dat[:,0],dat[:,1]).sum()
+        fn=np.logical_and(~dat[:,0],dat[:,1]).sum()
+        tn=np.logical_and(~dat[:,0],~dat[:,1]).sum()
+        fp=np.logical_and(dat[:,0],~dat[:,1]).sum()
+        acc=(tn+tp)/float(dat.shape[0])
+        sens=tp/float(tp+fn)
+        spec=tn/float(fp+tn)
+        corr=(tp*tn-fp*fn)/np.sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn))
+        return [acc,sens,spec,corr]
+    #np.save(path+'ress',res)
+    out=[];res=np.array(res)
+    for dat in [res>0,res==0,res==1]: out.append(analyze(dat))
+    res=res[np.logical_or(res[:,1]==0,res[:,1]==1),:]
+    out.append(analyze(res==1))
+    np.save(path+'codingComparison',out)
+    from matustools.matusplotlib import ndarray2latextable
+    print ndarray2latextable(np.array(out))
+             
 if __name__ == '__main__':
+    codingComparison()
+    bla
     for event in range(0,3)+range(96,100):
         for vpl in range(1,5):
             initVP(vpl=vpl,evl=event)

@@ -377,7 +377,7 @@ def SsimilSvm(vp,ev,beta,fn,suf=''):
     S=np.exp(-np.exp(beta)*S/5000.)
     f=open(pth+'E%d/svm%s/svm%d.in'%(e1,suf,int(beta*10)),'w')
     for row in range(n1+n2):
-        s='%d 0:%d'%(int(row<n1,row+1)
+        s='%d 0:%d'%(int(row<n1,row+1))
         for col in range(n1+n2):
             s+=' %d:%.4f'%(col+1,S[row,col])
         s+='\n'

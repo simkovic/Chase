@@ -26,7 +26,6 @@ from Settings import *
 import os,pickle
 from ETData import ETData, interpRange
 plt.ion()
-
 ##########################################################
 # helper functions
 def _isNumber(s):
@@ -370,7 +369,7 @@ def readTobii(vp,block,path,lagged=False,verbose=False):
     return data
 
 #######################################
-def saveETinfo(vp=1):
+def saveETinfo(vp=1,coderid=4,suf=''):
     ''' extract and save eyetracking information for template analyses
         vp - subject id
         output: for each subect saves following files
@@ -414,8 +413,8 @@ def saveETinfo(vp=1):
     si=[];sacxy=[];finalev=[];ti=[];trackxy=[]
     pi=[];purxy=[];
     for b in range(1,24):
-        try: data=readEyelink(vp,b)
-        except:
+        try:data=readEyelink(vp,b)
+        except IOError:
             print 'block %d is missing'%b
             continue
         for i in range(0,len(data)):
@@ -423,7 +422,7 @@ def saveETinfo(vp=1):
                 print 'vp',vp,'block ',b,'trial',i
                 data[i].extractBasicEvents()
                 data[i].driftCorrection()
-                data[i].importComplexEvents(coderid=4)
+                data[i].importComplexEvents(coderid=coderid)
                 if  data[i].search!=None:
                     g=data[i].getGaze()
                     for ev in data[i].search:
@@ -471,64 +470,26 @@ def saveETinfo(vp=1):
                             else: res.append(np.zeros(3)*np.nan)
                         finalev.append(res)  
                     elif data[i].msgs!='OMISSION':raise ValueError('Unexpected message')
-    np.save(path+'ti.npy',ti)
-    f=open(path+'trackxy.pickle','wb')
+    np.save(path+'ti%s.npy'%suf,ti)
+    f=open(path+'trackxy%s.pickle'%suf,'wb')
     pickle.dump(trackxy,f);f.close()
-    np.save(path+'finalev',finalev)
-    f=open(path+'purxy.pickle','wb')
+    np.save(path+'finalev%s'%suf,finalev)
+    f=open(path+'purxy%s.pickle'%suf,'wb')
     pickle.dump(purxy,f);f.close()
-    f=open(path+'sacxy.pickle','wb')
+    f=open(path+'sacxy%s.pickle'%suf,'wb')
     pickle.dump(sacxy,f);f.close()
-    np.save(path+'si.npy',si)
-    np.save(path+'pi.npy',pi)
-
-                   
-def saveTrackedAgs(vp):
-    ''' extract an save information on which agents are being
-        pursued during each smooth eye movement episode
-        vp - subject id 
-    '''
-    from ReplayData import Coder
-    path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-    ti=np.int32(np.load(path+'ti.npy')).tolist()
-    trackags=[]
-    tottr=len(ti)
-    totevs=0
-    for b in range(1,24):
-        for t in range(0,40):
-            try: trdat=Coder.loadSelection(vp,b,t,coder=4)
-            except IOError:
-                print b,t,'IOError'
-                continue
-            totevs+=len(trdat)
-            while len(ti) and ti[0][2]==b and ti[0][3]==t:
-                for tr in trdat:
-                    print tr,ti[0]
-                    if tr[2]==ti[0][4]:
-                        trackags.append(tr)
-                        ti.pop(0)
-                        break
-            print b,t, totevs,(tottr-len(trackags))
-    np.save(path+'trackags',trackags)
-    
+    np.save(path+'si%s.npy'%suf,si)
+    np.save(path+'pi%s.npy'%suf,pi)
     
     
 if __name__ == '__main__':
-##    for vp in range(1,5):
-##        saveETinfo(vp=vp)
-##        saveTrackedAgs(vp=vp)
-    vpn=range(170,185)
-    D=[]
-    for vp in vpn:
-        data=readTobii(vp,0)
-        for trl in data:
-            trl.extractBasicEvents()
-            for b in trl.bev:
-                g=trl.getGaze()
-                if b[1]+1<g.shape[0] and b[0]-1>0:
-                    dist=np.linalg.norm(g[b[1]+1,[7,8]]-g[b[0]-1,[7,8]])
-                    D.append([b[1]-b[0],dist])
-    D=np.array(D) 
+    import sys
+    saveTrackedAgs(vp=2,coderid=4)
+    bla
+    vp=int(sys.argv[1])
+    coder=int(sys.argv[2])
+    saveETinfo(vp=vp,coderid=coder,suf='coder%d'%coder)
+
             
     #print np.int32(np.isnan(data[0].gaze[:1000,1]))
     #data[0].extractBasicEvents()

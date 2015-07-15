@@ -84,7 +84,7 @@ class Settings():
         else: self.delim='/'
         path = getcwd()
         path = path.rstrip('code')
-        self.inputPath=path+"trajData"+self.delim
+        self.inputPath=path+"input"+self.delim
         self.outputPath=path+"behData"+self.delim
         self.stimPath=path+"stimuli"+self.delim
         self.agentRadius=self.agentSize/2.0
@@ -249,7 +249,7 @@ gao10e4={'monitor' :     t60,
         'fullscr':      True}
 
 matusdesktop ={'monitor' :     eizo,
-        'refreshRate':  60,                 # [hz]
+        'refreshRate':  60 ,                # [hz]
         'os':           LINUX,              # Linux or Windows
         'phiRange':     [120,0*2],          # in degrees [0-360]
         'agentSize':    1,                  # in degrees of visial angle
@@ -259,15 +259,13 @@ matusdesktop ={'monitor' :     eizo,
         'agentCLR':     1,                  # [1 -1]
         'mouseoverCLR': 0.5,                # [1 -1]
         'selectedCLR':  -0.5,               # [1 -1]
-        'trialDur':     120,                 # in seconds
+        'trialDur':     30,                 # in seconds
         'aSpeed':       14.5,               # in degrees of visual angle per second
         'guiPos':       (200,400),          # in pixels
         'winPos':       (0,0),              # in pixels
         'fullscr':      False}
 
-Q=Settings(**tobiilab)
-
 Q=Settings(**matusdesktop)
-Qexp=Settings(**tobiilab)
+Qexp=Settings(**eyelinklab)
 
 
