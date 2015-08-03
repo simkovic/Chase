@@ -30,7 +30,7 @@ import os
 from scipy.optimize import fmin
 
 LINEWIDTH=5.74 # peerj line width in inches
-DPI=300
+DPI=600
 FMT='.avi' # movie export format
 FIG=(('behdata.png',('Detection Time','Probability' ),
                      ('Subject','Detection Time'),
@@ -122,6 +122,20 @@ def plotBehData():
     box.set_facecolor([0.9]*3)
     plt.savefig(figpath+FIG[1][0],dpi=DPI,bbox_inches='tight')
     plt.close('all')
+
+def tabSampleSize():
+    res=[]
+    for vp in range(1,5):
+        res.append([])
+        for ev in [97,0,1]:   
+            path=inpath+'vp%03d/E%d/'%(vp,ev)
+            sc=np.load(path+'X/score.npy')
+            res[-1].append(sc.shape[0])
+        ti=np.load(inpath+'vp%03d/'%vp+'ti.npy')
+        res[-1].append(ti.shape[0])
+    res=np.array(res)
+    ndarray2latextable(res,decim=0)
+    
 #######################################
 # saccades
 def plotAnalysis(event=-1,clr='gray'):
@@ -410,8 +424,8 @@ def plotPC1rail():
     print est.ndim, est
     if est.ndim>2: est=np.squeeze(est)
     est[:,1]*=(t[-1]-t[0])/0.8
-    print ndarray2latextable(est.T,decim=2)
-              
+    print ndarray2latextable(est,decim=2)
+    print np.corrcoef(est[:,1],est[:,2])[0,1]
 def pcAddition(MOVIE=True):
     #BP S1
     out=[]
@@ -497,18 +511,15 @@ def plotPCvp(vp,ev,t=1,pcs=5):
     for h in range(pcs):
         ax=plt.subplot(1,pcs,h+1)
         ax.set_xticks([]);ax.set_yticks([]);
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
+        for sp in ['left','right','bottom','top']:
+            ax.spines[sp].set_visible(False)
         pc=_getPC(coeff,h)
         if pc.mean()>=0.4: pc=1-pc
         pc=pc[[0,pc.shape[0]/2,pc.shape[0]][t],:,:]
         plt.imshow(pc,cmap='gray')
         plt.grid(False);
         plt.title('PC'+str(h+1))
-    plt.savefig(figpath+'Pixel/PCvp%dev%d'%(vp,ev),dpi=DPI,bbox_inches='tight')
-   
-        
-        
+    plt.savefig(figpath+'Pixel/PCvp%dev%d'%(vp,ev),dpi=DPI,bbox_inches='tight')  
 
 def _fun(x,D=None,t=None,p=None,verbose=False):
     ''' objective function for fitting lines to rail diagrams'''
@@ -596,6 +607,19 @@ def plotBTavg(MAX=16,MOVIE=True):
                 text=lbl,plottime=True)
     return dat
 
+def railIdeal():
+    T=68; P=64
+    t=np.linspace(-0.8,0,T);p=np.linspace(-5,5,P)
+    fn=inpath+'vp%03d/E%d/X/coeff.npy'%(999,1)
+    pc=_getPC(np.load(fn),0)
+    if pc.mean()>=0.4: pc=1-pc
+    D= pc.T[:,31:33,:].mean(1)
+    D/=D.sum();
+    x0=np.array((3,-12,0.1,7,-12,0.1))
+    xopt=fmin(func=_fun,x0=x0,args=(D,t,p,False)).tolist()
+    xopt.append(abs(xopt[0]-xopt[3]))
+    ndarray2latextable(np.array(xopt,ndmin=2),decim=2)
+
 def plotBTpc(vpn=range(1,5),pcaEv=97):
     ''' vpn - list with subject ids
         pcaEv - id of the catch-up saccade, 0=exploration saccade,
@@ -608,7 +632,7 @@ def plotBTpc(vpn=range(1,5),pcaEv=97):
     pm=np.repeat(p[:,np.newaxis],T,axis=1)
     rows=len(vpn)
     #cols=len(dat[0])
-    fig=figure(size=2,aspect=0.65)
+    fig=figure(size=2,aspect=0.75)
     fig.tight_layout()
     #m=[-251,-201,-151,-101,-51,-1]
     bnds=[(1,None),(None,0),(None,None)]
@@ -628,8 +652,7 @@ def plotBTpc(vpn=range(1,5),pcaEv=97):
         subplot(2,3,i+1)
         plt.pcolor(p,t,D.T,cmap='gray')
         # below we set the initial guess 
-        if vpn[max(0,i-2)]==999: x0=np.array((3,-12,0.1,7,-12,0.1))
-        elif i==0: x0=np.array((1,-12,0.3,-2,-12,0.1))
+        if i==0: x0=np.array((1,-12,0.3,-2,-12,0.1))
         elif i==1:x0=np.array((3,-12,0.1,0,-12,0.1))
         elif i==2: x0=np.array((0,-12,0.1))
         else: x0=np.array((3,-12,0.1,-2,-12,0.1))
@@ -639,6 +662,7 @@ def plotBTpc(vpn=range(1,5),pcaEv=97):
         if x0.size==6: plt.plot(xopt[3]-xopt[4]*t,t,'r',lw=1,alpha=0.4)
         elif x0.size==3:est[-1].extend([np.nan]*3)
         else: raise ValueError
+        est[-1].append(abs(est[-1][0]-est[-1][3]))
         plt.grid(True,'both');
         plt.xlim([p[0],p[-1]]);plt.ylim([t[0],t[-1]]);
         ax=plt.gca();ax.set_axisbelow(False)
@@ -648,7 +672,7 @@ def plotBTpc(vpn=range(1,5),pcaEv=97):
         else:
             ax.set_yticklabels(np.linspace(-1,-0.2,5))
         if i<3: ax.set_xticklabels([])
-        if i==0: plt.text(-9,-0.2,FIG[3][1],size=8,rotation='vertical')
+        if i==0: plt.text(-9,-0.3,FIG[3][1],size=8,rotation='vertical')
         if i==4: plt.xlabel(FIG[3][2])
         #else: plt.ylabel('subject %d'%(i+1))
         #if i==0: plt.title(str(m[j]*2+2))
@@ -657,9 +681,11 @@ def plotBTpc(vpn=range(1,5),pcaEv=97):
     plt.savefig(figpath+FIG[3][0]+'%d'%pcaEv,
                 dpi=DPI,bbox_inches='tight')
     est=np.array(est)
-    print est.shape,est
+    #for k in [2,5]: est[:,k]=est[:,k]/np.sin(np.arctan(1/-est[:,k-1]))
+    print est.shape
     if est.ndim>2: est=np.squeeze(est)
     print ndarray2latextable(est,decim=2)
+
 
 #############################
 # smooth eye movements
@@ -914,19 +940,23 @@ if __name__=='__main__':
     #plotScore(999,1,pcs=4,scs=0)
     #plotTrack(MOVIE=False)
     #plotPCvp(999,1)
-    plotBTpc()
+    #plotBTpc()
+    #tabLatent(97,pcs=5)
+    #plotPC1rail()
+    plotPCvp(999,1)
     bla
     
     
     # to create figures run
+    plotPC1rail()
     plotBehData()
-    plotAnalysis(event=0)
-    plotAnalysis(event=1)
-    plotEvStats()
-    plotBTpc()
-    plotVel()
-    plotTrack(MOVIE=False)
+    plotPC1rail()
     svmComparison()
+    plotBTpc()
+    plotTrack(MOVIE=False)
+    plotVel()
+    plotPCvp(999,1)
+    
     from ReplayData import compareCoding
     compareCoding(vp=2,block=18,cids=[0,1,2,4])
 

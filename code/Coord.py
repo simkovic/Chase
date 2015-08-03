@@ -111,7 +111,19 @@ def saveFigures(name):
     for i in range(1,plt.gcf().number-1):
         plt.figure(i)
         plt.savefig(figpath+'E%d'%event+name+'%02dvp%03d.png'%(i,vp))
-     
+
+def sacDur(ev=1):
+    ''' print saccade duration in ms'''
+    for vp in range(1,5):
+        initVP(vp,ev)
+        si = np.load(path+'si.npy')
+        if event==1:
+            sel=np.logical_and(~np.isnan(si[:,11]),si[:,11]-si[:,4]>=0)
+            si=si[sel,:];
+        sel=si[:,14]==ev
+        dur=si[:,5]-si[:,1]
+        print vp, np.mean(dur)
+
 def plotSearchInfo(plot=True,suf=''):
     si=np.load(path+'si.npy')
     if event<0:
@@ -166,7 +178,7 @@ def plotSearchInfo(plot=True,suf=''):
         plt.ylim([0,0.3])
 
         plt.figure()
-        dur = si[:,5]-D[:,1]
+        dur = si[:,5]-si[:,1]
         plt.hist(dur,bins=np.linspace(0,150,41),normed=True)
         plt.xlabel('Saccade Duration in ms')
         plt.xlim([0,150])
@@ -472,7 +484,7 @@ def plotTimeVsAgcount():
         trackxy=pickle.load(f);f.close()
         ti=np.load(path+'ti.npy') 
         txy=_computeAgTime(trackxy,ti)
-
+        
         for i in range(2):
             for k in range(len(evs[i])+1):
                 if k==len(evs[i]): sel=evs[i][-1]<ti[:,1]
@@ -561,8 +573,9 @@ def computeTrackInfo():
         f=open(path+'trackxy.pickle','rb')
         trackxy=pickle.load(f);f.close()
         txy=_computeAgTime(trackxy,ti)
-        dist=[];dirch=[];gs=[];trajs=[]
+        dist=[];dirch=[];gs=[];trajs=[];nrags=[]
         for j in range(len(txy)):
+            nrags.append(len(txy[j]))
             for some in [trajs,dist,dirch]: some.append([[],[],[],[]])          
             g=np.array(trackxy[j][2])
             g=g.reshape([g.size/3,3])
@@ -589,6 +602,8 @@ def computeTrackInfo():
                 dirch[j][0].append(dchv)
                 dist[j][0].append(dst)
                 trajs[j][0].append(trj)
+        nrags=np.array(nrags)
+        print vp,(nrags==1).mean(),(nrags==2).mean(),(nrags>2).mean()
         np.save(path+'trackDist.npy',dist)
         np.save(path+'trackDirch.npy',dirch)
         np.save(path+'trackGaze.npy',gs)
