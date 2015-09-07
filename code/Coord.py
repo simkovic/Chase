@@ -548,7 +548,6 @@ def plotAgdist():
     plt.savefig(figpath+'trackAgdist')
     
 def computeTrackInfo():
-    ''' '''
     def _hlpfun(atraj,gaze,phiold,tphi,ttraj):           
         dchv=np.int32(np.linalg.norm(np.diff(atraj,2,axis=0),axis=1)>0.0001)
         atraj-=gaze[:atraj.shape[0],:]
@@ -745,8 +744,6 @@ def codingComparison():
     print ndarray2latextable(np.array(out))
              
 if __name__ == '__main__':
-    codingComparison()
-    bla
     for event in range(0,3)+range(96,100):
         for vpl in range(1,5):
             initVP(vpl=vpl,evl=event)
@@ -760,3 +757,4 @@ if __name__ == '__main__':
     computeMeanPF()
     computeTrackInfo()
     createIdealObserver()
+    codingComparison()

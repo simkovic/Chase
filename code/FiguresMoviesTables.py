@@ -934,50 +934,36 @@ def svmComparison():
     plt.ylabel('Time to Saccade in Sec.')
     plt.savefig(figpath+'svmComparison',dpi=DPI,bbox_inches='tight')
     
-
-
 if __name__=='__main__':
-    #plotScore(999,1,pcs=4,scs=0)
-    #plotTrack(MOVIE=False)
-    #plotPCvp(999,1)
-    #plotBTpc()
-    #tabLatent(97,pcs=5)
-    #plotPC1rail()
-    plotPCvp(999,1)
-    bla
-    
     
     # to create figures run
-    plotPC1rail()
-    plotBehData()
-    plotPC1rail()
-    svmComparison()
-    plotBTpc()
-    plotTrack(MOVIE=False)
-    plotVel()
-    plotPCvp(999,1)
+    # generation of figure 1 was not automated 
+    plotBehData()# figures 2, 3
+    plotBTpc()# figure 4
+    plotPC1rail()# figure 5
+    svmComparison() # figure 6
+    plotTrack(MOVIE=False)# figures 7, 8
+    plotVel() # figure 9
+    plotPCvp(999,1) # figure 10
     
-    from ReplayData import compareCoding
-    compareCoding(vp=2,block=18,cids=[0,1,2,4])
-
     # to create movies run
-    pcAddition()
-    plotBTmean()
-    plotCoeff(97)
-    plotCoeff(0)
-    plotCoeff(1)
-    plotTrack()
-    svmPlotExtrema()
-    plotScore(999,1,pcs=4,scs=0)
+    plotCoeff(97) # movie 3
+    pcAddition() # movie 4
+    plotCoeff(0)# movie 5
+    plotCoeff(1) # movie 6
+    svmPlotExtrema() # movie 7
+    plotTrack() # movies 8, 9
+    plotScore(999,1,pcs=4,scs=0) # movie 11
     
     from ReplayData import replayTrial
     #note the following trials will be displayed but not saved as movies
-    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#mov01
-    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#mov02
-    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#mov10
-    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#mov11
-    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#mov12
-    # to create tables run
+    replayTrial(vp =1,block=11,trial=7,tlag=0.0,coderid=4)#movie 1
+    replayTrial(vp =2,block=2,trial=19,tlag=0.0,coderid=4)#movie 2
+    replayTrial(vp =1,block=10,trial=9,tlag=0.0,coderid=4)#movie 10
+    replayTrial(vp =3,block=1,trial=12,tlag=0.0,coderid=4)#movie 12
+    replayTrial(vp =3,block=1,trial=7,tlag=0.0,coderid=4)#movie 13
+    
+    # to compute values for the tables run
     si2tex()
     tabLatent(0,pcs=5)
     tabLatent(1,pcs=5)

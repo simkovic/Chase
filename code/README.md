@@ -36,9 +36,9 @@ Dependencies
 
 * [PyStan](http://pystan.readthedocs.org/en/latest/) for statistical inference
 
-* [Eyelink routines](http://github.com/simkovic/eyetracking/blob/master/Eyelink.py) to run eyetracking experiment
+* [Eyelink routines](http://github.com/simkovic/eyetracking/releases/tag/pursuittrackschase) to run eyetracking experiment
 
-* [matustools](https://github.com/simkovic/matustools) to reproduce the figures
+* [matustools](http://github.com/simkovic/matustools/releases/tag/pursuittrackschase) to reproduce the figures
 
 * [Libsvm](http://www.csie.ntu.edu.tw/~cjlin/libsvm/)
 
@@ -49,8 +49,8 @@ Looking to Reuse Code?
 
 The code in this repository is meant as an documentation for the published research. The code has not been developed since the publication and may no longer work with the latest versions of its dependencies (such as Psychopy or PyStan). If you are interested in an maintained and (hopefully) up-to-date version of my code please have a look at the following repositories:
 
-* [goal-directed motion toolkit](https://github.com/simkovic/GoaldirectedMotionPsychoexperiments) to create Stimuli and run Experiments
+* [goal-directed motion toolkit](http://github.com/simkovic/GoaldirectedMotionPsychoexperiments) to create Stimuli and run Experiments
 
-* [eyetracker](https://github.com/simkovic/eyetracking) to run Eyetracking experiments with Psychopy
+* [eyetracker](http://github.com/simkovic/eyetracking) to run Eyetracking experiments with Psychopy
 
-* [matusplotlib](https://github.com/simkovic/matusplotlib/) to plot figures
+* [matusplotlib](http://github.com/simkovic/matusplotlib/) to plot figures
