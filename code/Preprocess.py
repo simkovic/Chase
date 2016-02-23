@@ -20,12 +20,11 @@
 ## OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 ## THE SOFTWARE.
 
-import numpy as np
-import pylab as plt
+import warnings
+warnings.filterwarnings("ignore")
 from Settings import *
 import os,pickle
 from ETData import ETData, interpRange
-plt.ion()
 ##########################################################
 # helper functions
 def _isNumber(s):
@@ -45,7 +44,7 @@ def _reformat(trial,tstart,Qexp):
     if len(trial)==0: return np.zeros((0,7))
     trial=np.array(trial)
     ms=np.array(Qexp.monitor.getSizePix())/2.0
-    if type(trial) is type( () ): print 'error in readEdf'
+    if type(trial) is type( () ): print 'error in _reformat'
     trial[:,0]-=tstart
     trial[:,1]=Qexp.pix2deg(trial[:,1]-ms[0])
     trial[:,2]=-Qexp.pix2deg(trial[:,2]-ms[1])
@@ -288,10 +287,69 @@ def saveETinfo(vp=1,coderid=4,suf=''):
     pickle.dump(sacxy,f);f.close()
     np.save(path+'si%s.npy'%suf,si)
     np.save(path+'pi%s.npy'%suf,pi)
-    
+
+
+#######################################
+def savePredictors(data):
+    ''' compute velocity quantiles for each inter-saccade event
+    '''
+    import numpy as np
+    try:
+        #velquant=[[data.vp,data.block,data.trial]+(len(perc)-2)*[0]];
+        preds=[]
+        data.extractBasicEvents()
+        data.driftCorrection()
+        importFailed=data.importComplexEvents(coderid=4)
+        if importFailed: return [[-1]]
+        g=data.getGaze()
+        vel=data.getVelocity()
+        for si in range(len(data.sev)):
+            preds.append([data.vp,data.trial,data.sev[si][-1]])
+            if si+2<len(data.sev): e=data.sev[si+1][0]
+            else: e=-1
+            s=data.sev[si][1];d=e-s
+            tps=[s,s+d/4.,s+d/2.,s+3*d/4.,e]
+            tps=np.int32(np.round(tps))
+            for ti in range(len(tps)-1):
+                preds[-1].append(np.nanmedian(vel[tps[ti]:tps[ti+1]]))
+                dist=np.nanmedian(data.dist[tps[ti]:tps[ti+1],:],0)
+                di=np.argsort(dist)[:4]#take four nearest agents
+                preds[-1].extend(dist[di])
+                dev=np.abs(data.dev[tps[ti]:tps[ti+1],:])
+                dev=np.nanmedian(dev[:,di],0)
+                preds[-1].extend(dev)
+        return preds   
+    except:
+        print 'Error at vp %d b %d t %d'%(data.vp,data.block,data.trial)
+        raise   
+def savePredictorsScript(suf=''):
+    from multiprocessing import Pool
+    pool=Pool(8)
+    vpn=[1,2,3,4];
+    blocks=range(1,24);
+    data=[]
+    for vp in vpn:
+        for b in blocks:
+            try:
+                dt=readEyelink(vp,b)
+                for i in range(0,len(dt)):
+                    if dt[i].ts>=0: data.append(dt[i])
+            except IOError:
+                print 'vp %d, block %d is missing'%(vp,b)
+                continue
+    print 'savePredictorsScript:Start'
+    #res=dview.map_sync(savePredictors,data)
+    res=pool.map(savePredictors,data)
+    print 'savePredictorsScript:Finished'
+    for vp in vpn:
+        path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
+        out=filter(lambda x: x[0][0]==vp,res)
+        f=open(path+'preds%s.pickle'%suf,'wb')
+        pickle.dump(out,f);f.close()             
     
 if __name__ == '__main__':
-    import sys
-    vp=int(sys.argv[1])
-    coder=int(sys.argv[2])
-    saveETinfo(vp=vp,coderid=coder,suf='coder%d'%coder)
+    #import sys
+    #vp=int(sys.argv[1])
+    #coder=int(sys.argv[2])
+    #saveETinfo(vp=vp,coderid=coder,suf='coder%d'%coder)
+    savePredictorsScript(suf='MA')

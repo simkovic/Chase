@@ -420,7 +420,7 @@ class ETData():
 
 ############################################################
 # drift correction
-    def driftCorrection(self,jump=0):
+    def driftCorrection(self,jump=0,verbose=False):
         """ performs drift correction for each eye and axis
             separately based on the fixation location immediately
             preceding the trial onset
@@ -429,19 +429,19 @@ class ETData():
         """
         s= '\tt= %d, '%(self.trial)
         kk=(np.diff(self.gaze[:,0])>8).nonzero()[0]
-        if len(kk)>0: print s, 'LAG >8, ',kk, self.gaze[kk+1,0]-self.gaze[kk,0], self.gaze[kk,3], self.gaze[kk,6]
+        if len(kk)>0 and verbose: print s, 'LAG >8, ',kk, self.gaze[kk+1,0]-self.gaze[kk,0], self.gaze[kk,3], self.gaze[kk,6]
         dif=np.isnan(self.gaze[:,1]).sum()-np.isnan(self.gaze[:,4]).sum()
-        if self.focus==LEFTEYE and dif>0:
-            print s,' right eye has more data '%dif
-        if self.focus==RIGHTEYE and dif<0:
-            print s,' left eye has more data '% dif
+        if verbose:
+            if self.focus==LEFTEYE and dif>0:
+                print s,' right eye has more data '%dif
+            if self.focus==RIGHTEYE and dif<0:
+                print s,' left eye has more data '% dif
 
-        if len(self.calib)>0:
-            if self.calib[-1][0][2]<1.5 and self.calib[-1][1][2]<1.5:
-                print s,'calibration good ',len(self.calib)
-            else: print s, 'calibration BAD',self.calib[-1]
-        
-        if self.ts==-1: print  s, 'online dcorr failed'
+            if len(self.calib)>0:
+                if self.calib[-1][0][2]<1.5 and self.calib[-1][1][2]<1.5:
+                    print s,'calibration good ',len(self.calib)
+                else: print s, 'calibration BAD',self.calib[-1]
+            if self.ts==-1: print  s, 'online dcorr failed'
         if isinstance(jump,(int,long)) and jump==-1: 
             print 'skipping drift correction'
             self.dcfix=[0,0]
@@ -458,7 +458,7 @@ class ETData():
                 for j in [1,4,2,5]:
                     dif=self.gaze[(h+10):(h+40),j].mean()
                     self.gaze[:,j]-=dif
-            else: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
+            elif verbose: print s,'DRIFT CORRECTION FAILED', np.sum(isFix[-50:])
         else: 
                 self.gaze[:,[1,2]]-=np.array(jump,ndmin=2)
                 self.gaze[:,[4,5]]-=np.array(jump,ndmin=2)
@@ -566,6 +566,7 @@ class ETData():
             in self.track
             puts them into self.search which is a list similart to self.track'''
         from copy import copy
+        #assert len(filter(lambda x: x[-1]==3,self.events))==len(self.sev)
         for tr in self.track: tr.extend([[],[]])
         self.search=[];tracked=False
         for k in range(0,len(self.events)-1):# go through all basic events
@@ -586,6 +587,13 @@ class ETData():
                     temp=copy(self.events[k][:-1])
                     temp.extend([self.events[k+1][-1]])
                     self.search.append(temp)
+                for m in range(len(self.sev)):
+                    if len(self.sev[m])==4: self.sev[m].append(0)
+                    if (self.sev[m][0]==self.events[k][0] 
+                        and self.sev[m][1]==self.events[k][1]):
+                        self.sev[m][-1]=int(tracked)
+                    
+
 
                 
     def extractComplexEvents(self):
@@ -692,10 +700,12 @@ class ETData():
                 for k in tr[-2]: fs.append([k[2],k[5]])
                 self.track.append([tr[2],tr[5],tr[-3],fs])
             self.extractSearch()
+            return 0
         except IOError:
             try: self.track # dont overwrite existing track
             except: self.track=None;self.search=None # avoid unknown attribute error
-            print 'import of complex events failed'
+            print 'vp %d b %d t %d import of complex events failed'%(self.vp,self.block,self.trial)
+            return 1
     def exportEvents(self):
         ''' exports events to text file'''
         out=[]
