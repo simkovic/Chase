@@ -308,7 +308,7 @@ class ETData():
                 5 - right eye y, 6 - right eye pupil size
             calib - calibration info
             t0 - tuple with information on trial start and trial end
-            info - [subject id, block id, trial id, True if both eyes]
+            info - [subject id, block id, trial id, hz, dominant eye]
             recTime - string with recording time in H:M:S format
             fs - ids of the trajectory frames corresponding to the gaze data
             focus - dominant eye, if BINOCULAR eyes will be averaged
@@ -330,6 +330,9 @@ class ETData():
         #m=min(self.fs.shape[0],fsa.shape[0])
         #print np.round(np.max(np.abs(self.fs[:m,:2]-fsa[:m,:])),1), self.t0[1]-self.t0[0]
         self.focus=focus
+        if self.gaze.shape[1]==4: 
+            self.focus=LEFTEYE
+            self.gaze=np.concatenate([self.gaze,self.gaze[:,1:]],axis=1)
         if self.t0[0]>=0: self.ts=min((dat[:,0]>(self.t0[0])).nonzero()[0])
         else: self.ts=-1
         #print 'hhh',self.t0, self.ts
@@ -864,7 +867,7 @@ class ETData():
     def getGaze(self,phase=1,hz=None):
         ''' returns gaze information
             2d ndarray (sample size x 9), columns give
-            0-time,1-left eye x, 2 - left eye y,
+            0-time in ms,1-left eye x, 2 - left eye y,
             3 - left eye pupil size, 4 - right eye x,
             5 - right eye y, 6 - right eye pupil size
             7 - gaze point left, 8 - gaze point right

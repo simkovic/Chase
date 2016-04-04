@@ -290,24 +290,48 @@ def saveETinfo(vp=1,coderid=4,suf=''):
 
 
 #######################################
-def savePredictors(data):
+def savePredictors(indata):
     ''' compute velocity quantiles for each inter-saccade event
     '''
     import numpy as np
+    data,coderid,gazeLag=indata
     try:
-        #velquant=[[data.vp,data.block,data.trial]+(len(perc)-2)*[0]];
         preds=[]
+        coords=[]
         data.extractBasicEvents()
         data.driftCorrection()
-        importFailed=data.importComplexEvents(coderid=4)
-        if importFailed: return [[-1]]
-        g=data.getGaze()
+        if coderid!=-1: 
+            importFailed=data.importComplexEvents(coderid=coderid)
+            if importFailed: return [[data.vp,-1]]
+        g=data.getGaze();totdur=float(g.shape[0])
+        hz=100#hz of the coordinate output
+        padstart=20# insert nans at start to allow lag
+        if gazeLag>=0: 
+            gg=data.getGaze(hz=hz)[:,np.newaxis,[7,8]]
+            tr=data.getTraj(hz=hz)
+            mnn=min(gg.shape[0],tr.shape[0])
+            tt=data.getGaze(hz=hz)[:mnn,0]
+            gg=gg[:mnn,:,:];tr=tr[:mnn,:,:]
         vel=data.getVelocity()
         for si in range(len(data.sev)):
-            preds.append([data.vp,data.trial,data.sev[si][-1]])
             if si+2<len(data.sev): e=data.sev[si+1][0]
             else: e=-1
             s=data.sev[si][1];d=e-s
+            if g[s,0]-gazeLag<0 and g[e,0]-gazeLag<=0: continue
+            preds.append([data.vp,data.block,data.trial,
+                data.sev[si][-1],si,s,d,s/totdur,d/totdur])
+            if gazeLag>=0: 
+                sel1=np.logical_and(tt>(g[s,0]),tt<(g[e,0]))
+                sel2=np.logical_and(tt>(g[s,0]-gazeLag),tt<(g[e,0]-gazeLag))
+                #print '1',sel1.sum(),sel2.sum()
+                trt=tr[sel2,:,:];
+                #print '2',trt.shape
+                trt=trt[:min(sel2.sum(),sel1.sum()),:,:]
+                #print '3',trt.shape
+                temp=np.ones((sel1.sum(),14,2))*np.nan
+                #print '4',temp.shape
+                temp[-sel2.sum():,:,:]=trt
+                coords.append(np.concatenate([gg[sel1,:,:],temp],axis=1))
             tps=[s,s+d/4.,s+d/2.,s+3*d/4.,e]
             tps=np.int32(np.round(tps))
             for ti in range(len(tps)-1):
@@ -318,38 +342,57 @@ def savePredictors(data):
                 dev=np.abs(data.dev[tps[ti]:tps[ti+1],:])
                 dev=np.nanmedian(dev[:,di],0)
                 preds[-1].extend(dev)
-        return preds   
+        if len(preds): 
+            if gazeLag>=0: return [preds,coords]
+            else: return [preds,[]]
+        else: return [[[data.vp,-1]],[]]
     except:
         print 'Error at vp %d b %d t %d'%(data.vp,data.block,data.trial)
         raise   
-def savePredictorsScript(suf=''):
+def savePredictorsScript(vpn,suf='',coderid=4,maxblocks=24,gazeLag=-1):
+    ''' gazeLag - lag between gaze and the agents' movement 
+                -1 coordinates will not be saved
+                >=0v specifies lag in milliseconds'''
     from multiprocessing import Pool
     pool=Pool(8)
-    vpn=[1,2,3,4];
-    blocks=range(1,24);
+    blocks=range(1,maxblocks);
     data=[]
     for vp in vpn:
         for b in blocks:
             try:
                 dt=readEyelink(vp,b)
                 for i in range(0,len(dt)):
-                    if dt[i].ts>=0: data.append(dt[i])
+                    if dt[i].ts>=0: data.append([dt[i],coderid,gazeLag])
             except IOError:
                 print 'vp %d, block %d is missing'%(vp,b)
                 continue
     print 'savePredictorsScript:Start'
-    #res=dview.map_sync(savePredictors,data)
     res=pool.map(savePredictors,data)
+    #res=map(savePredictors,data)
     print 'savePredictorsScript:Finished'
+
     for vp in vpn:
-        path=os.getcwd().rstrip('code')+'evaluation/vp%03d/'%vp
-        out=filter(lambda x: x[0][0]==vp,res)
-        f=open(path+'preds%s.pickle'%suf,'wb')
-        pickle.dump(out,f);f.close()             
+        path=os.getcwd().rstrip('code')+'evaluation/'
+        out=filter(lambda x: x[0][0][0]==vp,res)
+        if not len(out): continue
+        l0=float(len(out))
+        out=filter(lambda x: x[0][0][1]!=-1,out)
+        print 'vp {}prop of trials with no sac event: {:.3f}'.format(vp,(l0-len(out))/l0)
+        preds=[];coords=[]
+        for k in range(len(out)):
+            preds.append(out[k][0])
+            coords.append(out[k][1])
+            if len(out[k][0])!=len(out[k][1]): print 'vp {}, coords!=preds'.format(vp)
+        f=open(path+'vp%03d/predictors%s.pickle'%(vp,suf),'wb')
+        pickle.dump(preds,f);f.close()
+        if gazeLag>=0:
+            f=open(path+'vp%03d/coords%s.pickle'%(vp,suf),'wb')
+            pickle.dump(coords,f);f.close()             
     
 if __name__ == '__main__':
     #import sys
     #vp=int(sys.argv[1])
     #coder=int(sys.argv[2])
     #saveETinfo(vp=vp,coderid=coder,suf='coder%d'%coder)
-    savePredictorsScript(suf='MA')
+    #savePredictorsScript(range(1,5))
+    savePredictorsScript(range(20,70),coderid=-1,maxblocks=4,gazeLag=130)

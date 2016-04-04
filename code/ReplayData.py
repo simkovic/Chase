@@ -659,7 +659,7 @@ def missingTEfiles(vp=1):
 if __name__ == '__main__':
     RH=0 # set right handed (1) or left handed (0) layout
     
-    replayTrial(vp =20,block=1,trial=0,tlag=0.0,coderid=0)
+    replayTrial(vp =20,block=2,trial=16,tlag=0.0,coderid=0)
     '''usage:
         space - stop/resume replay
         q - skip backwards 10 frames
